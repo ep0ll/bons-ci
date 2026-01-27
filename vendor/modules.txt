@@ -4,82 +4,51 @@
 ## explicit; go 1.18
 # github.com/Microsoft/go-winio v0.6.2
 ## explicit; go 1.21
-github.com/Microsoft/go-winio
-github.com/Microsoft/go-winio/internal/fs
-github.com/Microsoft/go-winio/internal/socket
-github.com/Microsoft/go-winio/internal/stringbuffer
-github.com/Microsoft/go-winio/pkg/bindfilter
-github.com/Microsoft/go-winio/pkg/guid
-github.com/Microsoft/go-winio/vhd
 # github.com/Microsoft/hcsshim v0.14.0-rc.1
 ## explicit; go 1.23.0
-github.com/Microsoft/hcsshim
-github.com/Microsoft/hcsshim/computestorage
-github.com/Microsoft/hcsshim/internal/cow
-github.com/Microsoft/hcsshim/internal/hcs
-github.com/Microsoft/hcsshim/internal/hcs/schema1
-github.com/Microsoft/hcsshim/internal/hcs/schema2
-github.com/Microsoft/hcsshim/internal/hcserror
-github.com/Microsoft/hcsshim/internal/hns
-github.com/Microsoft/hcsshim/internal/interop
-github.com/Microsoft/hcsshim/internal/jobobject
-github.com/Microsoft/hcsshim/internal/log
-github.com/Microsoft/hcsshim/internal/logfields
-github.com/Microsoft/hcsshim/internal/longpath
-github.com/Microsoft/hcsshim/internal/memory
-github.com/Microsoft/hcsshim/internal/mergemaps
-github.com/Microsoft/hcsshim/internal/oc
-github.com/Microsoft/hcsshim/internal/protocol/guestrequest
-github.com/Microsoft/hcsshim/internal/queue
-github.com/Microsoft/hcsshim/internal/safefile
-github.com/Microsoft/hcsshim/internal/security
-github.com/Microsoft/hcsshim/internal/timeout
-github.com/Microsoft/hcsshim/internal/vmcompute
-github.com/Microsoft/hcsshim/internal/wclayer
-github.com/Microsoft/hcsshim/internal/winapi
-github.com/Microsoft/hcsshim/osversion
 # github.com/containerd/cgroups v1.1.0
 ## explicit; go 1.17
 # github.com/containerd/cgroups/v3 v3.1.2
 ## explicit; go 1.22.0
-github.com/containerd/cgroups/v3/cgroup1/stats
 # github.com/containerd/containerd v1.7.30
 ## explicit; go 1.24.0
 # github.com/containerd/containerd/api v1.10.0
 ## explicit; go 1.23.0
 github.com/containerd/containerd/api/types
+github.com/containerd/containerd/api/types/transfer
 # github.com/containerd/containerd/v2 v2.2.1
 ## explicit; go 1.24.3
 github.com/containerd/containerd/v2/core/content
-github.com/containerd/containerd/v2/core/diff
 github.com/containerd/containerd/v2/core/images
-github.com/containerd/containerd/v2/core/mount
-github.com/containerd/containerd/v2/core/snapshots
-github.com/containerd/containerd/v2/core/unpack
-github.com/containerd/containerd/v2/internal/cleanup
-github.com/containerd/containerd/v2/internal/kmutex
+github.com/containerd/containerd/v2/core/remotes
+github.com/containerd/containerd/v2/core/remotes/docker
+github.com/containerd/containerd/v2/core/remotes/docker/auth
+github.com/containerd/containerd/v2/core/remotes/docker/config
+github.com/containerd/containerd/v2/core/remotes/errors
+github.com/containerd/containerd/v2/core/streaming
+github.com/containerd/containerd/v2/core/transfer
+github.com/containerd/containerd/v2/core/transfer/plugins
+github.com/containerd/containerd/v2/core/transfer/registry
+github.com/containerd/containerd/v2/core/transfer/streaming
+github.com/containerd/containerd/v2/internal/fsverity
 github.com/containerd/containerd/v2/internal/lazyregexp
 github.com/containerd/containerd/v2/internal/randutil
 github.com/containerd/containerd/v2/pkg/archive/compression
 github.com/containerd/containerd/v2/pkg/filters
+github.com/containerd/containerd/v2/pkg/httpdbg
 github.com/containerd/containerd/v2/pkg/kernelversion
 github.com/containerd/containerd/v2/pkg/labels
-github.com/containerd/containerd/v2/pkg/protobuf/proto
-github.com/containerd/containerd/v2/pkg/sys
+github.com/containerd/containerd/v2/pkg/reference
 github.com/containerd/containerd/v2/pkg/tracing
+github.com/containerd/containerd/v2/plugins/content/local
+github.com/containerd/containerd/v2/version
 # github.com/containerd/continuity v0.4.5
 ## explicit; go 1.21
-github.com/containerd/continuity/devices
-github.com/containerd/continuity/fs
-github.com/containerd/continuity/sysx
 # github.com/containerd/errdefs v1.0.0
 ## explicit; go 1.20
 github.com/containerd/errdefs
 # github.com/containerd/errdefs/pkg v0.3.0
 ## explicit; go 1.22
-github.com/containerd/errdefs/pkg/errgrpc
-github.com/containerd/errdefs/pkg/internal/cause
-github.com/containerd/errdefs/pkg/internal/types
 # github.com/containerd/fifo v1.1.0
 ## explicit; go 1.18
 # github.com/containerd/log v0.1.0
@@ -97,6 +66,7 @@ github.com/containerd/typeurl/v2
 ## explicit; go 1.18
 # github.com/distribution/reference v0.6.0
 ## explicit; go 1.20
+github.com/distribution/reference
 # github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c
 ## explicit
 # github.com/felixge/httpsnoop v1.0.4
@@ -114,7 +84,6 @@ github.com/go-logr/stdr
 github.com/gogo/protobuf/proto
 # github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 ## explicit; go 1.20
-github.com/golang/groupcache/lru
 # github.com/golang/protobuf v1.5.4
 ## explicit; go 1.17
 # github.com/google/go-cmp v0.7.0
@@ -133,9 +102,9 @@ github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/moby/locker v1.0.1
 ## explicit; go 1.13
+github.com/moby/locker
 # github.com/moby/sys/mountinfo v0.7.2
 ## explicit; go 1.17
-github.com/moby/sys/mountinfo
 # github.com/moby/sys/sequential v0.6.0
 ## explicit; go 1.17
 # github.com/moby/sys/signal v0.7.1
@@ -144,32 +113,31 @@ github.com/moby/sys/mountinfo
 ## explicit; go 1.17
 # github.com/moby/sys/userns v0.1.0
 ## explicit; go 1.21
-github.com/moby/sys/userns
 # github.com/opencontainers/go-digest v1.0.0
 ## explicit; go 1.13
 github.com/opencontainers/go-digest
 # github.com/opencontainers/image-spec v1.1.1
 ## explicit; go 1.18
-github.com/opencontainers/image-spec/identity
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
 # github.com/opencontainers/runtime-spec v1.3.0
 ## explicit
 # github.com/opencontainers/selinux v1.13.1
 ## explicit; go 1.19
+# github.com/pelletier/go-toml/v2 v2.2.4
+## explicit; go 1.21.0
+github.com/pelletier/go-toml/v2
+github.com/pelletier/go-toml/v2/internal/characters
+github.com/pelletier/go-toml/v2/internal/danger
+github.com/pelletier/go-toml/v2/internal/tracker
+github.com/pelletier/go-toml/v2/unstable
 # github.com/pkg/errors v0.9.1
 ## explicit
-github.com/pkg/errors
 # github.com/sirupsen/logrus v1.9.3
 ## explicit; go 1.13
 github.com/sirupsen/logrus
 # go.opencensus.io v0.24.0
 ## explicit; go 1.13
-go.opencensus.io
-go.opencensus.io/internal
-go.opencensus.io/trace
-go.opencensus.io/trace/internal
-go.opencensus.io/trace/tracestate
 # go.opentelemetry.io/auto/sdk v1.1.0
 ## explicit; go 1.22.0
 go.opentelemetry.io/auto/sdk
@@ -214,27 +182,16 @@ golang.org/x/sync/semaphore
 ## explicit; go 1.24.0
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-golang.org/x/sys/windows/registry
 # golang.org/x/text v0.31.0
 ## explicit; go 1.24.0
 # google.golang.org/genproto v0.0.0-20231211222908-989df2bf70f3
 ## explicit; go 1.19
 # google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b
 ## explicit; go 1.23.0
-google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.76.0
 ## explicit; go 1.24.0
-google.golang.org/grpc/codes
-google.golang.org/grpc/connectivity
-google.golang.org/grpc/grpclog
-google.golang.org/grpc/grpclog/internal
-google.golang.org/grpc/internal
-google.golang.org/grpc/internal/status
-google.golang.org/grpc/serviceconfig
-google.golang.org/grpc/status
 # google.golang.org/protobuf v1.36.10
 ## explicit; go 1.23
-google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
 google.golang.org/protobuf/internal/descfmt
@@ -242,7 +199,6 @@ google.golang.org/protobuf/internal/descopts
 google.golang.org/protobuf/internal/detrand
 google.golang.org/protobuf/internal/editiondefaults
 google.golang.org/protobuf/internal/encoding/defval
-google.golang.org/protobuf/internal/encoding/json
 google.golang.org/protobuf/internal/encoding/messageset
 google.golang.org/protobuf/internal/encoding/tag
 google.golang.org/protobuf/internal/encoding/text
@@ -259,7 +215,6 @@ google.golang.org/protobuf/internal/set
 google.golang.org/protobuf/internal/strs
 google.golang.org/protobuf/internal/version
 google.golang.org/protobuf/proto
-google.golang.org/protobuf/protoadapt
 google.golang.org/protobuf/reflect/protoreflect
 google.golang.org/protobuf/reflect/protoregistry
 google.golang.org/protobuf/runtime/protoiface
