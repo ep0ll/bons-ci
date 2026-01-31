@@ -14,10 +14,10 @@ import (
 )
 
 type registryStore struct {
-	ref   string
+	ref      string
 	registry *registry.OCIRegistry
-	store content.Store
-	opts []registry.Opt
+	store    content.Store
+	opts     []registry.Opt
 }
 
 // Abort implements ContentStore.
@@ -53,8 +53,8 @@ func (r *registryStore) Info(ctx context.Context, dgst digest.Digest) (content.I
 	_, desc, err := reg.Resolve(ctx)
 	return content.Info{
 		Digest: desc.Digest,
-		Size: desc.Size,
-		Labels: desc.Annotations,	
+		Size:   desc.Size,
+		Labels: desc.Annotations,
 	}, err
 }
 

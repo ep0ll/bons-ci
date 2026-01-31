@@ -20,8 +20,8 @@ func NewStore(ref, root string, opts ...registry.Opt) (content.Store, error) {
 	}
 
 	return &registryStore{
-		ref: ref,
-		store: st,
+		ref:      ref,
+		store:    st,
 		registry: reg,
 	}, nil
 }

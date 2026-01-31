@@ -21,15 +21,15 @@ type FetcherAt interface {
 func RegistryReader(r io.ReadCloser, w content.Writer, size int64) (Reader, error) {
 	return &registryReader{
 		fetcher: r,
-		store: w,
-		size: size,
+		store:   w,
+		size:    size,
 	}, nil
 }
 
 type registryReader struct {
 	fetcher io.ReadCloser
-	size int64
-	store content.Writer
+	size    int64
+	store   content.Writer
 }
 
 // Close implements Reader.
@@ -42,7 +42,7 @@ func (r *registryReader) Close() error {
 
 // ReadAt implements Reader.
 func (r *registryReader) ReadAt(p []byte, off int64) (n int, err error) {
-	if reader, ok := r.fetcher.(interface{
+	if reader, ok := r.fetcher.(interface {
 		Seek(offset int64, whence int) (int64, error)
 		io.Reader
 	}); ok {
