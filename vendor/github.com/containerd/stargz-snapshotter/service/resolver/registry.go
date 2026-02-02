@@ -31,28 +31,32 @@ const defaultRequestTimeoutSec = 30
 
 // Config is config for resolving registries.
 type Config struct {
-	Host map[string]HostConfig `toml:"host"`
+	Host map[string]HostConfig `toml:"host" json:"host"`
+
+	// RequestTimeoutSec is the global default timeout (in seconds) for each request to the registry.
+	// This is used when a specific host's request_timeout_sec is not set.
+	RequestTimeoutSec int `toml:"request_timeout_sec" json:"request_timeout_sec"`
 }
 
 type HostConfig struct {
-	Mirrors []MirrorConfig `toml:"mirrors"`
+	Mirrors []MirrorConfig `toml:"mirrors" json:"mirrors"`
 }
 
 type MirrorConfig struct {
 
 	// Host is the hostname of the host.
-	Host string `toml:"host"`
+	Host string `toml:"host" json:"host"`
 
 	// Insecure is true means use http scheme instead of https.
-	Insecure bool `toml:"insecure"`
+	Insecure bool `toml:"insecure" json:"insecure"`
 
 	// RequestTimeoutSec is timeout seconds of each request to the registry.
 	// RequestTimeoutSec == 0 indicates the default timeout (defaultRequestTimeoutSec).
 	// RequestTimeoutSec < 0 indicates no timeout.
-	RequestTimeoutSec int `toml:"request_timeout_sec"`
+	RequestTimeoutSec int `toml:"request_timeout_sec" json:"request_timeout_sec"`
 
 	// Header are additional headers to send to the server
-	Header map[string]interface{} `toml:"header"`
+	Header map[string]interface{} `toml:"header" json:"header"`
 }
 
 type Credential func(string, reference.Spec) (string, string, error)
@@ -68,7 +72,11 @@ func RegistryHostsFromConfig(cfg Config, credsFuncs ...Credential) source.Regist
 			client.Logger = nil // disable logging every request
 			if h.RequestTimeoutSec >= 0 {
 				if h.RequestTimeoutSec == 0 {
-					client.HTTPClient.Timeout = defaultRequestTimeoutSec * time.Second
+					timeout := defaultRequestTimeoutSec
+					if cfg.RequestTimeoutSec > 0 {
+						timeout = cfg.RequestTimeoutSec
+					}
+					client.HTTPClient.Timeout = time.Duration(timeout) * time.Second
 				} else {
 					client.HTTPClient.Timeout = time.Duration(h.RequestTimeoutSec) * time.Second
 				}
@@ -120,7 +128,7 @@ func multiCredsFuncs(ref reference.Spec, credsFuncs ...Credential) func(string) 
 		for _, f := range credsFuncs {
 			if username, secret, err := f(host, ref); err != nil {
 				return "", "", err
-			} else if !(username == "" && secret == "") {
+			} else if username != "" || secret != "" {
 				return username, secret, nil
 			}
 		}
