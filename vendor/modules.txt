@@ -10,6 +10,9 @@ dario.cat/mergo
 # github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6
 ## explicit; go 1.20
 github.com/AdaLogics/go-fuzz-headers
+# github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20231105174938-2b5cbb29f3e2
+## explicit; go 1.18
+github.com/AdamKorcz/go-118-fuzz-build/testing
 # github.com/KarpelesLab/reflink v1.0.1
 ## explicit; go 1.19
 github.com/KarpelesLab/reflink
@@ -53,10 +56,23 @@ github.com/Microsoft/hcsshim/osversion
 github.com/Microsoft/hcsshim/pkg/ociwclayer
 # github.com/awslabs/soci-snapshotter v0.12.1
 ## explicit; go 1.24.0
+github.com/awslabs/soci-snapshotter/config
 github.com/awslabs/soci-snapshotter/fs/metrics/common
 github.com/awslabs/soci-snapshotter/fs/source
 github.com/awslabs/soci-snapshotter/idtools
 github.com/awslabs/soci-snapshotter/snapshot
+github.com/awslabs/soci-snapshotter/soci
+github.com/awslabs/soci-snapshotter/soci/store
+github.com/awslabs/soci-snapshotter/util/dbutil
+github.com/awslabs/soci-snapshotter/util/dockershell
+github.com/awslabs/soci-snapshotter/util/dockershell/exec
+github.com/awslabs/soci-snapshotter/util/ioutils
+github.com/awslabs/soci-snapshotter/util/ociutil
+github.com/awslabs/soci-snapshotter/util/testutil
+github.com/awslabs/soci-snapshotter/ztoc
+github.com/awslabs/soci-snapshotter/ztoc/compression
+github.com/awslabs/soci-snapshotter/ztoc/compression/fbs/zinfo
+github.com/awslabs/soci-snapshotter/ztoc/fbs/ztoc
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
@@ -96,20 +112,47 @@ github.com/containerd/cgroups/v3/cgroup2
 github.com/containerd/cgroups/v3/cgroup2/stats
 # github.com/containerd/containerd v1.7.29
 ## explicit; go 1.23.0
+github.com/containerd/containerd
+github.com/containerd/containerd/archive
 github.com/containerd/containerd/archive/compression
+github.com/containerd/containerd/archive/tarheader
+github.com/containerd/containerd/cio
+github.com/containerd/containerd/containers
 github.com/containerd/containerd/content
 github.com/containerd/containerd/content/local
+github.com/containerd/containerd/content/proxy
 github.com/containerd/containerd/contrib/seccomp/kernelversion
+github.com/containerd/containerd/defaults
+github.com/containerd/containerd/diff
+github.com/containerd/containerd/diff/proxy
 github.com/containerd/containerd/errdefs
+github.com/containerd/containerd/events
+github.com/containerd/containerd/events/exchange
 github.com/containerd/containerd/filters
 github.com/containerd/containerd/identifiers
 github.com/containerd/containerd/images
+github.com/containerd/containerd/images/archive
 github.com/containerd/containerd/labels
+github.com/containerd/containerd/leases
+github.com/containerd/containerd/leases/proxy
 github.com/containerd/containerd/metadata/boltutil
 github.com/containerd/containerd/mount
 github.com/containerd/containerd/namespaces
+github.com/containerd/containerd/oci
+github.com/containerd/containerd/pkg/cap
+github.com/containerd/containerd/pkg/cleanup
+github.com/containerd/containerd/pkg/deprecation
+github.com/containerd/containerd/pkg/dialer
+github.com/containerd/containerd/pkg/epoch
+github.com/containerd/containerd/pkg/kmutex
 github.com/containerd/containerd/pkg/randutil
 github.com/containerd/containerd/pkg/snapshotters
+github.com/containerd/containerd/pkg/streaming
+github.com/containerd/containerd/pkg/transfer
+github.com/containerd/containerd/pkg/transfer/proxy
+github.com/containerd/containerd/pkg/transfer/streaming
+github.com/containerd/containerd/pkg/unpack
+github.com/containerd/containerd/plugin
 github.com/containerd/containerd/protobuf
 github.com/containerd/containerd/protobuf/proto
 github.com/containerd/containerd/protobuf/types
@@ -119,8 +162,16 @@ github.com/containerd/containerd/remotes/docker
 github.com/containerd/containerd/remotes/docker/auth
 github.com/containerd/containerd/remotes/docker/schema1
 github.com/containerd/containerd/remotes/errors
+github.com/containerd/containerd/rootfs
+github.com/containerd/containerd/runtime/linux/runctypes
+github.com/containerd/containerd/sandbox
+github.com/containerd/containerd/sandbox/proxy
+github.com/containerd/containerd/services
+github.com/containerd/containerd/services/introspection
+github.com/containerd/containerd/services/warning
 github.com/containerd/containerd/snapshots
 github.com/containerd/containerd/snapshots/overlay/overlayutils
+github.com/containerd/containerd/snapshots/proxy
 github.com/containerd/containerd/snapshots/storage
 github.com/containerd/containerd/tracing
 github.com/containerd/containerd/version
@@ -369,6 +420,9 @@ github.com/docker/distribution/registry/client/auth/challenge
 ## explicit; go 1.18
 github.com/docker/docker-credential-helpers/client
 github.com/docker/docker-credential-helpers/credentials
+# github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c
+## explicit
+github.com/docker/go-events
 # github.com/docker/go-units v0.5.0
 ## explicit
 github.com/docker/go-units
@@ -417,6 +471,9 @@ github.com/gogo/protobuf/proto
 # github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 ## explicit; go 1.20
 github.com/golang/groupcache/lru
+# github.com/google/flatbuffers v25.9.23+incompatible
+## explicit
+github.com/google/flatbuffers/go
 # github.com/google/gnostic-models v0.7.0
 ## explicit; go 1.22
 github.com/google/gnostic-models/compiler
@@ -728,6 +785,7 @@ golang.org/x/time/rate
 google.golang.org/genproto/protobuf/field_mask
 # google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409
 ## explicit; go 1.24.0
+google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.78.0
 ## explicit; go 1.24.0
@@ -1140,6 +1198,23 @@ k8s.io/utils/lru
 k8s.io/utils/net
 k8s.io/utils/ptr
 k8s.io/utils/trace
+# oras.land/oras-go/v2 v2.6.0
+## explicit; go 1.23.0
+oras.land/oras-go/v2/content
+oras.land/oras-go/v2/content/oci
+oras.land/oras-go/v2/errdef
+oras.land/oras-go/v2/internal/container/set
+oras.land/oras-go/v2/internal/descriptor
+oras.land/oras-go/v2/internal/docker
+oras.land/oras-go/v2/internal/fs/tarfs
+oras.land/oras-go/v2/internal/graph
+oras.land/oras-go/v2/internal/ioutil
+oras.land/oras-go/v2/internal/manifestutil
+oras.land/oras-go/v2/internal/resolver
+oras.land/oras-go/v2/internal/spec
+oras.land/oras-go/v2/internal/status
+oras.land/oras-go/v2/internal/syncutil
+oras.land/oras-go/v2/registry
 # sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730
 ## explicit; go 1.23
 sigs.k8s.io/json

@@ -4,8 +4,8 @@ package soci
 
 import (
 	"github.com/awslabs/soci-snapshotter/snapshot"
-	// "github.com/awslabs/soci-snapshotter/snapshot/soci"
+	"github.com/awslabs/soci-snapshotter/soci"
 )
 
 var NewSnapshotter = snapshot.NewSnapshotter
-// var Converter = soci.ImageBuilder
+type Converter = soci.Index
