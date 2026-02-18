@@ -6,7 +6,7 @@ import (
 	"github.com/opencontainers/go-digest"
 )
 
-const DefaultBlobsPrefix    = "blobs/"
+const DefaultBlobsPrefix = "blobs/"
 
 func DigestToPath(dgst digest.Digest) (string, error) {
 	if err := dgst.Validate(); err != nil {

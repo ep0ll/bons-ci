@@ -138,24 +138,24 @@ func (b *b2Store) Update(ctx context.Context, info content.Info, fieldpaths ...s
 	maps.Copy(stat.UserMetadata, info.Labels)
 
 	uinfo, err := b.client.CopyObject(ctx, minio.CopyDestOptions{
-		Bucket: b.cfg.Bucket,
-		Object: object,
+		Bucket:       b.cfg.Bucket,
+		Object:       object,
 		ChecksumType: minio.ChecksumSHA256,
 		UserMetadata: stat.UserMetadata,
 	}, minio.CopySrcOptions{
-		Bucket: b.cfg.Bucket,
-		Object: object,
-		MatchETag: stat.ETag,
+		Bucket:             b.cfg.Bucket,
+		Object:             object,
+		MatchETag:          stat.ETag,
 		MatchModifiedSince: stat.LastModified,
-		VersionID: stat.VersionID,
+		VersionID:          stat.VersionID,
 	})
 
 	return content.Info{
-		Digest: info.Digest,
-		Size: uinfo.Size,
+		Digest:    info.Digest,
+		Size:      uinfo.Size,
 		CreatedAt: info.CreatedAt,
 		UpdatedAt: uinfo.LastModified,
-		Labels: stat.UserMetadata,
+		Labels:    stat.UserMetadata,
 	}, err
 }
 
@@ -175,7 +175,7 @@ func (b *b2Store) Walk(ctx context.Context, fn content.WalkFunc, fs ...string) e
 		if !slices.Contains(fs, b.tenant_prefixer.Trim(object.Key)) {
 			continue
 		}
-		
+
 		if object.Err != nil {
 			return object.Err
 		}

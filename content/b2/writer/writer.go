@@ -20,19 +20,19 @@ type Writer interface {
 }
 
 type writer struct {
-	offset   int64
-	size     int64
-	object   string
-	bucket   string
-	checksum digest.Digester
-	client   *minio.Client
-	reader *io.PipeReader
-	writer *io.PipeWriter
-	once sync.Once
-	ctx context.Context
-	cancel context.CancelCauseFunc
-	info *minio.UploadInfo
-	ref string
+	offset    int64
+	size      int64
+	object    string
+	bucket    string
+	checksum  digest.Digester
+	client    *minio.Client
+	reader    *io.PipeReader
+	writer    *io.PipeWriter
+	once      sync.Once
+	ctx       context.Context
+	cancel    context.CancelCauseFunc
+	info      *minio.UploadInfo
+	ref       string
 	StartedAt time.Time
 	UpdatedAt time.Time
 }
@@ -82,16 +82,16 @@ func (w *writer) Commit(ctx context.Context, size int64, expected digest.Digest,
 	maps.Copy(stat.UserMetadata, base.Labels)
 
 	_, err = w.client.CopyObject(ctx, minio.CopyDestOptions{
-		Bucket: w.info.Bucket,
-		Object: w.info.Key,
+		Bucket:       w.info.Bucket,
+		Object:       w.info.Key,
 		ChecksumType: minio.ChecksumSHA256,
 		UserMetadata: stat.UserMetadata,
 	}, minio.CopySrcOptions{
-		Bucket: w.info.Bucket,
-		Object: w.info.Key,
-		MatchETag: stat.ETag,
+		Bucket:             w.info.Bucket,
+		Object:             w.info.Key,
+		MatchETag:          stat.ETag,
 		MatchModifiedSince: stat.LastModified,
-		VersionID: stat.VersionID,
+		VersionID:          stat.VersionID,
 	})
 
 	return err
@@ -105,13 +105,13 @@ func (w *writer) Digest() digest.Digest {
 // Status implements Writer.
 func (w *writer) Status() (content.Status, error) {
 	st := content.Status{
-		Ref: w.ref,
-		Offset: w.offset,
-		Total: w.size,
-		Expected: w.Digest(),
+		Ref:       w.ref,
+		Offset:    w.offset,
+		Total:     w.size,
+		Expected:  w.Digest(),
 		StartedAt: w.StartedAt,
 	}
-	
+
 	if !w.UpdatedAt.IsZero() {
 		st.UpdatedAt = w.UpdatedAt
 	} else if w.info != nil {
@@ -135,7 +135,7 @@ func (w *writer) Write(p []byte) (n int, err error) {
 		w.offset += int64(len(p))
 		w.UpdatedAt = time.Now()
 	}
-	
+
 	go w.once.Do(func() {
 		defer func() {
 			if err := w.reader.Close(); err != nil {

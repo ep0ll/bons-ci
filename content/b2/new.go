@@ -18,10 +18,10 @@ import (
 )
 
 type b2Store struct {
-	client *minio.Client
-	cfg    config
+	client          *minio.Client
+	cfg             config
 	tenant_prefixer object_folder
-	store  content.Store
+	store           content.Store
 }
 
 type config struct {
@@ -78,9 +78,9 @@ func NewStore(attrs map[string]string, creds *credentials.Credentials) (S3Conten
 	}
 
 	return &b2Store{
-		client: minioClient,
-		cfg:    cfg,
-		store:  store,
+		client:          minioClient,
+		cfg:             cfg,
+		store:           store,
 		tenant_prefixer: obj,
 	}, err
 }
@@ -219,7 +219,7 @@ func GetConfig(attrs map[string]string) (config, error) {
 type object_folder struct {
 	BlobPath func(dgst digest.Digest) string
 	AsFolder func(folder ...string) string
-	Trim func(folder string) string
+	Trim     func(folder string) string
 }
 
 func RetriveTenantPrefix(cfg config) (object_folder, error) {

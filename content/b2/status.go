@@ -23,6 +23,7 @@ func adaptStatus(status content.Status) filters.Adaptor {
 }
 
 var adaptUpdate = adaptWalk
+
 func adaptWalk(info minio.ObjectInfo) filters.Adaptor {
 	return filters.AdapterFunc(func(fieldpath []string) (string, bool) {
 		if len(fieldpath) == 0 {

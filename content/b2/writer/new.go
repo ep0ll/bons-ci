@@ -51,18 +51,18 @@ func B2Writer(ctx context.Context, client *minio.Client, bucket string, opt ...O
 
 	gctx, cancel := context.WithCancelCause(ctx)
 	return &writer{
-		client: client,
-		bucket: bucket,
-		object: object,
-		ctx: gctx,
-		cancel: cancel,
-		once: sync.Once{},
-		reader: pr,
-		writer: pw,
-		offset: config.Offset,
-		size: config.Size,
-		checksum: config.checksum,
+		client:    client,
+		bucket:    bucket,
+		object:    object,
+		ctx:       gctx,
+		cancel:    cancel,
+		once:      sync.Once{},
+		reader:    pr,
+		writer:    pw,
+		offset:    config.Offset,
+		size:      config.Size,
+		checksum:  config.checksum,
 		StartedAt: time.Now(),
-		ref: config.ref,
+		ref:       config.ref,
 	}, nil
 }

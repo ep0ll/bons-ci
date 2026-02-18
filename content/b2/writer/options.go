@@ -7,12 +7,12 @@ import (
 )
 
 type opts struct {
-	Size int64
-	Offset int64
-	desc v1.Descriptor
+	Size     int64
+	Offset   int64
+	desc     v1.Descriptor
 	checksum digest.Digester
-	putOpts *minio.PutObjectOptions
-	ref string
+	putOpts  *minio.PutObjectOptions
+	ref      string
 }
 
 type Opts func(*opts) error
