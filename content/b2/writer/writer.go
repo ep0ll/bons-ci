@@ -35,28 +35,54 @@ type writer struct {
 	ref       string
 	StartedAt time.Time
 	UpdatedAt time.Time
+	done      chan struct{} // signals PutObject goroutine completion
+	putErr    error        // error from PutObject goroutine
 }
 
 // Close implements Writer.
 func (w *writer) Close() error {
-	return w.writer.Close()
+	// Close the pipe writer to signal end of stream to PutObject
+	if err := w.writer.Close(); err != nil {
+		return err
+	}
+
+	// Wait for PutObject to finish if it was started
+	select {
+	case <-w.done:
+	default:
+	}
+
+	return nil
 }
 
 // Commit implements Writer.
 func (w *writer) Commit(ctx context.Context, size int64, expected digest.Digest, opts ...content.Opt) error {
-	// Check whether read has already thrown an error
+	// Close the pipe writer to signal end of stream
 	if w.writer != nil {
-		if _, err := w.writer.Write([]byte{}); err != nil && !errors.Is(err, io.ErrClosedPipe) {
-			return fmt.Errorf("pipe error before commit: %w", err)
-		}
-		if err := w.writer.Close(); err != nil {
-			return fmt.Errorf("cannot commit on closed writer: %w", errdefs.ErrFailedPrecondition)
+		if err := w.writer.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+			return fmt.Errorf("cannot close writer for commit: %w", err)
 		}
 	}
 
-	predictedSize := w.size
-	if predictedSize == -1 {
-		predictedSize = w.info.Size
+	// Wait for PutObject goroutine to complete
+	select {
+	case <-w.done:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	// Check if PutObject had an error
+	if w.putErr != nil {
+		return fmt.Errorf("upload failed: %w", w.putErr)
+	}
+
+	if w.info == nil {
+		return fmt.Errorf("upload was not initiated: %w", errdefs.ErrFailedPrecondition)
+	}
+
+	predictedSize := w.offset
+	if w.size > 0 {
+		predictedSize = w.size
 	}
 
 	if size > 0 && predictedSize != size {
@@ -74,27 +100,36 @@ func (w *writer) Commit(ctx context.Context, size int64, expected digest.Digest,
 		}
 	}
 
-	stat, err := w.client.StatObject(ctx, w.info.Bucket, w.info.Key, minio.GetObjectOptions{})
-	if err != nil {
-		return err
+	// Update metadata on the uploaded object if labels are provided
+	if len(base.Labels) > 0 {
+		stat, err := w.client.StatObject(ctx, w.info.Bucket, w.info.Key, minio.GetObjectOptions{})
+		if err != nil {
+			return err
+		}
+
+		if stat.UserMetadata == nil {
+			stat.UserMetadata = make(map[string]string)
+		}
+		maps.Copy(stat.UserMetadata, base.Labels)
+
+		_, err = w.client.CopyObject(ctx, minio.CopyDestOptions{
+			Bucket:       w.info.Bucket,
+			Object:       w.info.Key,
+			ChecksumType: minio.ChecksumSHA256,
+			UserMetadata: stat.UserMetadata,
+		}, minio.CopySrcOptions{
+			Bucket:             w.info.Bucket,
+			Object:             w.info.Key,
+			MatchETag:          stat.ETag,
+			MatchModifiedSince: stat.LastModified,
+			VersionID:          stat.VersionID,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
-	maps.Copy(stat.UserMetadata, base.Labels)
-
-	_, err = w.client.CopyObject(ctx, minio.CopyDestOptions{
-		Bucket:       w.info.Bucket,
-		Object:       w.info.Key,
-		ChecksumType: minio.ChecksumSHA256,
-		UserMetadata: stat.UserMetadata,
-	}, minio.CopySrcOptions{
-		Bucket:             w.info.Bucket,
-		Object:             w.info.Key,
-		MatchETag:          stat.ETag,
-		MatchModifiedSince: stat.LastModified,
-		VersionID:          stat.VersionID,
-	})
-
-	return err
+	return nil
 }
 
 // Digest implements Writer.
@@ -128,27 +163,30 @@ func (w *writer) Truncate(size int64) error {
 
 // Write implements Writer.
 func (w *writer) Write(p []byte) (n int, err error) {
-	if n, err = w.writer.Write(p); err != nil {
+	// Start PutObject on first write (reads from the pipe reader)
+	w.once.Do(func() {
+		go func() {
+			defer close(w.done)
+			info, putErr := w.client.PutObject(w.ctx, w.bucket, w.object, w.reader, w.size, minio.PutObjectOptions{
+				ContentType: "application/octet-stream",
+			})
+			if putErr != nil {
+				w.putErr = putErr
+				w.cancel(putErr)
+				return
+			}
+			w.info = &info
+		}()
+	})
+
+	n, err = w.writer.Write(p)
+	if err != nil {
 		return n, err
-	} else {
-		w.checksum.Hash().Write(p[:n])
-		w.offset += int64(len(p))
-		w.UpdatedAt = time.Now()
 	}
 
-	go w.once.Do(func() {
-		defer func() {
-			if err := w.reader.Close(); err != nil {
-				w.cancel(err)
-			}
-		}()
-		info, err := w.client.PutObject(w.ctx, w.bucket, w.object, w.reader, w.size, minio.PutObjectOptions{
-			ContentType: "application/octet-stream",
-		})
-		if err != nil {
-			w.cancel(err)
-		}
-		w.info = &info
-	})
-	return n, err
+	w.checksum.Hash().Write(p[:n])
+	w.offset += int64(n)
+	w.UpdatedAt = time.Now()
+
+	return n, nil
 }

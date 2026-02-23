@@ -1,6 +1,6 @@
 package registry_repo
 
-import "github.com/pkg/errors"
+import "errors"
 
 var (
 	ErrInvalidRegistryRef     = errors.New("registry reference is invalid")

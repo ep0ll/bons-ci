@@ -1,6 +1,6 @@
 package registry
 
-import "github.com/pkg/errors"
+import "errors"
 
 var (
 	// ErrInvalidReference is returned when the reference cannot be parsed

@@ -2,7 +2,8 @@ package content
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"sync"
 
 	"github.com/containerd/containerd/v2/core/content"
 	digest "github.com/opencontainers/go-digest"
@@ -19,7 +20,8 @@ func (l *localFirstContentStore) Abort(ctx context.Context, ref string) error {
 		return err
 	}
 
-	l.registry.Abort(ctx, ref)
+	// Best-effort abort on registry — ignore errors (registry may not have this ref)
+	_ = l.registry.Abort(ctx, ref)
 
 	return nil
 }
@@ -32,7 +34,7 @@ func (l *localFirstContentStore) Delete(ctx context.Context, dgst digest.Digest)
 // Info implements content.Store.
 func (l *localFirstContentStore) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
 	if info, err := l.local.Info(ctx, dgst); err == nil {
-		return info, err
+		return info, nil
 	}
 
 	return l.registry.Info(ctx, dgst)
@@ -69,19 +71,93 @@ func (l *localFirstContentStore) Walk(ctx context.Context, fn content.WalkFunc, 
 }
 
 // Writer implements content.Store.
+// Returns a multiWriter writing to both local and registry when possible.
+// At minimum, the local writer must succeed.
 func (l *localFirstContentStore) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
-	var writers []content.Writer
 	lw, lerr := l.local.Writer(ctx, opts...)
-	if lerr == nil {
-		writers = append(writers, lw)
+	if lerr != nil {
+		return nil, fmt.Errorf("local writer: %w", lerr)
 	}
 
 	rw, rerr := l.registry.Writer(ctx, opts...)
-	if rerr == nil {
-		writers = append(writers, rw)
+	if rerr != nil {
+		// Registry writer failed, fall back to local-only
+		return lw, nil
 	}
 
-	return &multiWriter{writers: writers}, errors.Join(lerr, rerr)
+	return &multiWriter{writers: []content.Writer{lw, &secondaryWriter{Writer: rw}}}, nil
+}
+
+type secondaryWriter struct {
+	content.Writer
+	mu     sync.Mutex
+	failed bool
+}
+
+func (s *secondaryWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	failed := s.failed
+	s.mu.Unlock()
+
+	if failed {
+		return len(p), nil
+	}
+
+	n, err := s.Writer.Write(p)
+	if err != nil {
+		s.mu.Lock()
+		s.failed = true
+		s.mu.Unlock()
+		s.Writer.Close()
+		return len(p), nil
+	}
+	return n, nil
+}
+
+func (s *secondaryWriter) Commit(ctx context.Context, size int64, expected digest.Digest, opts ...content.Opt) error {
+	s.mu.Lock()
+	failed := s.failed
+	s.mu.Unlock()
+
+	if failed {
+		return nil
+	}
+
+	if err := s.Writer.Commit(ctx, size, expected, opts...); err != nil {
+		s.mu.Lock()
+		s.failed = true
+		s.mu.Unlock()
+		s.Writer.Close()
+	}
+	return nil
+}
+
+func (s *secondaryWriter) Truncate(size int64) error {
+	s.mu.Lock()
+	failed := s.failed
+	s.mu.Unlock()
+
+	if failed {
+		return nil
+	}
+	if err := s.Writer.Truncate(size); err != nil {
+		s.mu.Lock()
+		s.failed = true
+		s.mu.Unlock()
+		s.Writer.Close()
+	}
+	return nil
+}
+
+func (s *secondaryWriter) Close() error {
+	s.mu.Lock()
+	failed := s.failed
+	s.mu.Unlock()
+
+	if failed {
+		return nil
+	}
+	return s.Writer.Close()
 }
 
 var _ content.Store = &localFirstContentStore{}

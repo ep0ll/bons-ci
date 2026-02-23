@@ -29,6 +29,11 @@ func B2Writer(ctx context.Context, client *minio.Client, bucket string, opt ...O
 		config.Size = -1
 	}
 
+	// Always initialize checksum digester to prevent nil panics
+	if config.checksum == nil {
+		config.checksum = digest.Canonical.Digester()
+	}
+
 	var object string
 	if config.ref != "" {
 		dgst, err := digest.Parse(config.ref)
@@ -64,5 +69,6 @@ func B2Writer(ctx context.Context, client *minio.Client, bucket string, opt ...O
 		checksum:  config.checksum,
 		StartedAt: time.Now(),
 		ref:       config.ref,
+		done:      make(chan struct{}),
 	}, nil
 }

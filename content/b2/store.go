@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"slices"
 	"time"
 
 	"github.com/bons/bons-ci/content/b2/reader"
@@ -34,15 +33,25 @@ func (b *b2Store) Delete(ctx context.Context, dgst digest.Digest) error {
 }
 
 // Info implements S3ContentStore.
-func (b *b2Store) Info(ctx context.Context, dgst digest.Digest) (info content.Info, err error) {
+func (b *b2Store) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
 	attr, err := b.client.StatObject(ctx, b.cfg.Bucket, b.tenant_prefixer.BlobPath(dgst), minio.GetObjectOptions{})
-	if len(attr.UserMetadata) > 0 {
-		info.Labels = make(map[string]string)
-		for k, v := range attr.UserMetadata {
-			info.Labels[k] = v
-		}
+	if err != nil {
+		return content.Info{}, fmt.Errorf("stat object %s: %w", dgst, err)
 	}
 
+	info := content.Info{
+		Digest:    dgst,
+		Size:      attr.Size,
+		UpdatedAt: attr.LastModified,
+		Labels:    make(map[string]string),
+	}
+
+	// Copy user metadata as labels
+	for k, v := range attr.UserMetadata {
+		info.Labels[k] = v
+	}
+
+	// Add S3-specific metadata as labels
 	maps.Copy(info.Labels, map[string]string{
 		"storage": attr.StorageClass,
 		"etag":    attr.ETag,
@@ -52,10 +61,11 @@ func (b *b2Store) Info(ctx context.Context, dgst digest.Digest) (info content.In
 		"SHA1":    attr.ChecksumSHA1,
 	})
 
-	info.Digest = digest.Digest(attr.ChecksumSHA256)
-	info.Size = attr.Size
-	info.UpdatedAt = attr.LastModified
-	return info, err
+	if attr.ChecksumSHA256 != "" {
+		info.Digest = digest.Digest("sha256:" + attr.ChecksumSHA256)
+	}
+
+	return info, nil
 }
 
 func appendStatus(v minio.ObjectMultipartInfo) (content.Status, error) {
@@ -69,42 +79,46 @@ func appendStatus(v minio.ObjectMultipartInfo) (content.Status, error) {
 }
 
 // ListStatuses implements S3ContentStore.
-func (b *b2Store) ListStatuses(ctx context.Context, filters ...string) (st []content.Status, err error) {
-	if len(filters) > 0 {
-		for _, filter := range filters {
-			for v := range b.client.ListIncompleteUploads(ctx, b.cfg.Bucket, b.tenant_prefixer.AsFolder(filter), true) {
-				if s, err := appendStatus(v); err != nil {
-					return st, err
-				} else {
-					st = append(st, s)
-				}
-			}
-		}
+func (b *b2Store) ListStatuses(ctx context.Context, fs ...string) (st []content.Status, err error) {
+	prefix := b.tenant_prefixer.AsFolder()
 
-		return st, err
+	// If filters are provided, use containerd filter matching
+	filter, err := filters.ParseAll(fs...)
+	if err != nil {
+		return nil, err
 	}
 
-	info := b.client.ListIncompleteUploads(ctx, b.cfg.Bucket, b.tenant_prefixer.AsFolder(), true)
-	for v := range info {
-		if s, err := appendStatus(v); err != nil {
+	for v := range b.client.ListIncompleteUploads(ctx, b.cfg.Bucket, prefix, true) {
+		s, err := appendStatus(v)
+		if err != nil {
 			return st, err
-		} else {
-			st = append(st, s)
 		}
+
+		if len(fs) > 0 && !filter.Match(adaptStatus(s)) {
+			continue
+		}
+
+		st = append(st, s)
 	}
 
-	return st, err
+	return st, nil
 }
 
 // ReaderAt implements S3ContentStore.
 func (b *b2Store) ReaderAt(ctx context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
-	obj, err := b.client.GetObject(ctx, b.cfg.Bucket, desc.Digest.String(), minio.GetObjectOptions{})
+	blobPath := b.tenant_prefixer.BlobPath(desc.Digest)
+	obj, err := b.client.GetObject(ctx, b.cfg.Bucket, blobPath, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	stat, err := obj.Stat()
-	return reader.NewReader(obj, stat), err
+	if err != nil {
+		obj.Close()
+		return nil, err
+	}
+
+	return reader.NewReader(obj, stat), nil
 }
 
 // Status implements S3ContentStore.
@@ -113,7 +127,7 @@ func (b *b2Store) Status(ctx context.Context, ref string) (content.Status, error
 		return appendStatus(v)
 	}
 
-	return content.Status{}, fmt.Errorf("%s: %w", fmt.Sprintf("no incomplete uploads by given ref %q", ref), errdefs.ErrNotFound)
+	return content.Status{}, fmt.Errorf("no incomplete uploads by given ref %q: %w", ref, errdefs.ErrNotFound)
 }
 
 // Update implements S3ContentStore.
@@ -135,6 +149,9 @@ func (b *b2Store) Update(ctx context.Context, info content.Info, fieldpaths ...s
 
 	filter.Match(adaptUpdate(stat))
 
+	if stat.UserMetadata == nil {
+		stat.UserMetadata = make(map[string]string)
+	}
 	maps.Copy(stat.UserMetadata, info.Labels)
 
 	uinfo, err := b.client.CopyObject(ctx, minio.CopyDestOptions{
@@ -172,20 +189,16 @@ func (b *b2Store) Walk(ctx context.Context, fn content.WalkFunc, fs ...string) e
 	}
 
 	for object := range b.client.ListObjects(ctx, b.cfg.Bucket, opts) {
-		if !slices.Contains(fs, b.tenant_prefixer.Trim(object.Key)) {
-			continue
-		}
-
 		if object.Err != nil {
 			return object.Err
 		}
 
-		if !filter.Match(adaptWalk(object)) {
+		if len(fs) > 0 && !filter.Match(adaptWalk(object)) {
 			continue
 		}
 
 		// Extract digest from path
-		dgst, err := digestFromPath(object.Key)
+		dgst, err := digestFromPath(object.Key, b.tenant_prefixer)
 		if err != nil {
 			continue // Skip invalid entries
 		}

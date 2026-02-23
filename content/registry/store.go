@@ -2,6 +2,7 @@ package registry
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/distribution/reference"
 	digest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -50,16 +50,12 @@ func cacheInfo(r *registryStore, dgst digest.Digest, info content.Info) {
 
 // Abort implements ContentStore.
 func (r *registryStore) Abort(ctx context.Context, ref string) error {
-	ingestion, err := r.ingester.Get(ctx, ref)
-	if err != nil {
-		return err
-	}
-
-	return ingestion.Abort(ctx)
+	return r.ingester.Abort(ctx, ref)
 }
 
 // Delete implements ContentStore.
 func (r *registryStore) Delete(ctx context.Context, dgst digest.Digest) error {
+	r.infoCache.Delete(dgst)
 	return r.store.Delete(ctx, dgst)
 }
 
@@ -139,7 +135,7 @@ func loadInfoCache(r *registryStore, dgst digest.Digest) (content.Info, error) {
 		r.infoCache.Delete(dgst)
 	}
 
-	return content.Info{}, errors.Wrap(ErrNotFound, "no cache info")
+	return content.Info{}, ErrNotFound
 }
 
 // Info implements ContentStore.
@@ -150,7 +146,7 @@ func (r *registryStore) Info(ctx context.Context, dgst digest.Digest) (content.I
 
 	if info, err := fetchLocalInfo(ctx, dgst, r); err == nil {
 		cacheInfo(r, dgst, info)
-		return info, err
+		return info, nil
 	}
 
 	info, err := fetchRegistryInfo(ctx, dgst, r)
@@ -162,14 +158,16 @@ func (r *registryStore) Info(ctx context.Context, dgst digest.Digest) (content.I
 	return info, nil
 }
 
-// ListStatuses implements ContentStore.
+// ListStatuses implements ContentStore (IngestManager).
+// Returns statuses of active ingestions, NOT committed content in local store.
 func (r *registryStore) ListStatuses(ctx context.Context, filters ...string) ([]content.Status, error) {
-	return r.store.ListStatuses(ctx, filters...)
+	return r.ingester.ListStatuses(ctx, filters...)
 }
 
-// ReaderAt implements ContentStore.
+// ReaderAt implements ContentStore (Provider).
+// Resolves content from the registry and returns a ReaderAt that also writes to local cache.
 func (r *registryStore) ReaderAt(ctx context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
-	// if the content is already fetched from registry or exists locally,
+	// if the content is already fetched and exists locally,
 	// use it instead of fetching it again from registry
 	if readerAt, err := r.store.ReaderAt(ctx, desc); err == nil {
 		return readerAt, nil
@@ -185,37 +183,39 @@ func (r *registryStore) ReaderAt(ctx context.Context, desc v1.Descriptor) (conte
 		return nil, err
 	}
 
-	// Cache the content locally for future reads
-	// This creates a NEW ingestion in the local store (separate from registry ingestions)
-	writer, err := r.store.Writer(ctx, content.WithDescriptor(desc))
+	// Cache the content locally for future reads.
+	// This uses the underlying local store directly, not the registry ingester,
+	// as it's a pull operation, not a push to the registry.
+	w, err := r.store.Writer(ctx, content.WithDescriptor(desc))
 	if err != nil {
 		return nil, err
 	}
 
-	return reader.RegistryReader(rc, writer, desc.Size)
+	return reader.RegistryReader(rc, w, desc.Size)
 }
 
-// Status implements ContentStore.
+// Status implements ContentStore (IngestManager).
+// Returns status of an active ingestion.
 func (r *registryStore) Status(ctx context.Context, ref string) (content.Status, error) {
-	return r.store.Status(ctx, ref)
+	return r.ingester.Status(ctx, ref)
 }
 
-// Update implements ContentStore.
+// Update implements ContentStore (Manager).
 func (r *registryStore) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
 	return r.store.Update(ctx, info, fieldpaths...)
 }
 
-// Walk implements ContentStore.
+// Walk implements ContentStore (Manager).
 func (r *registryStore) Walk(ctx context.Context, fn content.WalkFunc, filters ...string) error {
 	return r.store.Walk(ctx, fn, filters...)
 }
 
-// Writer implements ContentStore.
-func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (_ content.Writer, err error) {
+// Writer implements ContentStore (Ingester).
+func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
 	var opt = &content.WriterOpts{}
 	for _, op := range opts {
 		if err := op(opt); err != nil {
-			return nil, errors.Wrap(err, "failed to apply writer option")
+			return nil, fmt.Errorf("apply writer option: %w", err)
 		}
 	}
 
@@ -224,6 +224,7 @@ func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (
 	ref := opt.Ref
 
 	if dgst == "" {
+		var err error
 		dgst, err = retriveDigestFromRef(ref)
 		if err != nil {
 			return nil, err
@@ -257,6 +258,7 @@ func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (
 	}
 
 	if _, err = r.ingester.Put(ctx, rw); err != nil {
+		rw.Close() // Cleanup on failure
 		return nil, err
 	}
 
@@ -265,23 +267,22 @@ func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (
 
 func retriveDigestFromRef(ref string) (digest.Digest, error) {
 	if ref == "" {
-		return "", errors.Wrap(ErrMissingDescriptor, "either descriptor or ref with digest is required")
+		return "", fmt.Errorf("%w: either descriptor or ref with digest is required", ErrMissingDescriptor)
 	}
 
 	// Try to extract digest from ref (format: name@sha256:...)
 	if !strings.Contains(ref, "@") {
-		return "", errors.Wrap(ErrMissingDescriptor, "ref must contain digest (@sha256:...)")
+		return "", fmt.Errorf("%w: ref must contain digest (@sha256:...)", ErrMissingDescriptor)
 	}
 
 	parts := strings.Split(ref, "@")
 	if len(parts) != 2 {
-		return "", errors.Wrap(ErrInvalidReference, "invalid ref format")
+		return "", fmt.Errorf("%w: invalid ref format", ErrInvalidReference)
 	}
 
-	var err error
 	dgst, err := digest.Parse(parts[1])
 	if err != nil {
-		return "", errors.Wrap(err, "failed to parse digest from ref")
+		return "", fmt.Errorf("failed to parse digest from ref: %w", err)
 	}
 
 	return dgst, dgst.Validate()
