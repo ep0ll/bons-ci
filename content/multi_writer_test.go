@@ -3,6 +3,7 @@ package content
 import (
 	"testing"
 
+	"github.com/bons/bons-ci/content/split"
 	"github.com/containerd/containerd/v2/core/content"
 )
 
@@ -29,7 +30,7 @@ func TestMultiWriterWriteConcurrent(t *testing.T) {
 		writers = append(writers, &mockWriter{})
 	}
 
-	mw := &multiWriter{writers: writers}
+	mw := split.NewMultiWriter(writers...)
 	data := []byte("test data")
 
 	// Call Write multiple times concurrently
@@ -54,7 +55,7 @@ func TestMultiWriterWriteConcurrent(t *testing.T) {
 }
 
 func TestMultiWriterEmptyGuards(t *testing.T) {
-	mw := &multiWriter{writers: []content.Writer{}}
+	mw := split.NewMultiWriter([]content.Writer{}...)
 
 	// Should not panic on empty writers slice
 	if dgst := mw.Digest(); dgst != "" {

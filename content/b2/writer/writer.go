@@ -36,7 +36,7 @@ type writer struct {
 	StartedAt time.Time
 	UpdatedAt time.Time
 	done      chan struct{} // signals PutObject goroutine completion
-	putErr    error        // error from PutObject goroutine
+	putErr    error         // error from PutObject goroutine
 }
 
 // Close implements Writer.

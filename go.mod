@@ -9,6 +9,7 @@ require (
 	github.com/containerd/nydus-snapshotter v0.15.11
 	github.com/containerd/stargz-snapshotter v0.18.2
 	github.com/containerd/stargz-snapshotter/estargz v0.18.2
+	github.com/klauspost/pgzip v1.2.6
 	github.com/minio/minio-go/v7 v7.0.98
 )
 

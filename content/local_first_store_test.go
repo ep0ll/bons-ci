@@ -55,19 +55,19 @@ func TestLocalFirstStoreWriter(t *testing.T) {
 	localErr := errors.New("local writer error")
 
 	tests := []struct {
-		name        string
-		local       content.Store
-		registry    content.Store
-		wantErr     bool
-		wantErrIs   error
-		wantNil     bool
+		name      string
+		local     content.Store
+		registry  content.Store
+		wantErr   bool
+		wantErrIs error
+		wantNil   bool
 	}{
 		{
-			name:      "both stores return writer",
-			local:     &mockStore{},
-			registry:  &mockStore{},
-			wantErr:   false,
-			wantNil:   false,
+			name:     "both stores return writer",
+			local:    &mockStore{},
+			registry: &mockStore{},
+			wantErr:  false,
+			wantNil:  false,
 		},
 		{
 			name:      "local fails",
@@ -78,11 +78,11 @@ func TestLocalFirstStoreWriter(t *testing.T) {
 			wantNil:   true,
 		},
 		{
-			name:      "registry fails, local succeeds",
-			local:     &mockStore{},
-			registry:  &mockStore{writeErr: errors.New("registry error")},
-			wantErr:   false,
-			wantNil:   false,
+			name:     "registry fails, local succeeds",
+			local:    &mockStore{},
+			registry: &mockStore{writeErr: errors.New("registry error")},
+			wantErr:  false,
+			wantNil:  false,
 		},
 	}
 
@@ -118,7 +118,7 @@ func TestLocalFirstStoreWriterFailures(t *testing.T) {
 	t.Run("RegistryFailsOnWrite", func(t *testing.T) {
 		regWriter := &mockFailingWriter{writeErr: errors.New("write failed")}
 		store := NewLocalFirstStore(&mockStore{}, &mockStore{mockWriter: regWriter})
-		
+
 		w, err := store.Writer(ctx)
 		if err != nil {
 			t.Fatalf("Writer() failed: %v", err)
@@ -142,7 +142,7 @@ func TestLocalFirstStoreWriterFailures(t *testing.T) {
 	t.Run("RegistryFailsOnCommit", func(t *testing.T) {
 		regWriter := &mockFailingWriter{commitErr: errors.New("commit failed")}
 		store := NewLocalFirstStore(&mockStore{}, &mockStore{mockWriter: regWriter})
-		
+
 		w, err := store.Writer(ctx)
 		if err != nil {
 			t.Fatalf("Writer() failed: %v", err)

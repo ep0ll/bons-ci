@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/bons/bons-ci/content/split"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/errdefs"
 	digest "github.com/opencontainers/go-digest"
@@ -238,7 +239,7 @@ func (m *multiContentStore) Writer(ctx context.Context, opts ...content.WriterOp
 		return nil, errdefs.ErrNotFound
 	}
 
-	return &multiWriter{writers: writers}, nil
+	return split.NewMultiWriter(writers...), nil
 }
 
 var _ content.Store = &multiContentStore{}

@@ -1,4 +1,4 @@
-package content
+package split
 
 import (
 	"context"
@@ -97,10 +97,10 @@ func (m *multiWriter) Write(p []byte) (int, error) {
 	for _, w := range m.writers {
 		wg.Go(func() error {
 			n, err := w.Write(p)
-			
+
 			mu.Lock()
 			defer mu.Unlock()
-			
+
 			if err != nil {
 				errs = append(errs, err)
 			} else if expected := len(p); n != expected {
@@ -120,3 +120,7 @@ func (m *multiWriter) Write(p []byte) (int, error) {
 }
 
 var _ content.Writer = &multiWriter{}
+
+func NewMultiWriter(writers ...content.Writer) content.Writer {
+	return &multiWriter{writers: writers}
+}
