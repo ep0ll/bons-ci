@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/bons/bons-ci/core/images/converter"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/images"
-	"github.com/containerd/containerd/v2/core/images/converter"
 	"github.com/containerd/errdefs"
 	nydusConv "github.com/containerd/nydus-snapshotter/pkg/converter"
 	"github.com/containerd/nydus-snapshotter/pkg/label"
@@ -41,7 +41,7 @@ func ConvertHookFunc(opt nydusConv.MergeOption) converter.ConvertHookFunc {
 // convertIndex modifies the original index converting it to manifest directly if it contains only one manifest.
 func convertIndex(ctx context.Context, cs content.Store, newDesc *ocispec.Descriptor) (*ocispec.Descriptor, error) {
 	var index ocispec.Index
-	_, err := readJSON(ctx, cs, &index, *newDesc)
+	_, err := converter.ReadJSON(ctx, cs, &index, *newDesc)
 	if err != nil {
 		return nil, errors.Wrap(err, "read index json")
 	}
@@ -60,7 +60,7 @@ func convertIndex(ctx context.Context, cs content.Store, newDesc *ocispec.Descri
 func convertManifest(ctx context.Context, cs content.Store, oldDesc ocispec.Descriptor, newDesc *ocispec.Descriptor, opt nydusConv.MergeOption) (*ocispec.Descriptor, error) {
 	var manifest ocispec.Manifest
 	manifestDesc := *newDesc
-	manifestLabels, err := readJSON(ctx, cs, &manifest, manifestDesc)
+	manifestLabels, err := converter.ReadJSON(ctx, cs, &manifest, manifestDesc)
 	if err != nil {
 		return nil, errors.Wrap(err, "read manifest json")
 	}
@@ -87,7 +87,7 @@ func convertManifest(ctx context.Context, cs content.Store, oldDesc ocispec.Desc
 
 	// 2. Read and Update Config
 	var config ocispec.Image
-	configLabels, err := readJSON(ctx, cs, &config, manifest.Config)
+	configLabels, err := converter.ReadJSON(ctx, cs, &config, manifest.Config)
 	if err != nil {
 		return nil, errors.Wrap(err, "read image config")
 	}
@@ -161,7 +161,7 @@ func convertManifest(ctx context.Context, cs content.Store, oldDesc ocispec.Desc
 		config.History = append(config.History, bootstrapHistory)
 	}
 	// Update image config in content store.
-	newConfigDesc, err := writeJSON(ctx, cs, config, manifest.Config, configLabels)
+	newConfigDesc, err := converter.WriteJSON(ctx, cs, config, manifest.Config, configLabels)
 	if err != nil {
 		return nil, errors.Wrap(err, "write image config")
 	}
@@ -185,7 +185,7 @@ func convertManifest(ctx context.Context, cs content.Store, oldDesc ocispec.Desc
 	}
 
 	// Update image manifest in content store.
-	newManifestDesc, err := writeJSON(ctx, cs, manifest, manifestDesc, manifestLabels)
+	newManifestDesc, err := converter.WriteJSON(ctx, cs, manifest, manifestDesc, manifestLabels)
 	if err != nil {
 		return nil, errors.Wrap(err, "write manifest")
 	}
