@@ -25,7 +25,153 @@ import (
 	"github.com/bons/bons-ci/internal/dirsync"
 )
 
-// ─── Tree fixtures ─────────────────────────────────────────────────────────────
+// ─── Filter-path benchmarks ───────────────────────────────────────────────────
+
+// BenchmarkWalk_ExcludeFilter measures the overhead of an ExcludeFilter that
+// prunes one large sub-tree from a 1 000-file tree.
+//
+// Compares NopFilter (baseline) vs ExcludeFilter ("dir_0000" pruned).
+// The pruned directory contains 50 files that are never visited at all.
+func BenchmarkWalk_ExcludeFilter(b *testing.B) {
+	lower := b.TempDir()
+	upper := b.TempDir()
+
+	fixedT := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	content := []byte("data")
+	buildBenchTree(b, lower, 20, 50, content, fixedT) // 20 dirs × 50 files = 1 000
+	buildBenchTree(b, upper, 20, 50, content, fixedT)
+
+	for _, tc := range []struct {
+		name string
+		opts dirsync.Options
+	}{
+		{
+			"NopFilter",
+			dirsync.Options{HashWorkers: 4, ExclusiveBuf: 256, CommonBuf: 256},
+		},
+		{
+			"ExcludeDir0000",
+			dirsync.Options{
+				ExcludePatterns: []string{"dir_0000"},
+				HashWorkers:     4,
+				ExclusiveBuf:    256,
+				CommonBuf:       256,
+			},
+		},
+	} {
+		tc := tc
+		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				res, bErr := dirsync.Diff(context.Background(), lower, upper, tc.opts)
+				if bErr != nil {
+					b.Fatalf("Diff option error: %v", bErr)
+				}
+				if _, _, err := drainResult(res); err != nil {
+					b.Fatalf("walk error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkWalk_IncludeFilter_GoFiles measures the cost of an IncludeFilter
+// that keeps only *.go files from a mixed tree.
+//
+// The tree has 10 dirs × 20 files each; half are *.go, half are *.txt.
+// emitLowerOnlyDir must be called for every exclusive dir whose name
+// doesn't match *.go (all of them), then emit only the .go children.
+func BenchmarkWalk_IncludeFilter_GoFiles(b *testing.B) {
+	lower := b.TempDir()
+	upper := b.TempDir()
+
+	fixedT := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	content := []byte("x")
+
+	for i := 0; i < 10; i++ {
+		dir := fmt.Sprintf("%s/pkg_%02d", lower, i)
+		os.MkdirAll(dir, 0o755)
+		for j := 0; j < 20; j++ {
+			ext := ".go"
+			if j%2 == 0 {
+				ext = ".txt"
+			}
+			p := fmt.Sprintf("%s/file_%02d%s", dir, j, ext)
+			os.WriteFile(p, content, 0o644)
+			os.Chtimes(p, fixedT, fixedT)
+		}
+	}
+	// upper is empty → all lower entries are exclusive.
+
+	for _, tc := range []struct {
+		name string
+		opts dirsync.Options
+	}{
+		{
+			"NopFilter_baseline",
+			dirsync.Options{HashWorkers: 2, ExclusiveBuf: 256},
+		},
+		{
+			"IncludeGoFiles",
+			dirsync.Options{
+				AllowWildcards:  true,
+				IncludePatterns: []string{"*.go"},
+				HashWorkers:     2,
+				ExclusiveBuf:    256,
+			},
+		},
+	} {
+		tc := tc
+		b.Run(tc.name, func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				res, bErr := dirsync.Diff(context.Background(), lower, upper, tc.opts)
+				if bErr != nil {
+					b.Fatalf("Diff option error: %v", bErr)
+				}
+				if _, _, err := drainResult(res); err != nil {
+					b.Fatalf("walk error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkWalk_CompositeFilter measures the CompositeFilter path where
+// ExcludePatterns prunes one sub-tree and IncludePatterns limits the rest.
+func BenchmarkWalk_CompositeFilter(b *testing.B) {
+	lower := b.TempDir()
+	upper := b.TempDir()
+
+	fixedT := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	content := []byte("data")
+	buildBenchTree(b, lower, 20, 50, content, fixedT)
+	buildBenchTree(b, upper, 20, 50, content, fixedT)
+
+	opts := dirsync.Options{
+		AllowWildcards:  true,
+		IncludePatterns: []string{"*.txt"},    // keep .txt files
+		ExcludePatterns: []string{"dir_001*"}, // prune dirs matching dir_001x
+		HashWorkers:     4,
+		ExclusiveBuf:    256,
+		CommonBuf:       256,
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		res, bErr := dirsync.Diff(context.Background(), lower, upper, opts)
+		if bErr != nil {
+			b.Fatalf("Diff option error: %v", bErr)
+		}
+		if _, _, err := drainResult(res); err != nil {
+			b.Fatalf("walk error: %v", err)
+		}
+	}
+}
+
 
 // buildBenchTree creates N files across M subdirectories under root.
 // It returns the root path.  Files are written and their mtimes set uniformly
@@ -96,7 +242,8 @@ func BenchmarkWalk_MetaEqualOnly(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		res := dirsync.Diff(context.Background(), lower, upper, opts)
+		res, bErr := dirsync.Diff(context.Background(), lower, upper, opts)
+		if bErr != nil { b.Fatalf("Diff option error: %v", bErr) }
 		exc, com, err := drainResult(res)
 		if err != nil {
 			b.Fatalf("walk error: %v", err)
@@ -127,7 +274,8 @@ func BenchmarkWalk_HashSlow(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		res := dirsync.Diff(context.Background(), lower, upper, opts)
+		res, bErr := dirsync.Diff(context.Background(), lower, upper, opts)
+		if bErr != nil { b.Fatalf("Diff option error: %v", bErr) }
 		_, _, err := drainResult(res)
 		if err != nil {
 			b.Fatalf("walk error: %v", err)
@@ -151,7 +299,8 @@ func BenchmarkWalk_ExclusiveOnly(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		res := dirsync.Diff(context.Background(), lower, upper, opts)
+		res, bErr := dirsync.Diff(context.Background(), lower, upper, opts)
+		if bErr != nil { b.Fatalf("Diff option error: %v", bErr) }
 		exc, _, err := drainResult(res)
 		if err != nil {
 			b.Fatalf("walk error: %v", err)
@@ -189,7 +338,10 @@ func BenchmarkHashPool_Scaling(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				res := dirsync.Diff(context.Background(), lower, upper, opts)
+				res, bErr := dirsync.Diff(context.Background(), lower, upper, opts)
+				if bErr != nil {
+					b.Fatalf("Diff option error: %v", bErr)
+				}
 				_, _, err := drainResult(res)
 				if err != nil {
 					b.Fatalf("walk error: %v", err)
@@ -229,7 +381,8 @@ func BenchmarkWalk_LargeFlat(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		res := dirsync.Diff(context.Background(), lower, upper, opts)
+		res, bErr := dirsync.Diff(context.Background(), lower, upper, opts)
+		if bErr != nil { b.Fatalf("Diff option error: %v", bErr) }
 		exc, com, err := drainResult(res)
 		if err != nil {
 			b.Fatalf("walk error: %v", err)

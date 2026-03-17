@@ -83,7 +83,10 @@ func runDiff(t *testing.T, lower, upper string, opts dirsync.Options) diffResult
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	res := dirsync.Diff(ctx, lower, upper, opts)
+	res, optErr := dirsync.Diff(ctx, lower, upper, opts)
+	if optErr != nil {
+		t.Fatalf("Diff option error: %v", optErr)
+	}
 
 	var (
 		dr diffResult

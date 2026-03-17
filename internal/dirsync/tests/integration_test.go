@@ -1,9 +1,10 @@
 package dirsync_test
 
-// integration_test.go – end-to-end and concurrency/cancellation tests.
+// integration_test.go – end-to-end, concurrency, and cancellation tests.
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -19,20 +20,21 @@ func TestCancel_StopsWalk(t *testing.T) {
 	lower := t.TempDir()
 	upper := t.TempDir()
 
-	// Build a moderately large tree so the walk takes a non-trivial amount of
-	// time on slow CI hardware.
 	for i := 0; i < 500; i++ {
 		writeFile(t, lower, "x", "dir", "a", "file.txt")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	res := dirsync.Diff(ctx, lower, upper, dirsync.Options{
+	res, err := dirsync.Diff(ctx, lower, upper, dirsync.Options{
 		HashWorkers:  2,
 		ExclusiveBuf: 4, // tiny buffer → walk stalls quickly
 	})
+	if err != nil {
+		t.Fatalf("Diff option error: %v", err)
+	}
 
-	// Cancel immediately so the walk goroutine is blocked on a full channel.
+	// Cancel immediately so the walk goroutine blocks on a full channel.
 	cancel()
 
 	// Drain channels — must not block forever.
@@ -55,8 +57,8 @@ func TestCancel_StopsWalk(t *testing.T) {
 	}
 }
 
-// TestCancel_ErrChannelClosed confirms that Err is closed (not a cancelled
-// context error) when the context is cancelled — cancellation is not an error.
+// TestCancel_ErrChannelClosed confirms that Err is closed without an error
+// when the context is cancelled — cancellation is not a walk error.
 func TestCancel_ErrChannelClosed(t *testing.T) {
 	lower := t.TempDir()
 	upper := t.TempDir()
@@ -68,7 +70,10 @@ func TestCancel_ErrChannelClosed(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel before even starting
 
-	res := dirsync.Diff(ctx, lower, upper, defaultOpts())
+	res, optErr := dirsync.Diff(ctx, lower, upper, defaultOpts())
+	if optErr != nil {
+		t.Fatalf("Diff option error: %v", optErr)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -76,9 +81,9 @@ func TestCancel_ErrChannelClosed(t *testing.T) {
 	go func() { defer wg.Done(); for range res.Common {} }()
 	wg.Wait()
 
-	err := <-res.Err
-	if err != nil {
-		t.Errorf("cancellation must not produce a walk error; got: %v", err)
+	walkErr := <-res.Err
+	if walkErr != nil {
+		t.Errorf("cancellation must not produce a walk error; got: %v", walkErr)
 	}
 }
 
@@ -103,17 +108,20 @@ func TestConcurrent_TwoConsumers(t *testing.T) {
 		writeFile(t, lower, "excl", name)
 	}
 
-	res := dirsync.Diff(context.Background(), lower, upper, dirsync.Options{
+	res, optErr := dirsync.Diff(context.Background(), lower, upper, dirsync.Options{
 		HashWorkers:  4,
 		ExclusiveBuf: 8,
 		CommonBuf:    8,
 	})
+	if optErr != nil {
+		t.Fatalf("Diff option error: %v", optErr)
+	}
 
 	var (
-		mu           sync.Mutex
-		exclCount    int
-		commonCount  int
-		wg           sync.WaitGroup
+		mu          sync.Mutex
+		exclCount   int
+		commonCount int
+		wg          sync.WaitGroup
 	)
 
 	wg.Add(2)
@@ -135,8 +143,8 @@ func TestConcurrent_TwoConsumers(t *testing.T) {
 	}()
 	wg.Wait()
 
-	if err := <-res.Err; err != nil {
-		t.Fatalf("unexpected walk error: %v", err)
+	if walkErr := <-res.Err; walkErr != nil {
+		t.Fatalf("unexpected walk error: %v", walkErr)
 	}
 	if exclCount != 10 {
 		t.Errorf("exclusive count = %d, want 10", exclCount)
@@ -194,17 +202,20 @@ func TestEdge_DeepCommonTree(t *testing.T) {
 }
 
 // TestEdge_UpperDoesNotExist verifies graceful handling of a non-existent upper
-// root by producing all lower entries as exclusive (not crashing).
+// root: produces a walk error (upper root unreadable), no panic.
 func TestEdge_UpperDoesNotExist(t *testing.T) {
 	lower := t.TempDir()
-	upper := t.TempDir() + "_nonexistent" // does not exist
+	upper := t.TempDir() + "_nonexistent"
 
 	writeFile(t, lower, "data", "file.txt")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	res := dirsync.Diff(ctx, lower, upper, defaultOpts())
+	res, optErr := dirsync.Diff(ctx, lower, upper, defaultOpts())
+	if optErr != nil {
+		t.Fatalf("Diff option error: %v", optErr)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -212,27 +223,24 @@ func TestEdge_UpperDoesNotExist(t *testing.T) {
 	go func() { defer wg.Done(); for range res.Common {} }()
 	wg.Wait()
 
-	// Walk error is expected here (upper root does not exist at all).
-	err := <-res.Err
-	if err == nil {
+	walkErr := <-res.Err
+	if walkErr == nil {
 		t.Log("walk returned no error (upper non-existence was gracefully handled)")
 	} else {
-		t.Logf("walk returned expected error: %v", err)
+		t.Logf("walk returned expected error: %v", walkErr)
 	}
 }
 
 // TestEdge_FollowSymlinks verifies that with FollowSymlinks=true a symlink to a
-// file is treated as a regular file (triggering metadata comparison on its target).
+// file is treated as a regular file (triggering metadata comparison on the target).
 func TestEdge_FollowSymlinks(t *testing.T) {
 	lower := t.TempDir()
 	upper := t.TempDir()
 
-	// Create real files.
 	fixedT := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	touchAt(t, lower, "target content", fixedT, "real.txt")
 	touchAt(t, upper, "target content", fixedT, "real.txt")
 
-	// Symlink in both trees pointing to real.txt.
 	symlink(t, lower, "real.txt", "link.txt")
 	symlink(t, upper, "real.txt", "link.txt")
 
@@ -259,7 +267,7 @@ func TestEdge_MultipleHashWorkers(t *testing.T) {
 
 	const n = 100
 	for i := 0; i < n; i++ {
-		name := "file_" + string(rune('a'+i%26)) + "_" + "x" + ".txt"
+		name := "file_" + string(rune('a'+i%26)) + "_x.txt"
 		touchAt(t, lower, "content", t1, name)
 		touchAt(t, upper, "content", t2, name) // different mtime → hash triggered
 	}
@@ -284,5 +292,90 @@ func TestEdge_MultipleHashWorkers(t *testing.T) {
 		if !cp.HashEqual {
 			t.Errorf("%q: content is identical but HashEqual=false", cp.RelPath)
 		}
+	}
+}
+
+// ─── MissingRequiredPaths ─────────────────────────────────────────────────────
+
+// TestRequiredPaths_AllPresent verifies that required paths present in both
+// trees satisfy the constraint and produce no error.
+func TestRequiredPaths_AllPresent(t *testing.T) {
+	lower := t.TempDir()
+	upper := t.TempDir()
+
+	fixedT := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	touchAt(t, lower, "data", fixedT, "go.mod")
+	touchAt(t, upper, "data", fixedT, "go.mod")
+
+	dr := runDiff(t, lower, upper, dirsync.Options{
+		RequiredPaths: []string{"go.mod"},
+		HashWorkers:   1,
+	})
+	assertNoErr(t, dr.Err, "Diff with required path present")
+}
+
+// TestRequiredPaths_ExclusiveCountsAsSeen verifies that a required path that
+// exists only in lower (exclusive) is still counted as seen.
+func TestRequiredPaths_ExclusiveCountsAsSeen(t *testing.T) {
+	lower := t.TempDir()
+	upper := t.TempDir()
+
+	writeFile(t, lower, "data", "only_lower.txt")
+
+	dr := runDiff(t, lower, upper, dirsync.Options{
+		RequiredPaths: []string{"only_lower.txt"},
+		HashWorkers:   1,
+	})
+	assertNoErr(t, dr.Err, "required path in lower-exclusive should be seen")
+}
+
+// TestRequiredPaths_Missing verifies that absent required paths produce a
+// *MissingRequiredPathsError.
+func TestRequiredPaths_Missing(t *testing.T) {
+	lower := t.TempDir()
+	upper := t.TempDir()
+
+	writeFile(t, lower, "a", "present.txt")
+	writeFile(t, upper, "a", "present.txt")
+	// "absent.txt" is not written anywhere.
+
+	dr := runDiff(t, lower, upper, dirsync.Options{
+		RequiredPaths: []string{"present.txt", "absent.txt"},
+		HashWorkers:   1,
+	})
+
+	if dr.Err == nil {
+		t.Fatal("expected a MissingRequiredPathsError, got nil")
+	}
+	var mErr *dirsync.MissingRequiredPathsError
+	if !errors.As(dr.Err, &mErr) {
+		t.Fatalf("expected *MissingRequiredPathsError, got %T: %v", dr.Err, dr.Err)
+	}
+	if len(mErr.Paths) != 1 || mErr.Paths[0] != "absent.txt" {
+		t.Errorf("Paths = %v, want [absent.txt]", mErr.Paths)
+	}
+}
+
+// TestRequiredPaths_FilteredOutCausesError verifies that when a required path
+// exists on disk but is excluded by ExcludePatterns, it is treated as missing.
+func TestRequiredPaths_FilteredOutCausesError(t *testing.T) {
+	lower := t.TempDir()
+	upper := t.TempDir()
+
+	writeFile(t, lower, "data", "secret.txt")
+	writeFile(t, upper, "data", "secret.txt")
+
+	dr := runDiff(t, lower, upper, dirsync.Options{
+		ExcludePatterns: []string{"secret.txt"},
+		RequiredPaths:   []string{"secret.txt"}, // required but excluded → missing
+		HashWorkers:     1,
+	})
+
+	if dr.Err == nil {
+		t.Fatal("expected MissingRequiredPathsError when required path is excluded")
+	}
+	var mErr *dirsync.MissingRequiredPathsError
+	if !errors.As(dr.Err, &mErr) {
+		t.Fatalf("expected *MissingRequiredPathsError, got %T", dr.Err)
 	}
 }

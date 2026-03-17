@@ -11,6 +11,12 @@
 //	# Show what is only in lower:
 //	dirsync -lower /var/lib/overlay/lower -upper /var/lib/overlay/upper
 //
+//	# Filter: only *.go files, excluding vendor/:
+//	dirsync -lower ./a -upper ./b -wildcard -include '*.go' -exclude vendor
+//
+//	# Require certain paths to exist:
+//	dirsync -lower ./a -upper ./b -require go.mod -require go.sum
+//
 //	# Show common paths and content diffs:
 //	dirsync -lower ./a -upper ./b -common -hash-diff
 //
@@ -21,6 +27,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -33,6 +40,17 @@ import (
 	"github.com/bons/bons-ci/internal/dirsync"
 )
 
+// multiFlag is a flag.Value that accumulates repeated -flag value calls.
+type multiFlag []string
+
+func (m *multiFlag) String() string {
+	if m == nil {
+		return ""
+	}
+	return fmt.Sprint([]string(*m))
+}
+func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("dirsync: ")
@@ -43,12 +61,24 @@ func main() {
 
 	followSymlinks := flag.Bool("follow-symlinks", false,
 		"follow symbolic links when stating entries")
+	allowWildcards := flag.Bool("wildcard", false,
+		"treat -include / -exclude values as glob patterns (filepath.Match syntax)")
 	hashWorkers := flag.Int("hash-workers", 0,
 		"goroutines for content hashing (0 = GOMAXPROCS)")
 	exclusiveBuf := flag.Int("exclusive-buf", 512,
 		"ExclusivePath channel buffer depth")
 	commonBuf := flag.Int("common-buf", 512,
 		"CommonPath channel buffer depth")
+
+	var includePatterns multiFlag
+	var excludePatterns multiFlag
+	var requiredPaths multiFlag
+	flag.Var(&includePatterns, "include",
+		"include only entries matching `pattern` (repeatable; empty = include all)")
+	flag.Var(&excludePatterns, "exclude",
+		"exclude entries matching `pattern` and prune dirs (repeatable)")
+	flag.Var(&requiredPaths, "require",
+		"relative `path` that must appear in output; error if absent (repeatable)")
 
 	showExclusive := flag.Bool("exclusive", true,
 		"print paths exclusive to lower")
@@ -97,14 +127,25 @@ func main() {
 		deleteErrCount atomic.Int64
 	)
 
-	// ── Start diff ────────────────────────────────────────────────────────────
+	// ── Build options ─────────────────────────────────────────────────────────
 	opts := dirsync.Options{
-		FollowSymlinks: *followSymlinks,
-		HashWorkers:    *hashWorkers,
-		ExclusiveBuf:   *exclusiveBuf,
-		CommonBuf:      *commonBuf,
+		FollowSymlinks:  *followSymlinks,
+		AllowWildcards:  *allowWildcards,
+		IncludePatterns: []string(includePatterns),
+		ExcludePatterns: []string(excludePatterns),
+		RequiredPaths:   []string(requiredPaths),
+		HashWorkers:     *hashWorkers,
+		ExclusiveBuf:    *exclusiveBuf,
+		CommonBuf:       *commonBuf,
 	}
-	result := dirsync.Diff(ctx, *lower, *upper, opts)
+
+	// ── Start diff ────────────────────────────────────────────────────────────
+	// Diff returns a synchronous error for invalid glob patterns before starting
+	// the background goroutine.
+	result, err := dirsync.Diff(ctx, *lower, *upper, opts)
+	if err != nil {
+		log.Fatalf("options error: %v", err)
+	}
 
 	// ── Consumer goroutines ───────────────────────────────────────────────────
 	// BOTH channels MUST be fully drained — blocking either stalls the
@@ -121,7 +162,6 @@ func main() {
 			tag := "EXCLUSIVE_FILE"
 			if ep.Pruned {
 				// Pruned dir: one os.RemoveAll removes entire subtree.
-				// This is the O(1)-per-root payoff of the pruning DSA.
 				tag = "EXCLUSIVE_DIR "
 			}
 
@@ -191,6 +231,14 @@ func main() {
 
 	// Read Err ONLY after both consumers have fully drained (documented contract).
 	if err := <-result.Err; err != nil {
+		// MissingRequiredPathsError gets a specific exit message.
+		var mErr *dirsync.MissingRequiredPathsError
+		if errors.As(err, &mErr) {
+			for _, p := range mErr.Paths {
+				log.Printf("required path not found: %q", p)
+			}
+			os.Exit(2)
+		}
 		log.Fatalf("walk error: %v", err)
 	}
 
