@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/bons/bons-ci/internal/dirsync"
+	differ "github.com/bons/bons-ci/internal/dirsync"
 )
 
 // ─── Differ interface ─────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ type DirsyncDifferOptions struct {
 	// DirsyncOpts carries additional dirsync options (patterns, filters, etc.).
 	// FollowSymlinks and HashWorkers from this struct are overridden by the
 	// top-level fields above.
-	DirsyncOpts dirsync.Options
+	DirsyncOpts differ.Options
 }
 
 // DirsyncDiffer is a Differ backed by the dirsync package.
@@ -88,7 +88,7 @@ func (d *DirsyncDiffer) Diff(ctx context.Context, lower, upper, merged string) (
 	dOpts.FollowSymlinks = d.opts.FollowSymlinks
 	dOpts.HashWorkers = d.opts.HashWorkers
 
-	result, err := dirsync.Diff(ctx, lower, upper, dOpts)
+	result, err := differ.Diff(ctx, lower, upper, dOpts)
 	if err != nil {
 		return DiffStream{}, fmt.Errorf("DirsyncDiffer.Diff: %w", err)
 	}
@@ -112,7 +112,7 @@ func (d *DirsyncDiffer) Diff(ctx context.Context, lower, upper, merged string) (
 // Both dirsync channels MUST be fully drained before result.Err is read.
 func fanIn(
 	ctx context.Context,
-	result dirsync.Result,
+	result differ.Result,
 	merged string,
 	entryCh chan<- DiffEntry,
 	errCh chan<- error,
@@ -159,7 +159,7 @@ func fanIn(
 
 // exclusiveToEntry converts an ExclusivePath (present only in lower) to a
 // DiffEntry targeting the merged directory.
-func exclusiveToEntry(ep dirsync.ExclusivePath, merged string) DiffEntry {
+func exclusiveToEntry(ep differ.ExclusivePath, merged string) DiffEntry {
 	return DiffEntry{
 		RelPath:      ep.RelPath,
 		MergedAbs:    filepath.Join(merged, ep.RelPath),
@@ -178,7 +178,7 @@ func exclusiveToEntry(ep dirsync.ExclusivePath, merged string) DiffEntry {
 //   - MetaEqual or HashEqual      → ActionDelete / DeleteReasonCommonEqual
 //   - HashChecked && !HashEqual   → ActionRetain / RetainReasonCommonDifferent
 //   - Neither (defensive fallback)→ ActionRetain / RetainReasonCommonDifferent
-func commonToEntry(cp dirsync.CommonPath, merged string) DiffEntry {
+func commonToEntry(cp differ.CommonPath, merged string) DiffEntry {
 	base := DiffEntry{
 		RelPath:   cp.RelPath,
 		MergedAbs: filepath.Join(merged, cp.RelPath),
@@ -215,7 +215,7 @@ func commonToEntry(cp dirsync.CommonPath, merged string) DiffEntry {
 //	HashChecked == true  && HashEqual == true  → equal (SHA-256 / readlink confirmed)
 //	HashChecked == true  && HashEqual == false → different
 //	HashChecked == false && MetaEqual == false → treat as different (defensive)
-func isEqualCommon(cp dirsync.CommonPath) bool {
+func isEqualCommon(cp differ.CommonPath) bool {
 	if cp.MetaEqual {
 		return true
 	}

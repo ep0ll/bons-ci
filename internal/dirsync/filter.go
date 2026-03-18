@@ -1,223 +1,136 @@
-package dirsync
+package differ
 
-// filter.go – path-filter abstractions and concrete implementations.
-
-import "fmt"
-//
-// Dependency graph (no cycles):
-//
-//   patternSet  ←──  IncludeFilter
-//   patternSet  ←──  ExcludeFilter
-//   PathFilter  ←──  CompositeFilter (holds include + exclude)
-//   Options     ──►  BuildFilter() → PathFilter
-//
-// The walker depends only on PathFilter, not on any concrete type.
-// This makes the filter subsystem open for extension without modifying the walker.
-
-// ─── Decision type ────────────────────────────────────────────────────────────
-
-// FilterDecision is the outcome of consulting a PathFilter for a single path.
-//
-// The three values have different effects on directories vs files:
-//
-//	         │  Emit?  │  Recurse into dir?
-//	─────────┼─────────┼───────────────────
-//	Allow    │  yes    │  yes
-//	Skip     │  no     │  yes  (children may still match IncludePatterns)
-//	Prune    │  no     │  no   (entire subtree is excluded)
-//
-// For files (non-directories), Skip and Prune are equivalent.
-type FilterDecision int
-
-const (
-	// FilterAllow: include this entry in output; traverse if directory.
-	FilterAllow FilterDecision = iota
-
-	// FilterSkip: omit this entry from output; still traverse if directory.
-	// Use this when a directory doesn't match an include pattern but its
-	// children might (e.g. IncludePatterns=["*.go"] applied to "cmd/").
-	FilterSkip
-
-	// FilterPrune: omit this entry from output; do NOT traverse if directory.
-	// Use this for ExcludePatterns on directories — stops all further descent.
-	FilterPrune
+import (
+	"path/filepath"
+	"strings"
 )
 
-// ─── Interface ────────────────────────────────────────────────────────────────
+// Filter determines which relative paths participate in the diff.
+// All implementations must be safe for concurrent use from multiple goroutines.
+type Filter interface {
+	// Include returns true if the given relative path should be processed.
+	//
+	// isDir signals that the entry is a directory. Implementations should return
+	// true for directories whose descendants may still match, even if the
+	// directory itself does not match an include pattern. This preserves correct
+	// recursive descent.
+	Include(relPath string, isDir bool) bool
 
-// PathFilter decides how to handle a single filesystem entry during the walk.
-//
-// Implementations must be safe for concurrent reads from multiple goroutines
-// (the walker is single-threaded, but tests may call Decide concurrently).
-// Implementations must not perform any filesystem I/O.
-type PathFilter interface {
-	// Decide returns the handling decision for the entry at relPath.
-	// relPath is a cleaned, slash-separated path relative to the root being walked.
-	// isDir is true when the entry is a directory.
-	Decide(relPath string, isDir bool) FilterDecision
+	// RequiredPaths returns paths (relative to the lower root) that must exist
+	// in the lower directory tree. The caller is responsible for reporting
+	// missing required paths as errors.
+	RequiredPaths() []string
 }
 
-// ─── NopFilter ────────────────────────────────────────────────────────────────
+// NoopFilter is a [Filter] that accepts every path and requires nothing.
+// It is the zero-overhead default used when no filtering options are set.
+type NoopFilter struct{}
 
-// NopFilter allows every path without inspection.
-// It is returned by BuildFilter when no filtering options are active.
-type NopFilter struct{}
+func (NoopFilter) Include(_ string, _ bool) bool { return true }
+func (NoopFilter) RequiredPaths() []string        { return nil }
 
-func (NopFilter) Decide(_ string, _ bool) FilterDecision { return FilterAllow }
-
-// ─── IncludeFilter ────────────────────────────────────────────────────────────
-
-// IncludeFilter emits only paths that match at least one include pattern.
+// PatternFilter implements [Filter] using include/exclude glob patterns and
+// required-path assertions.
 //
-// Directory behaviour:
-//   - Directory matches a pattern → FilterAllow (emit + recurse).
-//   - Directory does NOT match   → FilterSkip   (don't emit, but recurse so
-//     children can still be tested against patterns).
+// Evaluation order (first match wins):
+//  1. If relPath matches an exclude pattern  → rejected.
+//  2. If no include patterns are configured  → accepted.
+//  3. If relPath matches an include pattern  → accepted.
+//  4. If isDir and any include pattern could reside under relPath → accepted
+//     (allows the walker to recurse and find matching descendants).
+//  5. Otherwise → rejected.
 //
-// File behaviour:
-//   - File matches a pattern     → FilterAllow.
-//   - File does NOT match        → FilterSkip.
+// Pattern syntax when [WithAllowWildcards] is false (default): exact prefix
+// match. Pattern "vendor" matches "vendor" and "vendor/foo/bar".
 //
-// Empty pattern set: FilterAllow for everything (no-op include).
-type IncludeFilter struct {
-	patterns patternSet
+// Pattern syntax when [WithAllowWildcards] is true: filepath.Match with the
+// same prefix semantics applied first, then glob applied to both the full
+// relative path and its base name.
+type PatternFilter struct {
+	includePatterns []string
+	excludePatterns []string
+	requiredPaths   []string
+	allowWildcards  bool
 }
 
-func (f *IncludeFilter) Decide(relPath string, _ bool) FilterDecision {
-	if len(f.patterns.patterns) == 0 {
-		return FilterAllow
-	}
-	if f.patterns.matches(relPath) {
-		return FilterAllow
-	}
-	// For directories: Skip (not Prune) so children remain reachable.
-	// For files: Skip.
-	// Both cases fall through to the same return value.
-	return FilterSkip
-}
-
-// ─── ExcludeFilter ────────────────────────────────────────────────────────────
-
-// ExcludeFilter suppresses paths that match at least one exclude pattern.
-//
-// Directory behaviour:
-//   - Directory matches a pattern → FilterPrune (suppress + stop recursion).
-//     This is the key difference from IncludeFilter: once a directory is excluded
-//     there is no reason to visit its children, saving getdents64 syscalls.
-//
-// File behaviour:
-//   - File matches a pattern     → FilterSkip.
-//
-// Empty pattern set: FilterAllow for everything (no-op exclude).
-type ExcludeFilter struct {
-	patterns patternSet
-}
-
-func (f *ExcludeFilter) Decide(relPath string, isDir bool) FilterDecision {
-	if len(f.patterns.patterns) == 0 {
-		return FilterAllow
-	}
-	if f.patterns.matches(relPath) {
-		if isDir {
-			return FilterPrune // stop recursion entirely
+// NewPatternFilter constructs a PatternFilter. All slices are defensively
+// copied to prevent aliasing.
+func NewPatternFilter(include, exclude, required []string, allowWildcards bool) *PatternFilter {
+	clone := func(s []string) []string {
+		if len(s) == 0 {
+			return nil
 		}
-		return FilterSkip
+		c := make([]string, len(s))
+		copy(c, s)
+		return c
 	}
-	return FilterAllow
+	return &PatternFilter{
+		includePatterns: clone(include),
+		excludePatterns: clone(exclude),
+		requiredPaths:   clone(required),
+		allowWildcards:  allowWildcards,
+	}
 }
 
-// ─── CompositeFilter ──────────────────────────────────────────────────────────
-
-// CompositeFilter chains an optional ExcludeFilter and an optional IncludeFilter.
-//
-// Evaluation order:
-//  1. ExcludeFilter is consulted first (higher priority).
-//     If it returns Skip or Prune, that decision is final.
-//  2. IncludeFilter is consulted only when ExcludeFilter returns Allow.
-//
-// Rationale: "exclude wins over include" matches the mental model of tools like
-// rsync, .gitignore, and Docker .dockerignore.
-type CompositeFilter struct {
-	include PathFilter // nil → include all
-	exclude PathFilter // nil → exclude nothing
-}
-
-func (c *CompositeFilter) Decide(relPath string, isDir bool) FilterDecision {
-	// Exclude check: a non-Allow result immediately stops evaluation.
-	if c.exclude != nil {
-		if d := c.exclude.Decide(relPath, isDir); d != FilterAllow {
-			return d
+// Include implements [Filter].
+func (f *PatternFilter) Include(relPath string, isDir bool) bool {
+	// Exclusions take highest precedence.
+	for _, pat := range f.excludePatterns {
+		if f.matchesPath(pat, relPath) {
+			return false
 		}
 	}
-	// Include check: only reached when exclude says Allow.
-	if c.include != nil {
-		return c.include.Decide(relPath, isDir)
+
+	// No inclusions configured → include everything not excluded.
+	if len(f.includePatterns) == 0 {
+		return true
 	}
-	return FilterAllow
+
+	for _, pat := range f.includePatterns {
+		if f.matchesPath(pat, relPath) {
+			return true
+		}
+		// For directories allow descent so descendants can be matched.
+		if isDir && f.couldMatchUnder(pat, relPath) {
+			return true
+		}
+	}
+	return false
 }
 
-// ─── Constructor ──────────────────────────────────────────────────────────────
+// RequiredPaths implements [Filter].
+func (f *PatternFilter) RequiredPaths() []string { return f.requiredPaths }
 
-// NewCompositeFilter builds a CompositeFilter that evaluates exclude before
-// include.  Either argument may be nil (treated as allow-all for that axis).
-//
-// Typical use: compose a caller-supplied PathFilter with the pattern-based
-// filter produced by BuildFilter:
-//
-//	builtin, _ := dirsync.BuildFilter(opts)
-//	custom     := myFilter{}
-//	combined   := dirsync.NewCompositeFilter(custom, builtin)
-//
-// The exclude argument is consulted first.  If it returns Skip or Prune, that
-// decision is final.  Only when exclude returns Allow is include consulted.
-func NewCompositeFilter(exclude, include PathFilter) PathFilter {
-	if exclude == nil && include == nil {
-		return NopFilter{}
+// matchesPath reports whether pattern matches relPath as an exact hit or a
+// directory-prefix hit ("vendor" matches "vendor/pkg/foo").
+func (f *PatternFilter) matchesPath(pattern, relPath string) bool {
+	if relPath == pattern || strings.HasPrefix(relPath, pattern+"/") {
+		return true
 	}
-	return &CompositeFilter{exclude: exclude, include: include}
+	if !f.allowWildcards {
+		return false
+	}
+	if ok, _ := filepath.Match(pattern, relPath); ok {
+		return true
+	}
+	// Also match against the base component alone (e.g., "*.go" hits "pkg/main.go").
+	if ok, _ := filepath.Match(pattern, filepath.Base(relPath)); ok {
+		return true
+	}
+	return false
 }
 
-
-// BuildFilter constructs the appropriate PathFilter from Options.
-//
-// Returns NopFilter when no filtering options are active (zero allocation
-// overhead in the common case).
-// Returns an error when any glob pattern is syntactically invalid.
-func BuildFilter(opts Options) (PathFilter, error) {
-	hasInclude := len(opts.IncludePatterns) > 0
-	hasExclude := len(opts.ExcludePatterns) > 0
-
-	if !hasInclude && !hasExclude {
-		return NopFilter{}, nil
+// couldMatchUnder reports whether pattern could match any entry beneath
+// dirPath, used to decide whether to recurse into a directory.
+func (f *PatternFilter) couldMatchUnder(pattern, dirPath string) bool {
+	// Non-wildcard: check if pattern is a descendant of dirPath.
+	if strings.HasPrefix(pattern, dirPath+"/") {
+		return true
 	}
-
-	var (
-		incFilter PathFilter
-		excFilter PathFilter
-	)
-
-	if hasInclude {
-		ps, err := newPatternSet(opts.IncludePatterns, opts.AllowWildcards)
-		if err != nil {
-			return nil, fmt.Errorf("IncludePatterns: %w", err)
-		}
-		incFilter = &IncludeFilter{patterns: ps}
+	if !f.allowWildcards {
+		return false
 	}
-
-	if hasExclude {
-		ps, err := newPatternSet(opts.ExcludePatterns, opts.AllowWildcards)
-		if err != nil {
-			return nil, fmt.Errorf("ExcludePatterns: %w", err)
-		}
-		excFilter = &ExcludeFilter{patterns: ps}
-	}
-
-	// If only one side is active, wrap it directly rather than adding a composite.
-	if incFilter == nil {
-		return excFilter, nil
-	}
-	if excFilter == nil {
-		return incFilter, nil
-	}
-	return &CompositeFilter{include: incFilter, exclude: excFilter}, nil
+	// Any wildcard pattern that contains a wildcard character could
+	// potentially match beneath any directory.
+	return strings.ContainsAny(pattern, "*?[")
 }
