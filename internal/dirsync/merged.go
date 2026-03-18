@@ -54,7 +54,7 @@ type FSMergedView struct {
 // NewFSMergedView constructs an [FSMergedView] rooted at dir.
 // dir must be an absolute path to an existing directory. An error is returned
 // if the path is relative or does not exist.
-func NewFSMergedView(dir string) (*FSMergedView, error) {
+func NewFSMergedView(dir string) (MergedView, error) {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, fmt.Errorf("merged view: resolve %q: %w", dir, err)

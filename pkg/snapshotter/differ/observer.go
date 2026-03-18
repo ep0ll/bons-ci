@@ -2,12 +2,13 @@ package diffview
 
 // observer.go – Observer interface and built-in implementations.
 //
-// An Observer receives one callback per DiffEntry after Apply has handled it
-// (deletion attempted, retained, or error).  It is the observability seam:
-// swap in a different Observer to get logging, metrics, or audit trails
-// without changing any other code.
+// An Observer receives one Event per DiffEntry after Apply has decided what
+// to do with it. This is the observability seam of diffview: swap in a
+// different Observer to get logging, metrics, or audit trails without
+// changing any other code.
 //
-// All implementations are safe for concurrent use.
+// All implementations are goroutine-safe; events may arrive from multiple
+// concurrent workers.
 
 import (
 	"fmt"
@@ -18,47 +19,51 @@ import (
 
 // ─── Event ────────────────────────────────────────────────────────────────────
 
-// Event is emitted to Observer once per DiffEntry after the Apply engine has
-// made its final decision.
+// Event is emitted to the Observer once per DiffEntry.
+//
+// It carries both the classification decision (Entry) and the outcome of any
+// deletion attempt (SubmitErr). Because deletions go through a dirsync Batcher,
+// SubmitErr reflects whether the op was successfully enqueued — not whether
+// the underlying syscall (unlinkat, RemoveAll) succeeded. Batcher flush errors
+// are reported in Result.Err after Apply returns.
 type Event struct {
-	// Entry is the DiffEntry that was processed.
+	// Entry is the classified DiffEntry.
 	Entry DiffEntry
 
-	// DeleteErr is non-nil when a deletion was attempted but the Deleter
-	// returned an error.  Entry.Action is ActionDelete in this case.
-	DeleteErr error
+	// SubmitErr is non-nil when the deletion op could not be submitted to the
+	// Batcher (e.g. batcher already closed). Entry.Action == ActionDelete when set.
+	SubmitErr error
 }
 
-// WasDeleted reports whether the deletion was both requested and successful.
+// WasDeleted reports whether the deletion was requested and the op was submitted successfully.
 func (e Event) WasDeleted() bool {
-	return e.Entry.Action == ActionDelete && e.DeleteErr == nil
+	return e.Entry.Action == ActionDelete && e.SubmitErr == nil
 }
 
-// WasFailed reports whether a deletion was attempted but failed.
+// WasFailed reports whether a deletion submission attempt failed.
 func (e Event) WasFailed() bool {
-	return e.Entry.Action == ActionDelete && e.DeleteErr != nil
+	return e.Entry.Action == ActionDelete && e.SubmitErr != nil
 }
 
-// WasRetained reports whether the path was kept in merged.
+// WasRetained reports whether the path was classified as retain (no deletion).
 func (e Event) WasRetained() bool {
 	return e.Entry.Action == ActionRetain
 }
 
-// ─── Observer interface ───────────────────────────────────────────────────────
+// ─── Observer ─────────────────────────────────────────────────────────────────
 
-// Observer receives a callback for every path processed by Apply.
+// Observer receives a notification for every path processed by Apply.
 //
-// OnEvent is called exactly once per DiffEntry, always after the deletion
-// attempt (or retention decision) has completed.  Implementations must be
-// goroutine-safe; events may arrive from multiple workers concurrently.
+// OnEvent is called exactly once per DiffEntry, after the deletion op has been
+// submitted to the Batcher (or after the retain decision was made). It must not
+// block; slow work should be deferred to a separate goroutine.
 type Observer interface {
 	OnEvent(event Event)
 }
 
 // ─── NoopObserver ─────────────────────────────────────────────────────────────
 
-// NoopObserver silently discards all events.
-// It is the default when no Observer is configured.
+// NoopObserver silently discards all events. Default when none is configured.
 type NoopObserver struct{}
 
 func (NoopObserver) OnEvent(_ Event) {}
@@ -69,16 +74,17 @@ func (NoopObserver) OnEvent(_ Event) {}
 type LogLevel int
 
 const (
-	// LogAll writes one line for every DiffEntry (deletions, retentions, errors).
+	// LogAll writes one line per DiffEntry: deletions, retentions, and errors.
 	LogAll LogLevel = iota
-	// LogChanges writes only deletions and errors; retained paths are silent.
+
+	// LogChanges writes deletions and errors only; retained-diff paths are silent.
 	LogChanges
-	// LogErrors writes only failed deletions and hash errors.
+
+	// LogErrors writes only failed submissions and hash errors.
 	LogErrors
 )
 
-// LogObserver is a thread-safe Observer that writes structured lines to any
-// io.Writer.
+// LogObserver writes structured text lines to any io.Writer.
 //
 // Line format:
 //
@@ -86,7 +92,9 @@ const (
 //	[DELETED_EQUAL]  rel/path
 //	[RETAINED_DIFF]  rel/path
 //	[RETAINED_ERR]   rel/path  -- <error>
-//	[DELETE_FAILED]  rel/path  -- <error>
+//	[SUBMIT_FAILED]  rel/path  -- <error>
+//
+// Error lines are always emitted regardless of LogLevel.
 type LogObserver struct {
 	w     io.Writer
 	mu    sync.Mutex
@@ -98,10 +106,11 @@ func NewLogObserver(w io.Writer, level LogLevel) *LogObserver {
 	return &LogObserver{w: w, level: level}
 }
 
+// OnEvent implements Observer.
 func (l *LogObserver) OnEvent(ev Event) {
 	tag, extra := l.classify(ev)
 	if tag == "" {
-		return // below verbosity threshold
+		return
 	}
 	line := fmt.Sprintf("%-16s %s%s\n", tag, ev.Entry.RelPath, extra)
 	l.mu.Lock()
@@ -112,54 +121,53 @@ func (l *LogObserver) OnEvent(ev Event) {
 func (l *LogObserver) classify(ev Event) (tag, extra string) {
 	switch {
 	case ev.WasFailed():
-		// Always logged regardless of level.
-		return "[DELETE_FAILED]", "  -- " + ev.DeleteErr.Error()
+		return "[SUBMIT_FAILED] ", "  -- " + ev.SubmitErr.Error()
 
-	case ev.Entry.Action == ActionRetain && ev.Entry.RetainReason == RetainReasonHashError:
-		// Always logged (error path).
-		errStr := ""
-		if ev.Entry.Err != nil {
-			errStr = "  -- " + ev.Entry.Err.Error()
+	case ev.Entry.RetainReason == RetainReasonHashError:
+		suffix := ""
+		if ev.Entry.HashErr != nil {
+			suffix = "  -- " + ev.Entry.HashErr.Error()
 		}
-		return "[RETAINED_ERR] ", errStr
+		return "[RETAINED_ERR]  ", suffix
 
 	case ev.WasDeleted() && ev.Entry.DeleteReason == DeleteReasonExclusiveLower:
 		if l.level > LogChanges {
 			return "", ""
 		}
-		return "[DELETED_EXCL] ", ""
+		return "[DELETED_EXCL]  ", ""
 
 	case ev.WasDeleted() && ev.Entry.DeleteReason == DeleteReasonCommonEqual:
 		if l.level > LogChanges {
 			return "", ""
 		}
-		return "[DELETED_EQUAL]", ""
+		return "[DELETED_EQUAL] ", ""
 
 	case ev.WasRetained() && ev.Entry.RetainReason == RetainReasonCommonDifferent:
 		if l.level > LogAll {
 			return "", ""
 		}
-		return "[RETAINED_DIFF]", ""
+		return "[RETAINED_DIFF] ", ""
 	}
 	return "", ""
 }
 
 // ─── CountingObserver ─────────────────────────────────────────────────────────
 
-// CountingObserver atomically tallies every event.
+// CountingObserver atomically tallies every outcome category.
 // All counters are safe to read after Apply returns.
 type CountingObserver struct {
 	DeletedExclusive atomic.Int64
 	DeletedEqual     atomic.Int64
 	RetainedDiff     atomic.Int64
 	RetainedHashErr  atomic.Int64
-	DeleteFailed     atomic.Int64
+	SubmitFailed     atomic.Int64
 }
 
+// OnEvent implements Observer.
 func (c *CountingObserver) OnEvent(ev Event) {
 	switch {
 	case ev.WasFailed():
-		c.DeleteFailed.Add(1)
+		c.SubmitFailed.Add(1)
 	case ev.WasDeleted() && ev.Entry.DeleteReason == DeleteReasonExclusiveLower:
 		c.DeletedExclusive.Add(1)
 	case ev.WasDeleted() && ev.Entry.DeleteReason == DeleteReasonCommonEqual:
@@ -171,11 +179,19 @@ func (c *CountingObserver) OnEvent(ev Event) {
 	}
 }
 
+// Total returns the sum of all counted events.
+func (c *CountingObserver) Total() int64 {
+	return c.DeletedExclusive.Load() +
+		c.DeletedEqual.Load() +
+		c.RetainedDiff.Load() +
+		c.RetainedHashErr.Load() +
+		c.SubmitFailed.Load()
+}
+
 // ─── MultiObserver ────────────────────────────────────────────────────────────
 
-// MultiObserver fans out every event to a list of underlying Observers.
-// Useful when you want both logging and metrics simultaneously.
-// Nil entries are silently skipped at construction time.
+// MultiObserver fans out every event to all registered observers in order.
+// Nil entries are skipped at construction time.
 type MultiObserver struct {
 	observers []Observer
 }
@@ -191,6 +207,7 @@ func NewMultiObserver(observers ...Observer) *MultiObserver {
 	return &MultiObserver{observers: filtered}
 }
 
+// OnEvent implements Observer.
 func (m *MultiObserver) OnEvent(event Event) {
 	for _, o := range m.observers {
 		o.OnEvent(event)

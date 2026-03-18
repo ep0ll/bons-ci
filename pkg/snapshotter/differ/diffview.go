@@ -1,283 +1,233 @@
 package diffview
 
-// diffview.go – the DiffView orchestrator and public API surface.
+// diffview.go – DiffView: a thin facade over dirsync.Pipeline.
 //
-// DiffView wires a Differ, a Deleter, and an Observer together and applies
-// a diff between lower and upper to the merged directory.
+// # What diffview adds on top of dirsync
 //
-// Dependency inversion: DiffView depends only on interfaces.
-// New Differs, Deleters, or Observers can be plugged in without modifying
-// this file.
+// dirsync provides the complete infrastructure:
+//   - Classifier:    O(L+U) two-pointer walk producing exclusive/common streams
+//   - HashPipeline:  parallel, pool-optimised content comparison
+//   - Pipeline:      wires classifier → hash → handlers → batcher → MergedView
+//   - MergedView:    abstraction over the merged directory's mutation operations
+//   - Batcher:       batched syscall dispatch (GoroutineBatcher / IOURingBatcher)
 //
-// Concurrency model:
+// diffview adds only what dirsync does not provide:
+//   - Domain vocabulary: DiffEntry, Action, DeleteReason, RetainReason
+//   - Observer pattern:  classification events with human-readable context
+//   - Apply API:         single call that wires and runs the full pipeline
+//   - Result:            structured outcome with per-category counts
 //
-//   Differ.Diff     →  DiffStream.Entries channel
+// # Pipeline topology (inside Apply)
+//
+//   dirsync.Classifier.Classify(ctx)
 //       │
-//       ▼
-//   engine goroutine — reads entries, routes ActionDelete to worker pool
+//       ├── exclusiveCh ──► exclusiveHandler ──► observer.OnEvent ──► batcher.Submit
 //       │
-//       ├── worker goroutine 1  ── Deleter.Delete  ── Observer.OnEvent
-//       ├── worker goroutine 2  ── Deleter.Delete  ── Observer.OnEvent
-//       └── …
+//       └── rawCommonCh ──► HashPipeline.Run ──► hashedCh
+//                                                    │
+//                                                    └── commonHandler ──► observer.OnEvent
+//                                                                          ──► batcher.Submit (if hash-equal)
 //
-// Retained entries (ActionRetain) are handled inline by the engine goroutine
-// without involving the worker pool.
+//   dirsync.Pipeline.Run drives the above; Apply calls batcher.Close after.
+//
+// # Deletion semantics (upper - lower)
+//
+//   ExclusivePath (lower only)                → delete from merged (OpRemoveAll or OpRemove)
+//   CommonPath where lower == upper (hash)    → delete from merged (OpRemove)
+//   CommonPath where lower != upper (hash)    → retain in merged (no op)
+//   CommonPath where comparison unchecked     → retain in merged (safety: no op)
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
+	"path/filepath"
 	"sync/atomic"
+
+	dirsync "github.com/bons/bons-ci/internal/dirsync"
 )
-
-// ─── Option (functional options) ─────────────────────────────────────────────
-
-// Option is a functional option for configuring a DiffView.
-type Option func(*DiffView)
-
-// WithDiffer sets the Differ used to compare lower and upper.
-// Default: DirsyncDiffer with zero DirsyncDifferOptions.
-func WithDiffer(d Differ) Option {
-	return func(dv *DiffView) { dv.differ = d }
-}
-
-// WithDeleter sets the Deleter used to remove entries from merged.
-// Default: FSDeleter (real filesystem deletions).
-func WithDeleter(d Deleter) Option {
-	return func(dv *DiffView) { dv.deleter = d }
-}
-
-// WithObserver sets the Observer that receives every event.
-// Default: NoopObserver.
-func WithObserver(o Observer) Option {
-	return func(dv *DiffView) { dv.observer = o }
-}
-
-// WithWorkers sets the number of concurrent Deleter goroutines.
-// Default: 1 (serial deletions; safe on local filesystems).
-// Increase for NFS or object-storage backends.
-func WithWorkers(n int) Option {
-	return func(dv *DiffView) {
-		if n > 0 {
-			dv.workers = n
-		}
-	}
-}
-
-// ─── DiffView ─────────────────────────────────────────────────────────────────
-
-// DiffView computes and applies a diff between lower and upper to a merged
-// directory by deleting from merged the paths that are either exclusive to
-// lower or identical in both lower and upper.
-//
-// Construct with New; configure with functional options.
-type DiffView struct {
-	differ   Differ
-	deleter  Deleter
-	observer Observer
-	workers  int
-}
-
-// New creates a DiffView with the supplied options.
-// Safe defaults are applied for any option that is not provided.
-func New(opts ...Option) *DiffView {
-	dv := &DiffView{
-		differ:   NewDirsyncDiffer(DirsyncDifferOptions{}),
-		deleter:  NewFSDeleter(),
-		observer: NoopObserver{},
-		workers:  1,
-	}
-	for _, o := range opts {
-		o(dv)
-	}
-	return dv
-}
 
 // ─── Result ───────────────────────────────────────────────────────────────────
 
-// Result summarises the outcome of an Apply call.
+// Result summarises the outcome of a single Apply call.
 //
-// All counts represent completed actions:
-//   - DeletedExclusive / DeletedEqual: Deleter.Delete returned nil.
-//   - A failure does NOT increment these counts; it increments DeleteFailed
-//     and adds an entry to Err.
+// Counts reflect classification decisions, not confirmed filesystem outcomes.
+// A BatchOp submission failure increments SubmitFailed and does NOT increment
+// DeletedExclusive or DeletedEqual. Batcher flush errors (i.e. the actual
+// unlink/rmdir syscall failures) are accumulated in Err after Apply returns.
 type Result struct {
-	// DeletedExclusive: lower-exclusive paths successfully deleted from merged.
+	// DeletedExclusive: exclusive-lower paths whose BatchOp was submitted.
 	DeletedExclusive int
 
-	// DeletedEqual: common-and-equal paths successfully deleted from merged.
+	// DeletedEqual: common-equal paths whose BatchOp was submitted.
 	DeletedEqual int
 
-	// RetainedDiff: common-and-different paths preserved in merged (the effective diff).
+	// RetainedDiff: common-different paths kept in merged (upper changed them).
 	RetainedDiff int
 
-	// RetainedHashErr: paths preserved because content hashing failed.
+	// RetainedHashErr: paths kept because content comparison failed.
 	RetainedHashErr int
 
-	// DeleteFailed: paths whose deletion was attempted but failed.
-	DeleteFailed int
+	// SubmitFailed: paths for which batcher.Submit returned an error.
+	// Actual filesystem errors go into Err via the batcher's flush mechanism.
+	SubmitFailed int
 
-	// Err is non-nil when one or more deletions failed or the walk failed.
-	// Type-assert to *DeletionErrors to inspect individual failures.
+	// Err is non-nil when the walk, hash pipeline, or batcher flush produced
+	// errors. Wraps dirsync.Pipeline's combined error output.
 	Err error
 }
 
-// ─── DeletionErrors ───────────────────────────────────────────────────────────
+// Total returns the sum of all classified paths.
+func (r Result) Total() int {
+	return r.DeletedExclusive + r.DeletedEqual +
+		r.RetainedDiff + r.RetainedHashErr + r.SubmitFailed
+}
 
-// DeletionErrors collects every individual failure from a single Apply call.
+// OK reports whether the run completed without any errors.
+func (r Result) OK() bool { return r.Err == nil && r.SubmitFailed == 0 }
+
+// ─── DiffView ─────────────────────────────────────────────────────────────────
+
+// DiffView applies the upper-vs-lower diff to a merged directory.
 //
-//	var dErr *diffview.DeletionErrors
-//	if errors.As(result.Err, &dErr) {
-//	    for _, e := range dErr.Errors {
-//	        log.Printf("failed: %s – %v", e.RelPath, e.Err)
-//	    }
-//	}
-type DeletionErrors struct {
-	Errors []DeletionError
+// Construct with New; configure with functional options. A single DiffView
+// instance may be reused across multiple Apply calls safely.
+type DiffView struct {
+	cfg config
 }
 
-func (e *DeletionErrors) Error() string {
-	return fmt.Sprintf("diffview: %d deletion(s) failed", len(e.Errors))
+// New creates a DiffView with the supplied options.
+// Safe defaults are applied for every unset option:
+//
+//   - Observer:       NoopObserver
+//   - MergedView:     FSMergedView (real filesystem)
+//   - Batcher:        NewBestBatcher (io_uring on Linux 5.11+, GoroutineBatcher elsewhere)
+//   - Hash workers:   runtime.NumCPU()
+//   - Concurrency:    runtime.NumCPU() workers each for exclusive and common paths
+func New(opts ...Option) *DiffView {
+	cfg := defaultConfig()
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return &DiffView{cfg: cfg}
 }
-
-// DeletionError is one failure from the DeletionErrors list.
-type DeletionError struct {
-	RelPath   string // relative path
-	MergedAbs string // absolute path in merged that could not be deleted
-	Err       error
-}
-
-func (e DeletionError) Error() string {
-	return fmt.Sprintf("delete %q: %v", e.MergedAbs, e.Err)
-}
-
-func (e DeletionError) Unwrap() error { return e.Err }
 
 // ─── Apply ────────────────────────────────────────────────────────────────────
 
 // Apply computes the diff between lowerRoot and upperRoot and applies it to
-// mergedRoot by deleting the appropriate paths.
+// mergedRoot by deleting the appropriate paths from the merged directory.
 //
-// Deletions target mergedRoot, not lowerRoot or upperRoot.  The relative paths
-// produced by the Differ are resolved against mergedRoot.
+// Deletion targets are always in mergedRoot, never in lowerRoot or upperRoot.
 //
-// Apply blocks until all deletions are complete and returns a Result.
-// It returns a non-nil error only for configuration problems (empty paths,
-// invalid glob patterns, Differ startup failure).  Deletion failures are
-// embedded in Result.Err as *DeletionErrors.
+// Apply blocks until all classification, hashing, and batcher flush operations
+// are complete, then returns a Result.
+//
+// Error handling:
+//   - Empty root strings → immediate non-nil error return (no goroutines started).
+//   - Walk or hash errors → Result.Err (pipeline ran to completion).
+//   - Batcher flush errors → Result.Err (all entries were still classified).
+//   - Batcher submit errors → Result.SubmitFailed (counted per-entry).
 func (dv *DiffView) Apply(ctx context.Context, lowerRoot, upperRoot, mergedRoot string) (Result, error) {
-	if lowerRoot == "" {
-		return Result{}, errors.New("diffview: lowerRoot must not be empty")
-	}
-	if upperRoot == "" {
-		return Result{}, errors.New("diffview: upperRoot must not be empty")
-	}
-	if mergedRoot == "" {
-		return Result{}, errors.New("diffview: mergedRoot must not be empty")
+	if err := validateRoots(lowerRoot, upperRoot, mergedRoot); err != nil {
+		return Result{}, err
 	}
 
-	stream, err := dv.differ.Diff(ctx, lowerRoot, upperRoot, mergedRoot)
+	// ── Build infrastructure components ──────────────────────────────────
+	view, err := dv.cfg.viewFactory(mergedRoot)
 	if err != nil {
-		return Result{}, fmt.Errorf("diffview.Apply: %w", err)
+		return Result{}, fmt.Errorf("diffview.Apply: merged view: %w", err)
 	}
 
-	return dv.run(ctx, stream), nil
-}
+	batcher, err := dv.cfg.batcherFactory(view)
+	if err != nil {
+		return Result{}, fmt.Errorf("diffview.Apply: batcher: %w", err)
+	}
 
-// ─── run (internal engine) ────────────────────────────────────────────────────
+	classifier := dirsync.NewClassifier(lowerRoot, upperRoot, dv.cfg.classifierOpts...)
+	hashPipeline := dirsync.NewHashPipeline(dv.cfg.hashOpts...)
 
-// run drains the DiffStream and orchestrates the worker pool.
-func (dv *DiffView) run(ctx context.Context, stream DiffStream) Result {
-	// ── Atomic counters (incremented only after a confirmed outcome) ───────
+	// ── Build atomic counters ─────────────────────────────────────────────
+	// Counters are incremented only AFTER the relevant action completes.
 	var (
-		cDeletedExcl   atomic.Int64
-		cDeletedEqual  atomic.Int64
-		cRetainedDiff  atomic.Int64
-		cRetainedHash  atomic.Int64
-		cDeleteFailed  atomic.Int64
+		cDeletedExcl  atomic.Int64
+		cDeletedEqual atomic.Int64
+		cRetainedDiff atomic.Int64
+		cRetainedHash atomic.Int64
+		cSubmitFailed atomic.Int64
 	)
 
-	// ── Deletion error collection ─────────────────────────────────────────
-	var (
-		errMu   sync.Mutex
-		delErrs []DeletionError
-	)
-	recordFailure := func(entry DiffEntry, err error) {
-		errMu.Lock()
-		delErrs = append(delErrs, DeletionError{
-			RelPath:   entry.RelPath,
-			MergedAbs: entry.MergedAbs,
-			Err:       err,
-		})
-		errMu.Unlock()
-		cDeleteFailed.Add(1)
-		dv.observer.OnEvent(Event{Entry: entry, DeleteErr: err})
-	}
+	obs := dv.cfg.observer // capture for closures
 
-	// ── Worker pool ────────────────────────────────────────────────────────
-	// Workers call Deleter.Delete and then increment the appropriate counter.
-	// Counter increments happen AFTER the outcome is known — ensuring counts
-	// reflect reality, not intent.
-	jobCh := make(chan DiffEntry, dv.workers*16)
+	// ── ExclusiveHandler ─────────────────────────────────────────────────
+	// Called by Pipeline.runExclusivePool for every lower-only path.
+	// Converts to DiffEntry, notifies observer, submits deletion BatchOp.
+	excHandler := dirsync.ExclusiveHandlerFunc(func(ctx context.Context, ep dirsync.ExclusivePath) error {
+		entry := exclusiveToEntry(ep, mergedRoot)
 
-	var poolWg sync.WaitGroup
-	for i := 0; i < dv.workers; i++ {
-		poolWg.Add(1)
-		go func() {
-			defer poolWg.Done()
-			for entry := range jobCh {
-				if ctx.Err() != nil {
-					continue // drain without acting
-				}
-				if err := dv.deleter.Delete(entry); err != nil {
-					recordFailure(entry, err)
-				} else {
-					// Successful deletion: increment and notify.
-					switch entry.DeleteReason {
-					case DeleteReasonExclusiveLower:
-						cDeletedExcl.Add(1)
-					case DeleteReasonCommonEqual:
-						cDeletedEqual.Add(1)
-					}
-					dv.observer.OnEvent(Event{Entry: entry})
-				}
-			}
-		}()
-	}
+		op := exclusiveToBatchOp(ep)
+		submitErr := batcher.Submit(ctx, op)
 
-	// ── Engine goroutine ───────────────────────────────────────────────────
-	// Drains DiffStream.Entries; routes deletions to workers, handles
-	// retentions inline (no deletion needed, just observe).
-	for entry := range stream.Entries {
-		switch entry.Action {
-		case ActionDelete:
-			select {
-			case jobCh <- entry:
-			case <-ctx.Done():
-				// Drain without enqueuing — keeps Differ unblocked.
-			}
+		// Notify observer regardless of submit outcome so it sees every path.
+		obs.OnEvent(Event{Entry: entry, SubmitErr: submitErr})
 
-		case ActionRetain:
-			// Retained paths need no worker; observe and count inline.
-			switch entry.RetainReason {
-			case RetainReasonCommonDifferent:
-				cRetainedDiff.Add(1)
-			case RetainReasonHashError:
-				cRetainedHash.Add(1)
-			}
-			dv.observer.OnEvent(Event{Entry: entry})
+		if submitErr != nil {
+			cSubmitFailed.Add(1)
+			return fmt.Errorf("exclusive submit %q: %w", ep.Path, submitErr)
 		}
-	}
+		cDeletedExcl.Add(1)
+		return nil
+	})
 
-	// Signal pool: no more jobs.
-	close(jobCh)
-	poolWg.Wait()
+	// ── CommonHandler ────────────────────────────────────────────────────
+	// Called by Pipeline.runCommonPool for every hash-enriched common path.
+	// Classification: equal → delete; different or unchecked → retain.
+	comHandler := dirsync.CommonHandlerFunc(func(ctx context.Context, cp dirsync.CommonPath) error {
+		entry := commonToEntry(cp, mergedRoot)
 
-	// Read the Differ's walk error only after Entries is fully drained.
-	var walkErr error
-	if err := <-stream.Err; err != nil {
-		walkErr = err
+		if entry.Action == ActionDelete {
+			op := commonToBatchOp(cp)
+			submitErr := batcher.Submit(ctx, op)
+
+			obs.OnEvent(Event{Entry: entry, SubmitErr: submitErr})
+
+			if submitErr != nil {
+				cSubmitFailed.Add(1)
+				return fmt.Errorf("common submit %q: %w", cp.Path, submitErr)
+			}
+			cDeletedEqual.Add(1)
+			return nil
+		}
+
+		// ActionRetain: no batcher submission, just observe and count.
+		obs.OnEvent(Event{Entry: entry})
+		switch entry.RetainReason {
+		case RetainReasonCommonDifferent:
+			cRetainedDiff.Add(1)
+		case RetainReasonHashError:
+			cRetainedHash.Add(1)
+		}
+		return nil
+	})
+
+	// ── Assemble and run the pipeline ────────────────────────────────────
+	// dirsync.Pipeline handles all channel lifecycle, worker pool management,
+	// context propagation, and error collection. We supply only the handlers.
+	pipeOpts := append(
+		dv.cfg.pipelineOpts,
+		dirsync.WithHashPipeline(hashPipeline),
+		// The batcher is submitted to by the handlers above; we do NOT also
+		// wire WithExclusiveBatcher / WithCommonBatcher — that would cause
+		// double submissions. The handlers own the batcher interaction.
+	)
+
+	pl := dirsync.NewPipeline(classifier, excHandler, comHandler, pipeOpts...)
+	pResult := pl.Run(ctx)
+
+	// Flush any remaining ops (auto-flush threshold may not have triggered
+	// for the last batch) then release batcher resources.
+	var flushErr error
+	if err := batcher.Close(ctx); err != nil && !isContextErr(err) {
+		flushErr = fmt.Errorf("batcher close: %w", err)
 	}
 
 	return Result{
@@ -285,26 +235,100 @@ func (dv *DiffView) run(ctx context.Context, stream DiffStream) Result {
 		DeletedEqual:     int(cDeletedEqual.Load()),
 		RetainedDiff:     int(cRetainedDiff.Load()),
 		RetainedHashErr:  int(cRetainedHash.Load()),
-		DeleteFailed:     int(cDeleteFailed.Load()),
-		Err:              combineErrors(walkErr, delErrs),
+		SubmitFailed:     int(cSubmitFailed.Load()),
+		Err:              joinErrs(pResult.Err, flushErr),
+	}, nil
+}
+
+// ─── Conversion helpers ───────────────────────────────────────────────────────
+
+// exclusiveToEntry converts a dirsync.ExclusivePath to a diffview.DiffEntry.
+// The ExclusivePath.Path field is the forward-slash relative path; MergedAbs
+// is resolved against mergedRoot using the OS path separator.
+func exclusiveToEntry(ep dirsync.ExclusivePath, mergedRoot string) DiffEntry {
+	return DiffEntry{
+		RelPath:      ep.Path,
+		MergedAbs:    filepath.Join(mergedRoot, filepath.FromSlash(ep.Path)),
+		Action:       ActionDelete,
+		IsDir:        ep.Kind == dirsync.PathKindDir,
+		Collapsed:    ep.Collapsed,
+		DeleteReason: DeleteReasonExclusiveLower,
 	}
 }
 
-// ─── Error helpers ────────────────────────────────────────────────────────────
+// commonToEntry converts a hash-enriched dirsync.CommonPath to a DiffEntry.
+//
+// Decision rules (BuildKit DiffOp / upper-minus-lower semantics):
+//
+//	HashEqual checked and true   → ActionDelete / DeleteReasonCommonEqual
+//	HashEqual checked and false  → ActionRetain / RetainReasonCommonDifferent
+//	HashEqual nil (not checked)  → ActionRetain / RetainReasonCommonDifferent (safety)
+//
+// There is no RetainReasonHashError path here: hash errors are forwarded on
+// HashPipeline's error channel and surface in PipelineResult.Err. When a hash
+// fails, the CommonPath simply has HashEqual==nil and is treated as "different"
+// (retain), which is the safe default.
+func commonToEntry(cp dirsync.CommonPath, mergedRoot string) DiffEntry {
+	base := DiffEntry{
+		RelPath:   cp.Path,
+		MergedAbs: filepath.Join(mergedRoot, filepath.FromSlash(cp.Path)),
+		IsDir:     cp.Kind == dirsync.PathKindDir,
+	}
 
-func combineErrors(walkErr error, delErrs []DeletionError) error {
-	if walkErr == nil && len(delErrs) == 0 {
+	eq, checked := cp.IsContentEqual()
+	if checked && eq {
+		base.Action = ActionDelete
+		base.DeleteReason = DeleteReasonCommonEqual
+		return base
+	}
+
+	base.Action = ActionRetain
+	base.RetainReason = RetainReasonCommonDifferent
+	return base
+}
+
+// exclusiveToBatchOp converts an ExclusivePath to a BatchOp.
+// Collapsed dirs use OpRemoveAll (one kernel op for the entire subtree);
+// leaf entries use OpRemove.
+func exclusiveToBatchOp(ep dirsync.ExclusivePath) dirsync.BatchOp {
+	kind := dirsync.OpRemove
+	if ep.Collapsed {
+		kind = dirsync.OpRemoveAll
+	}
+	return dirsync.BatchOp{Kind: kind, RelPath: ep.Path, Tag: ep}
+}
+
+// commonToBatchOp converts a hash-equal CommonPath to a BatchOp.
+// Common entries are always leaf removals (OpRemove); they are never collapsed.
+func commonToBatchOp(cp dirsync.CommonPath) dirsync.BatchOp {
+	return dirsync.BatchOp{Kind: dirsync.OpRemove, RelPath: cp.Path, Tag: cp}
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// validateRoots returns a descriptive error if any root path is empty.
+func validateRoots(lower, upper, merged string) error {
+	switch {
+	case lower == "":
+		return errors.New("diffview: lowerRoot must not be empty")
+	case upper == "":
+		return errors.New("diffview: upperRoot must not be empty")
+	case merged == "":
+		return errors.New("diffview: mergedRoot must not be empty")
+	}
+	return nil
+}
+
+// joinErrs combines two errors losslessly via errors.Join.
+// Returns nil when both are nil.
+func joinErrs(a, b error) error {
+	if a == nil && b == nil {
 		return nil
 	}
-	if walkErr != nil && len(delErrs) == 0 {
-		return walkErr
-	}
-	if walkErr != nil {
-		delErrs = append(delErrs, DeletionError{
-			RelPath:   "<walk>",
-			MergedAbs: "<walk>",
-			Err:       walkErr,
-		})
-	}
-	return &DeletionErrors{Errors: delErrs}
+	return errors.Join(a, b)
+}
+
+// isContextErr reports whether err is a context cancellation or deadline.
+func isContextErr(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

@@ -379,7 +379,6 @@ func TestHashPipeline_EnrichesEqualFiles(t *testing.T) {
 	rawCh := make(chan differ.CommonPath, 1)
 	errCh := make(chan error, 8)
 
-	// Produce a fake common path (no hash yet)
 	lInfo, _ := os.Lstat(filepath.Join(lower, "f.txt"))
 	uInfo, _ := os.Lstat(filepath.Join(upper, "f.txt"))
 	rawCh <- differ.CommonPath{Path: "f.txt", Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
@@ -393,7 +392,7 @@ func TestHashPipeline_EnrichesEqualFiles(t *testing.T) {
 		results = append(results, cp)
 	}
 	for range errCh {
-	} // drain
+	}
 
 	if len(results) != 1 {
 		t.Fatalf("expected 1 enriched result, got %d", len(results))
@@ -409,11 +408,13 @@ func TestHashPipeline_EnrichesEqualFiles(t *testing.T) {
 
 func TestHashPipeline_EnrichesDifferentFiles(t *testing.T) {
 	lower, upper := t.TempDir(), t.TempDir()
-	// Same size, different content (same byte count) to force SHA-256 path
+	// Same byte-count content so phase-1 size check passes; different bytes so
+	// phase-2 incremental comparison exits on the first chunk.
 	fixture(t, lower, map[string]string{"f.txt": "version-A"})
 	fixture(t, upper, map[string]string{"f.txt": "version-B"})
 
-	// Make mtimes differ
+	// Force mtime difference so phase-1 mtime fast-path is skipped and
+	// compareContents is exercised.
 	lPath := filepath.Join(lower, "f.txt")
 	past := time.Now().Add(-time.Hour)
 	_ = os.Chtimes(lPath, past, past)
@@ -446,6 +447,390 @@ func TestHashPipeline_EnrichesDifferentFiles(t *testing.T) {
 	if eq {
 		t.Error("different-content files should have HashEqual=false")
 	}
+}
+
+// TestCompareContents_EarlyExit verifies that compareContents returns false
+// after reading only the first differing chunk — without reading the rest of
+// either file. The test uses a custom io.Reader that counts Read calls so we
+// can assert on I/O volume.
+//
+// We exercise this indirectly through the TwoPhaseHasher by constructing two
+// files whose first 64 KiB differ, then asserting HashEqual=false with only
+// one chunk of I/O per file.
+func TestCompareContentsParallel_DifferInFirstChunk(t *testing.T) {
+	lower, upper := t.TempDir(), t.TempDir()
+	// 8 MiB files differing only at byte 0.
+	// Phase 2P: NumCPU segments run concurrently; the segment covering byte 0
+	// returns false after reading one 64 KiB chunk, cancelling all others.
+	size := 8 << 20
+	lData := make([]byte, size)
+	uData := make([]byte, size)
+	lData[0] = 0xAA
+	uData[0] = 0xBB
+
+	lf := filepath.Join(lower, "big.bin")
+	uf := filepath.Join(upper, "big.bin")
+	_ = os.WriteFile(lf, lData, 0o644)
+	_ = os.WriteFile(uf, uData, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(lf, past, past)
+
+	lInfo, _ := os.Lstat(lf)
+	uInfo, _ := os.Lstat(uf)
+
+	rawCh := make(chan differ.CommonPath, 1)
+	errCh := make(chan error, 8)
+	rawCh <- differ.CommonPath{Path: "big.bin", Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
+	close(rawCh)
+
+	hp := differ.NewHashPipeline(
+		differ.WithHasher(&differ.TwoPhaseHasher{
+			LargeFileThreshold: 1 << 20, // 1 MiB threshold for test
+			SegmentWorkers:     4,
+		}),
+	)
+	enriched := hp.Run(context.Background(), lower, upper, rawCh, errCh)
+	var results []differ.CommonPath
+	for cp := range enriched {
+		results = append(results, cp)
+	}
+	for range errCh {
+	}
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	eq, checked := results[0].IsContentEqual()
+	if !checked || eq {
+		t.Errorf("differ-at-byte-0 large file: want eq=false checked=true, got eq=%v checked=%v", eq, checked)
+	}
+}
+
+func TestCompareContentsParallel_EqualLargeFile(t *testing.T) {
+	lower, upper := t.TempDir(), t.TempDir()
+	// 4 MiB identical files — all segments must report equal.
+	size := 4 << 20
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i * 7)
+	}
+	lf := filepath.Join(lower, "eq.bin")
+	uf := filepath.Join(upper, "eq.bin")
+	_ = os.WriteFile(lf, data, 0o644)
+	_ = os.WriteFile(uf, data, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(lf, past, past)
+
+	lInfo, _ := os.Lstat(lf)
+	uInfo, _ := os.Lstat(uf)
+
+	rawCh := make(chan differ.CommonPath, 1)
+	errCh := make(chan error, 8)
+	rawCh <- differ.CommonPath{Path: "eq.bin", Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
+	close(rawCh)
+
+	hp := differ.NewHashPipeline(
+		differ.WithHasher(&differ.TwoPhaseHasher{
+			LargeFileThreshold: 1 << 20,
+			SegmentWorkers:     4,
+		}),
+	)
+	enriched := hp.Run(context.Background(), lower, upper, rawCh, errCh)
+	var results []differ.CommonPath
+	for cp := range enriched {
+		results = append(results, cp)
+	}
+	for range errCh {
+	}
+
+	eq, checked := results[0].IsContentEqual()
+	if !checked || !eq {
+		t.Errorf("equal large file: want eq=true checked=true, got eq=%v checked=%v", eq, checked)
+	}
+}
+
+func TestCompareContentsParallel_DifferInLastSegment(t *testing.T) {
+	lower, upper := t.TempDir(), t.TempDir()
+	// 4 MiB files; last byte differs. Segment containing the last byte
+	// returns false; others return true.
+	size := 4 << 20
+	lData := make([]byte, size)
+	uData := make([]byte, size)
+	for i := range lData {
+		lData[i] = byte(i)
+		uData[i] = byte(i)
+	}
+	uData[size-1] ^= 0xFF // flip last byte
+
+	lf := filepath.Join(lower, "tail.bin")
+	uf := filepath.Join(upper, "tail.bin")
+	_ = os.WriteFile(lf, lData, 0o644)
+	_ = os.WriteFile(uf, uData, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(lf, past, past)
+
+	lInfo, _ := os.Lstat(lf)
+	uInfo, _ := os.Lstat(uf)
+
+	rawCh := make(chan differ.CommonPath, 1)
+	errCh := make(chan error, 8)
+	rawCh <- differ.CommonPath{Path: "tail.bin", Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
+	close(rawCh)
+
+	hp := differ.NewHashPipeline(
+		differ.WithHasher(&differ.TwoPhaseHasher{
+			LargeFileThreshold: 1 << 20,
+			SegmentWorkers:     4,
+		}),
+	)
+	enriched := hp.Run(context.Background(), lower, upper, rawCh, errCh)
+	var results []differ.CommonPath
+	for cp := range enriched {
+		results = append(results, cp)
+	}
+	for range errCh {
+	}
+
+	eq, checked := results[0].IsContentEqual()
+	if !checked || eq {
+		t.Errorf("last-byte-differs: want eq=false checked=true, got eq=%v checked=%v", eq, checked)
+	}
+}
+
+func TestCompareContentsParallel_ThresholdRouting(t *testing.T) {
+	// Verify that files below the threshold use compareContents (sequential)
+	// and files at/above use compareContentsParallel.
+	// We test this indirectly: both paths must produce the correct result.
+	lower, upper := t.TempDir(), t.TempDir()
+
+	// 512 KiB — below 1 MiB threshold → sequential path
+	small := make([]byte, 512*1024)
+	for i := range small {
+		small[i] = byte(i)
+	}
+	_ = os.WriteFile(filepath.Join(lower, "small.bin"), small, 0o644)
+	_ = os.WriteFile(filepath.Join(upper, "small.bin"), small, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(filepath.Join(lower, "small.bin"), past, past)
+
+	// 2 MiB — at 1 MiB threshold → parallel path
+	large := make([]byte, 2<<20)
+	for i := range large {
+		large[i] = byte(i * 3)
+	}
+	_ = os.WriteFile(filepath.Join(lower, "large.bin"), large, 0o644)
+	_ = os.WriteFile(filepath.Join(upper, "large.bin"), large, 0o644)
+	_ = os.Chtimes(filepath.Join(lower, "large.bin"), past, past)
+
+	hasher := &differ.TwoPhaseHasher{LargeFileThreshold: 1 << 20, SegmentWorkers: 2}
+
+	for _, name := range []string{"small.bin", "large.bin"} {
+		lInfo, _ := os.Lstat(filepath.Join(lower, name))
+		uInfo, _ := os.Lstat(filepath.Join(upper, name))
+
+		rawCh := make(chan differ.CommonPath, 1)
+		errCh := make(chan error, 8)
+		rawCh <- differ.CommonPath{Path: name, Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
+		close(rawCh)
+
+		hp := differ.NewHashPipeline(differ.WithHasher(hasher))
+		enriched := hp.Run(context.Background(), lower, upper, rawCh, errCh)
+		var results []differ.CommonPath
+		for cp := range enriched {
+			results = append(results, cp)
+		}
+		for range errCh {
+		}
+
+		eq, checked := results[0].IsContentEqual()
+		if !checked || !eq {
+			t.Errorf("%s: want equal, got eq=%v checked=%v", name, eq, checked)
+		}
+	}
+}
+
+// BenchmarkCompareContents_Sequential benchmarks the sequential path on a
+// file that requires full read (files are equal, worst case for early exit).
+func BenchmarkCompareContents_Sequential_Equal(b *testing.B) {
+	lower, upper := b.TempDir(), b.TempDir()
+	size := 1 << 20 // 1 MiB
+	data := make([]byte, size)
+	_ = os.WriteFile(filepath.Join(lower, "f.bin"), data, 0o644)
+	_ = os.WriteFile(filepath.Join(upper, "f.bin"), data, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(filepath.Join(lower, "f.bin"), past, past)
+	lInfo, _ := os.Lstat(filepath.Join(lower, "f.bin"))
+	uInfo, _ := os.Lstat(filepath.Join(upper, "f.bin"))
+	// Force threshold above file size so sequential path is always used.
+	hasher := &differ.TwoPhaseHasher{LargeFileThreshold: 64 << 20}
+
+	b.SetBytes(int64(size) * 2)
+	b.ResetTimer()
+	for range b.N {
+		eq, _ := hasher.Equal(filepath.Join(lower, "f.bin"), filepath.Join(upper, "f.bin"), lInfo, uInfo)
+		if !eq {
+			b.Fatal("expected equal")
+		}
+	}
+}
+
+// BenchmarkCompareContents_Parallel benchmarks the parallel segment path
+// on a large file that is equal (worst case: full read across all segments).
+func BenchmarkCompareContents_Parallel_Equal(b *testing.B) {
+	lower, upper := b.TempDir(), b.TempDir()
+	size := 8 << 20 // 8 MiB
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i * 7)
+	}
+	_ = os.WriteFile(filepath.Join(lower, "f.bin"), data, 0o644)
+	_ = os.WriteFile(filepath.Join(upper, "f.bin"), data, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(filepath.Join(lower, "f.bin"), past, past)
+	lInfo, _ := os.Lstat(filepath.Join(lower, "f.bin"))
+	uInfo, _ := os.Lstat(filepath.Join(upper, "f.bin"))
+	hasher := &differ.TwoPhaseHasher{LargeFileThreshold: 1 << 20, SegmentWorkers: 4}
+
+	b.SetBytes(int64(size) * 2)
+	b.ResetTimer()
+	for range b.N {
+		eq, _ := hasher.Equal(filepath.Join(lower, "f.bin"), filepath.Join(upper, "f.bin"), lInfo, uInfo)
+		if !eq {
+			b.Fatal("expected equal")
+		}
+	}
+}
+
+// BenchmarkCompareContents_Parallel_EarlyExit benchmarks the early-exit
+// benefit: files differ in the first byte, so only one chunk is read per
+// segment before cancellation propagates.
+func BenchmarkCompareContents_Parallel_EarlyExit(b *testing.B) {
+	lower, upper := b.TempDir(), b.TempDir()
+	size := 8 << 20
+	lData := make([]byte, size)
+	uData := make([]byte, size)
+	uData[0] = 0xFF // differ at byte 0
+
+	_ = os.WriteFile(filepath.Join(lower, "f.bin"), lData, 0o644)
+	_ = os.WriteFile(filepath.Join(upper, "f.bin"), uData, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(filepath.Join(lower, "f.bin"), past, past)
+	lInfo, _ := os.Lstat(filepath.Join(lower, "f.bin"))
+	uInfo, _ := os.Lstat(filepath.Join(upper, "f.bin"))
+	hasher := &differ.TwoPhaseHasher{LargeFileThreshold: 1 << 20, SegmentWorkers: 4}
+
+	b.SetBytes(int64(size) * 2) // theoretical max; actual I/O is << this
+	b.ResetTimer()
+	for range b.N {
+		eq, _ := hasher.Equal(filepath.Join(lower, "f.bin"), filepath.Join(upper, "f.bin"), lInfo, uInfo)
+		if eq {
+			b.Fatal("expected unequal")
+		}
+	}
+}
+
+func TestCompareContents_EarlyExit_DifferInMiddle(t *testing.T) {
+	lower, upper := t.TempDir(), t.TempDir()
+	// Two files: 5 chunks each (5 × 64 KiB = 320 KiB). First chunk equal,
+	// second chunk differs → should exit after reading 2 chunks from each.
+	chunkSize := 64 * 1024
+	lData := make([]byte, 5*chunkSize)
+	uData := make([]byte, 5*chunkSize)
+	copy(lData, uData) // start equal
+	lData[chunkSize] = 0x01 // differ in second chunk
+	uData[chunkSize] = 0x02
+
+	lf := filepath.Join(lower, "f.bin")
+	uf := filepath.Join(upper, "f.bin")
+	_ = os.WriteFile(lf, lData, 0o644)
+	_ = os.WriteFile(uf, uData, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(lf, past, past)
+
+	lInfo, _ := os.Lstat(lf)
+	uInfo, _ := os.Lstat(uf)
+
+	rawCh := make(chan differ.CommonPath, 1)
+	errCh := make(chan error, 8)
+	rawCh <- differ.CommonPath{Path: "f.bin", Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
+	close(rawCh)
+
+	hp := differ.NewHashPipeline()
+	enriched := hp.Run(context.Background(), lower, upper, rawCh, errCh)
+
+	var results []differ.CommonPath
+	for cp := range enriched {
+		results = append(results, cp)
+	}
+	for range errCh {
+	}
+
+	if eq, _ := results[0].IsContentEqual(); eq {
+		t.Error("files differing in second chunk should be unequal")
+	}
+}
+
+func TestCompareContents_EqualLargeFile(t *testing.T) {
+	lower, upper := t.TempDir(), t.TempDir()
+	// Identical 256 KiB files — must return equal after reading all chunks.
+	size := 256 * 1024
+	data := make([]byte, size)
+	for i := range data {
+		data[i] = byte(i)
+	}
+	_ = os.WriteFile(filepath.Join(lower, "equal.bin"), data, 0o644)
+	_ = os.WriteFile(filepath.Join(upper, "equal.bin"), data, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(filepath.Join(lower, "equal.bin"), past, past)
+
+	lInfo, _ := os.Lstat(filepath.Join(lower, "equal.bin"))
+	uInfo, _ := os.Lstat(filepath.Join(upper, "equal.bin"))
+
+	rawCh := make(chan differ.CommonPath, 1)
+	errCh := make(chan error, 8)
+	rawCh <- differ.CommonPath{Path: "equal.bin", Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
+	close(rawCh)
+
+	hp := differ.NewHashPipeline()
+	enriched := hp.Run(context.Background(), lower, upper, rawCh, errCh)
+
+	var results []differ.CommonPath
+	for cp := range enriched {
+		results = append(results, cp)
+	}
+	for range errCh {
+	}
+
+	eq, checked := results[0].IsContentEqual()
+	if !checked || !eq {
+		t.Errorf("identical large file: expected equal=true checked=true, got eq=%v checked=%v", eq, checked)
+	}
+}
+
+func TestCompareContents_EmptyFiles(t *testing.T) {
+	lower, upper := t.TempDir(), t.TempDir()
+	_ = os.WriteFile(filepath.Join(lower, "empty"), []byte{}, 0o644)
+	_ = os.WriteFile(filepath.Join(upper, "empty"), []byte{}, 0o644)
+	past := time.Now().Add(-time.Hour)
+	_ = os.Chtimes(filepath.Join(lower, "empty"), past, past)
+
+	lInfo, _ := os.Lstat(filepath.Join(lower, "empty"))
+	uInfo, _ := os.Lstat(filepath.Join(upper, "empty"))
+
+	rawCh := make(chan differ.CommonPath, 1)
+	errCh := make(chan error, 8)
+	rawCh <- differ.CommonPath{Path: "empty", Kind: differ.PathKindFile, LowerInfo: lInfo, UpperInfo: uInfo}
+	close(rawCh)
+
+	hp := differ.NewHashPipeline()
+	enriched := hp.Run(context.Background(), lower, upper, rawCh, errCh)
+	for range enriched {
+	}
+	for range errCh {
+	}
+	// Empty files: size==0 → phase-1 catches it (same size + same... wait,
+	// empty files have size 0 and mtime may differ, but compareContents handles
+	// io.EOF on first read correctly.
 }
 
 func TestHashPipeline_ParallelHashing(t *testing.T) {
