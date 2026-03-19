@@ -16,14 +16,13 @@ import (
 type OpKind uint8
 
 const (
-	// OpRemove removes a single file or empty directory from the merged view.
+	// OpRemove removes a single file or empty directory.
 	// Corresponds to os.Remove / unlinkat(AT_FDCWD, path, 0).
 	OpRemove OpKind = iota
 
-	// OpRemoveAll removes a path and its entire subtree from the merged view.
-	// Corresponds to os.RemoveAll / unlinkat(AT_FDCWD, path, AT_REMOVEDIR)
-	// followed by recursive descent for non-empty directories.
-	// This is the operation used for collapsed [ExclusivePath] entries.
+	// OpRemoveAll removes a path and its entire subtree.
+	// Corresponds to os.RemoveAll / rmdir + recursive descent for non-empty dirs.
+	// Used for collapsed [ExclusivePath] entries.
 	OpRemoveAll
 )
 
@@ -40,7 +39,6 @@ func (k OpKind) String() string {
 }
 
 // BatchOp is a single filesystem mutation to be applied to a [MergedView].
-// Operations are collected into a [Batcher] and executed efficiently in bulk.
 type BatchOp struct {
 	Kind    OpKind
 	RelPath string // forward-slash relative path within the MergedView
@@ -65,7 +63,7 @@ type BatchOp struct {
 //
 // # Lifecycle
 //
-// Submit → (optionally Flush at any point) → Close.
+// Submit → (optionally Flush) → Close.
 // Close must be called exactly once. After Close, Submit and Flush must not
 // be called.
 //
@@ -77,12 +75,9 @@ type Batcher interface {
 
 	// Flush executes all queued ops and blocks until they complete.
 	// Returns the combined errors of all failed ops via errors.Join.
-	// Callers should invoke Flush at the end of every pipeline to ensure
-	// no ops are silently discarded.
 	Flush(ctx context.Context) error
 
-	// Close flushes any remaining ops and releases resources (goroutines,
-	// io_uring ring FDs, mmapped memory).
+	// Close flushes any remaining ops and releases resources.
 	// After Close returns the Batcher must not be used.
 	Close(ctx context.Context) error
 }
@@ -107,16 +102,11 @@ func (NopBatcher) Close(_ context.Context) error             { return nil }
 // RecordingBatcher records every submitted [BatchOp] without performing any
 // filesystem mutation. It is the canonical test double for [Batcher].
 //
-// # Key invariant
-//
 // Ops() returns ALL ops ever submitted, regardless of how many times Flush or
-// Close has been called. This mirrors the real batcher contract where ops are
-// executed (and thus "seen") at flush time but their identity is not lost.
-// Tests that call pl.Run() — which internally triggers a final Flush — can
-// still inspect the full op log via Ops() afterwards.
+// Close has been called.
 //
 // Total() returns only the count of ops that have passed through a Flush,
-// which is useful for verifying that the pipeline actually drained cleanly.
+// useful for verifying the pipeline drained cleanly.
 type RecordingBatcher struct {
 	mu      sync.Mutex
 	all     []BatchOp // permanent log — never cleared
@@ -146,8 +136,8 @@ func (r *RecordingBatcher) Flush(_ context.Context) error {
 // Close implements [Batcher].
 func (r *RecordingBatcher) Close(ctx context.Context) error { return r.Flush(ctx) }
 
-// Ops returns a snapshot of ALL ops ever submitted to this batcher, including
-// those already flushed. The slice is a copy; it is safe to modify.
+// Ops returns a snapshot of ALL ops ever submitted, including already-flushed
+// ones. The returned slice is a copy; it is safe to modify.
 func (r *RecordingBatcher) Ops() []BatchOp {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -156,7 +146,7 @@ func (r *RecordingBatcher) Ops() []BatchOp {
 	return out
 }
 
-// Pending returns a snapshot of ops that have been submitted but not yet flushed.
+// Pending returns a snapshot of ops submitted but not yet flushed.
 func (r *RecordingBatcher) Pending() []BatchOp {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -169,12 +159,11 @@ func (r *RecordingBatcher) Pending() []BatchOp {
 func (r *RecordingBatcher) Total() int64 { return r.total.Load() }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// executeOp — shared execution primitive used by all Batcher implementations
+// executeOp — shared execution primitive
 // ─────────────────────────────────────────────────────────────────────────────
 
-// executeOp executes a single [BatchOp] against view. It is intentionally a
-// free function so that different Batcher implementations (goroutine pool,
-// io_uring) can share the same execution logic for the fallback path.
+// executeOp executes a single [BatchOp] against view. It is a free function
+// so that different Batcher implementations can share the same execution logic.
 func executeOp(ctx context.Context, view MergedView, op BatchOp) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -190,8 +179,13 @@ func executeOp(ctx context.Context, view MergedView, op BatchOp) error {
 }
 
 // executeBatch runs a slice of ops concurrently up to parallelism goroutines
-// and returns the combined error. This is used by both [GoroutineBatcher.Flush]
-// and the io_uring fallback path.
+// and returns the combined error. Used by [GoroutineBatcher.Flush] and the
+// io_uring fallback path.
+//
+// BUG FIX H5: The original code had `sem <- struct{}{}` as a bare blocking
+// send. If context is cancelled while all worker slots are occupied, the send
+// would block forever even though the caller has given up. Fixed by using a
+// select with ctx.Done() so the loop drains gracefully on cancellation.
 func executeBatch(ctx context.Context, view MergedView, ops []BatchOp, parallelism int) error {
 	if len(ops) == 0 {
 		return nil
@@ -207,7 +201,14 @@ func executeBatch(ctx context.Context, view MergedView, ops []BatchOp, paralleli
 			break
 		}
 		op := op
-		sem <- struct{}{}
+
+		// BUG FIX H5: non-blocking select so ctx cancellation unblocks this loop.
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			break
+		}
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

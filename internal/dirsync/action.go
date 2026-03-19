@@ -19,8 +19,13 @@ type LogExclusiveHandler struct {
 	Level  slog.Level
 }
 
-func (l *LogExclusiveHandler) HandleExclusive(_ context.Context, ep ExclusivePath) error {
-	l.Logger.Log(context.Background(), l.Level, "exclusive path",
+// HandleExclusive implements [ExclusiveHandler].
+//
+// BUG FIX L1: The original used context.Background() instead of the provided
+// ctx. This discarded any trace IDs, cancellation signals, or deadline
+// information that callers attached to the context.
+func (l *LogExclusiveHandler) HandleExclusive(ctx context.Context, ep ExclusivePath) error {
+	l.Logger.Log(ctx, l.Level, "exclusive path",
 		slog.String("path", ep.Path),
 		slog.String("kind", ep.Kind.String()),
 		slog.Bool("collapsed", ep.Collapsed))
@@ -33,9 +38,12 @@ type LogCommonHandler struct {
 	Level  slog.Level
 }
 
-func (l *LogCommonHandler) HandleCommon(_ context.Context, cp CommonPath) error {
+// HandleCommon implements [CommonHandler].
+//
+// BUG FIX L1: Same fix as LogExclusiveHandler — use the provided ctx.
+func (l *LogCommonHandler) HandleCommon(ctx context.Context, cp CommonPath) error {
 	eq, checked := cp.IsContentEqual()
-	l.Logger.Log(context.Background(), l.Level, "common path",
+	l.Logger.Log(ctx, l.Level, "common path",
 		slog.String("path", cp.Path),
 		slog.String("kind", cp.Kind.String()),
 		slog.Bool("hash_checked", checked),

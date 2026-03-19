@@ -2,7 +2,9 @@ package differ
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -51,8 +53,7 @@ type Classifier interface {
 // # Decoupling
 //
 // The classifier knows only about lower and upper roots and the filter. It has
-// no knowledge of the merged view, the batcher, or the hash pipeline. Each of
-// those concerns is handled by a distinct layer in the [Pipeline].
+// no knowledge of the merged view, the batcher, or the hash pipeline.
 type DirsyncClassifier struct {
 	lowerRoot string
 	upperRoot string
@@ -79,8 +80,8 @@ func defaultClassifierConfig() classifierConfig {
 }
 
 // NewClassifier constructs a [DirsyncClassifier].
-// lowerRoot and upperRoot must be absolute paths; they are cleaned via
-// filepath.Clean but not stat-checked eagerly. I/O errors surface on errs.
+// lowerRoot and upperRoot are cleaned via filepath.Clean but not stat-checked
+// eagerly. I/O errors surface on the errs channel from Classify.
 func NewClassifier(lowerRoot, upperRoot string, opts ...ClassifierOption) *DirsyncClassifier {
 	cfg := defaultClassifierConfig()
 	for _, o := range opts {
@@ -118,9 +119,9 @@ func (c *DirsyncClassifier) UpperRoot() string { return c.upperRoot }
 
 // Classify implements [Classifier].
 //
-// It launches a single goroutine that drives the walkBoth algorithm and sends
-// results to the two output channels. Cancelling ctx signals the walker to
-// stop; both channels are then closed and the goroutine exits cleanly.
+// It launches a single goroutine that drives walkBoth and sends results to the
+// two output channels. Cancelling ctx signals the walker to stop; both channels
+// are then closed and the goroutine exits cleanly.
 func (c *DirsyncClassifier) Classify(ctx context.Context) (
 	<-chan ExclusivePath, <-chan CommonPath, <-chan error,
 ) {
@@ -167,12 +168,15 @@ func (c *DirsyncClassifier) Classify(ctx context.Context) (
 }
 
 // validateRequired verifies that every path in filter.RequiredPaths() exists
-// in the lower directory. Missing required paths surface as descriptive errors.
+// in the lower directory.
 func (c *DirsyncClassifier) validateRequired() error {
 	for _, rel := range c.filter.RequiredPaths() {
 		abs := filepath.Join(c.lowerRoot, filepath.FromSlash(rel))
 		if _, err := os.Lstat(abs); err != nil {
-			if isNotExist(err) {
+			// BUG FIX L2: os.IsNotExist does not unwrap error chains beyond
+			// *os.PathError. errors.Is(err, fs.ErrNotExist) is the correct
+			// Go 1.13+ idiom and handles wrapped errors correctly.
+			if errors.Is(err, fs.ErrNotExist) {
 				return fmt.Errorf("classifier: required path %q absent from lower %q",
 					rel, c.lowerRoot)
 			}
@@ -189,6 +193,3 @@ func sendErr(ctx context.Context, errCh chan<- error, err error) {
 	case <-ctx.Done():
 	}
 }
-
-// isNotExist wraps os.IsNotExist for readability.
-func isNotExist(err error) bool { return os.IsNotExist(err) }

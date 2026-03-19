@@ -18,9 +18,6 @@ import (
 
 // ContentHasher compares two filesystem entries for content equality.
 // Implementations must be safe for concurrent use from multiple goroutines.
-//
-// The interface is intentionally narrow — implementations may use metadata
-// fast-paths, content hashing, or any other strategy without changing callers.
 type ContentHasher interface {
 	// Equal returns true when lower and upper are considered content-identical.
 	//
@@ -30,8 +27,7 @@ type ContentHasher interface {
 	// or mtime before performing any I/O.
 	//
 	// BuildKit DiffOp semantics: changes to atime and ctime alone must NOT be
-	// treated as content changes. Only content bytes, permissions, and mtime
-	// are considered.
+	// treated as content changes.
 	Equal(lowerAbs, upperAbs string, lower, upper fs.FileInfo) (bool, error)
 }
 
@@ -39,18 +35,11 @@ type ContentHasher interface {
 // TwoPhaseHasher
 // ─────────────────────────────────────────────────────────────────────────────
 
-// defaultLargeFileThreshold is the file size above which the parallel
-// segment comparison path is chosen over the sequential path.
-//
-// Below this threshold the overhead of spawning goroutines and opening file
-// descriptors a second time outweighs the parallelism benefit. Empirically
-// calibrated: for files under ~2 MiB on local SSD the sequential path is
-// faster due to scheduler latency and OS buffer-cache warmup effects.
+// defaultLargeFileThreshold is the file size above which the parallel segment
+// comparison path is chosen over the sequential path.
 const defaultLargeFileThreshold = 2 << 20 // 2 MiB
 
 // minSegmentSize is the minimum bytes assigned to each segment goroutine.
-// Segments smaller than this don't justify the goroutine spawn and
-// synchronization overhead.
 const minSegmentSize = defaultBufSize * 4 // 4 × 64 KiB = 256 KiB
 
 // TwoPhaseHasher is the default [ContentHasher].
@@ -58,48 +47,36 @@ const minSegmentSize = defaultBufSize * 4 // 4 × 64 KiB = 256 KiB
 // # Three-phase decision tree
 //
 //   Phase 1a — size (zero I/O, O(1)):
-//     Different sizes → definitively not equal; no files opened.
+//     Different sizes → definitively not equal.
 //
 //   Phase 1b — mtime (zero I/O, O(1)):
 //     Same size + same mtime → assumed equal (BuildKit DiffOp convention;
 //     atime and ctime differences are intentionally ignored).
 //
-//   Phase 2S — sequential incremental comparison (I/O, small files):
+//   Phase 2S — sequential incremental comparison (small files):
 //     Used when file size < LargeFileThreshold (default 2 MiB).
-//     Both files are read in lockstep one 64 KiB chunk at a time.
-//     Returns false the moment any chunk differs — no further I/O.
-//     Best case (differ in first chunk): 2 × 64 KiB of I/O.
-//     Worst case (files equal):          2 × fileSize of I/O.
+//     Reads both files in lockstep in 64 KiB chunks; returns false immediately
+//     on the first differing chunk.
 //
-//   Phase 2P — parallel segment comparison (I/O, large files):
+//   Phase 2P — parallel segment comparison (large files):
 //     Used when file size ≥ LargeFileThreshold.
-//     The file is divided into SegmentWorkers (default NumCPU) equal segments.
-//     Each segment is compared by an independent goroutine using ReadAt
-//     (pread64), which is concurrency-safe on the same file descriptor.
-//     Any goroutine that finds a mismatch immediately cancels all others via
-//     a shared context, bounding wasted I/O to O(one 64 KiB chunk × workers).
-//
-//     I/O cost for equal files:   2 × fileSize / NumCPU  (wall-clock time)
-//     I/O cost for unequal files: as low as 2 × 64 KiB   (first chunk in any segment)
+//     Divides the file into SegmentWorkers equal segments compared concurrently
+//     using ReadAt (pread64). Any segment that finds a mismatch cancels the
+//     others via a shared context.
 //
 // # Why direct byte comparison rather than SHA-256
 //
-// SHA-256 is the right tool when you need a stored digest for later lookup
-// or cache-key derivation. For a direct two-file equality check the hash is
-// an unnecessary intermediary: if the bytes of A equal the bytes of B, a
-// cryptographic digest of both would also match — but the byte comparison is
-// cheaper because it avoids the SHA-256 compression function entirely. The
-// hashFile method (used for standalone digest generation) is kept separately.
+// For a direct two-file equality check, the hash is an unnecessary
+// intermediary. Direct byte comparison is cheaper because it avoids the SHA-256
+// compression function entirely. hashFile is kept for standalone digest use.
 //
 // # Symlinks
 //
 //   Compared by link-target string (os.Readlink), not target content.
-//   When FollowSymlinks is true the classifier resolves symlinks upstream.
 //
 // # Directories
 //
-//   Compared by mode bits and mtime; child equality is determined by
-//   recursive classification, not by this hasher.
+//   Compared by mode bits and mtime.
 type TwoPhaseHasher struct {
 	// BufPool supplies file-read buffers. Nil → sharedBufPool (64 KiB).
 	BufPool *BufPool
@@ -107,14 +84,12 @@ type TwoPhaseHasher struct {
 	// HashPool supplies hash.Hash instances for hashFile. Nil → sharedHashPool.
 	HashPool *HashPool
 
-	// LargeFileThreshold is the file size (bytes) at or above which the parallel
-	// segment comparison path is used instead of the sequential path.
-	// 0 defaults to defaultLargeFileThreshold (2 MiB).
+	// LargeFileThreshold is the file size at or above which the parallel path
+	// is used. 0 defaults to defaultLargeFileThreshold (2 MiB).
 	LargeFileThreshold int64
 
-	// SegmentWorkers is the maximum number of goroutines that may compare
-	// file segments concurrently during a large-file comparison.
-	// 0 defaults to runtime.NumCPU().
+	// SegmentWorkers is the maximum number of goroutines for large-file
+	// segment comparison. 0 defaults to runtime.NumCPU().
 	SegmentWorkers int
 }
 
@@ -160,20 +135,16 @@ func (h *TwoPhaseHasher) compareRegular(
 	if lower.Size() != upper.Size() {
 		return false, nil
 	}
-	// Phase 1b — mtime (zero I/O).
-	// atime and ctime differences are intentionally ignored.
+	// Phase 1b — mtime (zero I/O). atime/ctime differences are ignored.
 	if lower.ModTime().Equal(upper.ModTime()) {
 		return true, nil
 	}
 
-	// Phase 2 — content comparison (I/O).
-	// Route to the parallel path for large files.
 	size := lower.Size()
 	threshold := h.LargeFileThreshold
 	if threshold <= 0 {
 		threshold = defaultLargeFileThreshold
 	}
-
 	if size >= threshold {
 		return h.compareContentsParallel(lowerAbs, upperAbs, size)
 	}
@@ -184,13 +155,8 @@ func (h *TwoPhaseHasher) compareRegular(
 // Phase 2S — sequential incremental comparison (small files)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// compareContents compares two files by reading them sequentially in lockstep,
-// chunk by chunk, returning false the instant any chunk differs.
-//
-// I/O is bounded by the position of the first mismatch:
-//
-//	differ at byte K  →  2 × ceil(K / 64KiB) × 64KiB  bytes of I/O
-//	files are equal   →  2 × fileSize                  bytes of I/O
+// compareContents compares two files sequentially in lockstep, chunk by chunk.
+// Returns false the instant any chunk differs.
 func (h *TwoPhaseHasher) compareContents(lowerAbs, upperAbs string) (bool, error) {
 	lf, err := os.Open(lowerAbs)
 	if err != nil {
@@ -205,9 +171,6 @@ func (h *TwoPhaseHasher) compareContents(lowerAbs, upperAbs string) (bool, error
 	defer uf.Close()
 
 	bp := h.bufPool()
-
-	// Two independent pooled buffers — one per file — so neither read blocks
-	// on the other.
 	lb := bp.Get()
 	ub := bp.Get()
 	defer bp.Put(lb)
@@ -216,24 +179,16 @@ func (h *TwoPhaseHasher) compareContents(lowerAbs, upperAbs string) (bool, error
 	lBuf, uBuf := *lb, *ub
 
 	for {
-		// ReadFull semantics:
-		//   (n, nil)                 → full chunk; continue
-		//   (n, io.ErrUnexpectedEOF) → partial final chunk; check then done
-		//   (0, io.EOF)              → file exhausted
 		ln, lErr := io.ReadFull(lf, lBuf)
 		un, uErr := io.ReadFull(uf, uBuf)
 
-		// Early-exit: count mismatch (O(1)) or content mismatch (O(chunk)).
 		if ln != un || !bytes.Equal(lBuf[:ln], uBuf[:un]) {
 			return false, nil
 		}
 
-		// Both hit EOF simultaneously with identical content → equal.
 		if chunkAtEOF(lErr) && chunkAtEOF(uErr) {
 			return true, nil
 		}
-
-		// One file exhausted before the other (modified between stat and read).
 		if chunkAtEOF(lErr) != chunkAtEOF(uErr) {
 			return false, nil
 		}
@@ -252,31 +207,7 @@ func (h *TwoPhaseHasher) compareContents(lowerAbs, upperAbs string) (bool, error
 // ─────────────────────────────────────────────────────────────────────────────
 
 // compareContentsParallel divides both files into SegmentWorkers equal segments
-// and compares each segment concurrently using pread (ReadAt).
-//
-// # Why ReadAt (pread64) and not Read
-//
-// os.File.ReadAt uses the pread64 system call, which reads from an explicit
-// byte offset without modifying the file's seek position. This makes it safe
-// for multiple goroutines to issue concurrent reads on the same file descriptor
-// — the kernel serialises the pread calls at the VFS layer while still
-// allowing parallel execution in kernel SMP configurations and overlapping I/O
-// queue entries on NVMe devices.
-//
-// Using Read (lseek + read) would require per-goroutine file descriptors or a
-// mutex around every (lseek, read) pair, which would negate the parallelism.
-//
-// # Cancellation semantics
-//
-// An internal context is created for coordinating segment goroutines. When any
-// goroutine finds a mismatch it calls cancel(), which signals all other segment
-// goroutines to stop at their next chunk boundary. The maximum wasted I/O after
-// a mismatch is O(one 64 KiB chunk × active workers) — one in-flight read per
-// goroutine that hasn't yet checked the context.
-//
-// This internal context is independent of the caller's context. If the caller
-// cancels (e.g. pipeline shutdown), the file reads will return errors naturally
-// via the I/O path; those errors are propagated normally.
+// and compares each segment concurrently using ReadAt (pread64).
 func (h *TwoPhaseHasher) compareContentsParallel(lowerAbs, upperAbs string, size int64) (bool, error) {
 	lf, err := os.Open(lowerAbs)
 	if err != nil {
@@ -295,24 +226,16 @@ func (h *TwoPhaseHasher) compareContentsParallel(lowerAbs, upperAbs string, size
 		workers = runtime.NumCPU()
 	}
 
-	// Compute the number of segments and the size of each.
-	//
-	// segSize = max(size / workers, minSegmentSize)
-	// This ensures we never spawn goroutines for segments so small that the
-	// spawn overhead exceeds the I/O savings.
 	segSize := size / int64(workers)
 	if segSize < minSegmentSize {
 		segSize = minSegmentSize
 	}
 	numSegs := int((size + segSize - 1) / segSize)
 
-	// Internal context: the first goroutine to find a mismatch cancels all
-	// others, bounding wasted I/O to O(one 64 KiB chunk × active workers).
+	// Internal context: first goroutine to find a mismatch cancels the others.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Each goroutine writes its result to a dedicated slot — no locks needed
-	// on the results slice since indices are disjoint.
 	type segResult struct {
 		equal bool
 		err   error
@@ -324,7 +247,6 @@ func (h *TwoPhaseHasher) compareContentsParallel(lowerAbs, upperAbs string, size
 		offset := int64(i) * segSize
 		length := segSize
 		if i == numSegs-1 {
-			// Last segment takes all remaining bytes.
 			length = size - offset
 		}
 
@@ -334,15 +256,12 @@ func (h *TwoPhaseHasher) compareContentsParallel(lowerAbs, upperAbs string, size
 			eq, err := h.compareSegment(ctx, lf, uf, off, ln, lowerAbs, upperAbs)
 			results[idx] = segResult{equal: eq, err: err}
 			if !eq || err != nil {
-				// Mismatch (or error) found: cancel sibling goroutines so they
-				// stop at their next chunk boundary without reading further.
 				cancel()
 			}
 		}(i, offset, length)
 	}
 	wg.Wait()
 
-	// Collect: any mismatch or error wins regardless of segment order.
 	for _, r := range results {
 		if r.err != nil {
 			return false, r.err
@@ -355,18 +274,15 @@ func (h *TwoPhaseHasher) compareContentsParallel(lowerAbs, upperAbs string, size
 }
 
 // compareSegment compares the [offset, offset+length) byte range of lf and uf
-// using ReadAt (pread64), in 64 KiB sub-chunks.
+// using ReadAt (pread64) in 64 KiB sub-chunks.
 //
-// It returns false at the first sub-chunk where the bytes differ, without
-// reading the rest of the segment. It also honours the cancellation context:
-// if another segment found a mismatch, the context is cancelled and this
-// goroutine returns (false, nil) at the next chunk boundary.
+// BUG FIX M3: The original code checked `if lErr == io.EOF || uErr == io.EOF`
+// and continued before checking `if lErr != nil`. This meant that if uErr was
+// io.EOF (a legal end-of-chunk sentinel) and lErr was a real I/O error on the
+// same iteration, lErr was silently discarded. Files with lower-side I/O errors
+// could incorrectly appear equal.
 //
-// ReadAt contract:
-//
-//	(n == want, nil or io.EOF) → full chunk read; may continue
-//	(n < want,  io.EOF)        → partial read at end of file; done
-//	(n < want,  other error)   → real I/O error; propagate
+// Fix: propagate real errors first, treat io.EOF as non-error only after.
 func (h *TwoPhaseHasher) compareSegment(
 	ctx context.Context,
 	lf, uf *os.File,
@@ -374,8 +290,6 @@ func (h *TwoPhaseHasher) compareSegment(
 	lowerAbs, upperAbs string,
 ) (bool, error) {
 	bp := h.bufPool()
-
-	// Pooled buffers: one per file, no cross-buffer sharing.
 	lb := bp.Get()
 	ub := bp.Get()
 	defer bp.Put(lb)
@@ -385,14 +299,10 @@ func (h *TwoPhaseHasher) compareSegment(
 	pos := offset
 
 	for pos < end {
-		// Honour cancellation from a sibling segment that already found a
-		// mismatch. Checking here (once per chunk) bounds wasted I/O to
-		// O(one chunk) after a cancel signal arrives.
 		if ctx.Err() != nil {
 			return false, nil
 		}
 
-		// Clamp the read to the segment boundary so segments don't overlap.
 		want := int64(len(*lb))
 		if end-pos < want {
 			want = end - pos
@@ -400,8 +310,6 @@ func (h *TwoPhaseHasher) compareSegment(
 		lChunk := (*lb)[:want]
 		uChunk := (*ub)[:want]
 
-		// ReadAt (pread64): position-independent, safe for concurrent callers
-		// on the same file descriptor.
 		ln, lErr := lf.ReadAt(lChunk, pos)
 		un, uErr := uf.ReadAt(uChunk, pos)
 
@@ -410,31 +318,26 @@ func (h *TwoPhaseHasher) compareSegment(
 			return false, nil
 		}
 
-		// When ReadAt returns fewer bytes than requested, the file ended within
-		// this chunk. Since ln == un and the bytes matched, this segment is
-		// equal up to EOF. Return without advancing pos further.
+		// Partial read: file ended within this chunk. Since ln==un and bytes
+		// matched, this segment is equal up to EOF.
 		if ln < int(want) {
 			return true, nil
 		}
 
 		pos += int64(ln)
 
-		// io.EOF with n == want is legal per ReadAt's contract ("may return
-		// either err == EOF or err == nil" at end of file). It is not an error.
-		if lErr == io.EOF || uErr == io.EOF {
-			// We successfully read a full chunk that happened to be exactly at
-			// the end of the file. The loop will exit naturally on the next
-			// iteration when pos >= end (or ReadAt returns 0).
-			continue
-		}
-
-		// Propagate real I/O errors.
-		if lErr != nil {
+		// BUG FIX M3: check real I/O errors before treating io.EOF as benign.
+		// The original code did `if lErr == io.EOF || uErr == io.EOF { continue }`
+		// BEFORE checking `if lErr != nil`, which caused real errors to be lost
+		// when the other file returned io.EOF on the same iteration.
+		if lErr != nil && lErr != io.EOF {
 			return false, fmt.Errorf("read lower %q at %d: %w", lowerAbs, pos, lErr)
 		}
-		if uErr != nil {
+		if uErr != nil && uErr != io.EOF {
 			return false, fmt.Errorf("read upper %q at %d: %w", upperAbs, pos, uErr)
 		}
+		// io.EOF with n == want is legal per ReadAt's contract. The loop exits
+		// naturally when pos >= end on the next iteration.
 	}
 
 	return true, nil
@@ -445,12 +348,10 @@ func (h *TwoPhaseHasher) compareSegment(
 // ─────────────────────────────────────────────────────────────────────────────
 
 // chunkAtEOF reports whether err signals end-of-file during a ReadFull call.
-// Not used by the ReadAt path (which has different EOF semantics).
 func chunkAtEOF(err error) bool {
 	return err == io.EOF || err == io.ErrUnexpectedEOF
 }
 
-// bufPool returns the hasher's BufPool, falling back to the shared pool.
 func (h *TwoPhaseHasher) bufPool() *BufPool {
 	if h.BufPool != nil {
 		return h.BufPool
@@ -458,7 +359,6 @@ func (h *TwoPhaseHasher) bufPool() *BufPool {
 	return sharedBufPool
 }
 
-// hashPool returns the hasher's HashPool, falling back to the shared pool.
 func (h *TwoPhaseHasher) hashPool() *HashPool {
 	if h.HashPool != nil {
 		return h.HashPool
@@ -467,11 +367,8 @@ func (h *TwoPhaseHasher) hashPool() *HashPool {
 }
 
 // hashFile computes the SHA-256 digest of the file at path.
-//
-// NOT used in the primary comparison path (compareContents / compareSegment
-// perform direct byte equality checks without hashing). Provided for callers
-// that need a standalone file identity: content-addressable caches, audit
-// logs, or external tooling that stores digests for later comparison.
+// Not used in the primary comparison path; provided for callers that need a
+// standalone file digest (content-addressable caches, audit logs, etc.).
 func (h *TwoPhaseHasher) hashFile(path string) ([32]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -494,7 +391,6 @@ func (h *TwoPhaseHasher) hashFile(path string) ([32]byte, error) {
 	return digest, nil
 }
 
-// sharedHashPool is the package-level HashPool using SHA-256.
 var sharedHashPool = NewHashPool(DefaultHashFactory)
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -506,31 +402,16 @@ var sharedHashPool = NewHashPool(DefaultHashFactory)
 //
 // # Two levels of parallelism
 //
-// HashPipeline provides file-level parallelism: up to Workers goroutines
-// compare different files simultaneously, each backed by a TwoPhaseHasher.
-//
-// For large files (≥ TwoPhaseHasher.LargeFileThreshold) the TwoPhaseHasher
-// itself provides segment-level parallelism: a single file comparison spawns
-// SegmentWorkers goroutines that read different byte ranges of the same file
-// pair concurrently using pread64.
-//
-// The two levels compose independently:
-//
-//	N files × M workers (file-level) × P segment workers (per-file, large files only)
-//
-// # Back-pressure
-//
-// The output channel has the same buffer size as the input channel. Slow
-// downstream consumers cause worker goroutines to block on the send, which
-// fills the semaphore, which naturally limits concurrency without extra
-// rate-limiting logic.
+// File-level: up to Workers goroutines compare different files simultaneously.
+// Segment-level (large files only): TwoPhaseHasher spawns SegmentWorkers
+// goroutines that read different byte ranges of the same file pair concurrently
+// using pread64.
 type HashPipeline struct {
 	// Hasher is used to compare file pairs. Nil defaults to defaultTwoPhaseHasher.
 	Hasher ContentHasher
 	// Workers is the maximum number of concurrent hash goroutines.
 	// Defaults to runtime.NumCPU().
-	Workers int
-	// BufPool and HashPool are forwarded to TwoPhaseHasher when Hasher is nil.
+	Workers  int
 	BufPool  *BufPool
 	HashPool *HashPool
 }
@@ -556,8 +437,6 @@ func WithHasher(h ContentHasher) HashPipelineOption {
 }
 
 // WithHashWorkers sets the maximum number of concurrent file-comparison goroutines.
-// This is the file-level concurrency; for intra-file segment parallelism on large
-// files configure [TwoPhaseHasher.SegmentWorkers] via a custom hasher.
 func WithHashWorkers(n int) HashPipelineOption {
 	return func(p *HashPipeline) {
 		if n > 0 {
@@ -577,9 +456,7 @@ func WithHashPool(hp *HashPool) HashPipelineOption {
 }
 
 // Run starts the hash enrichment pipeline and returns the enriched channel.
-// Errors (including per-file comparison errors) are forwarded to errCh.
-// errCh is closed when all input has been processed, signalling the downstream
-// error-forwarder goroutine that it may terminate.
+// Errors are forwarded to errCh. errCh is closed when all input is processed.
 func (p *HashPipeline) Run(
 	ctx context.Context,
 	lowerRoot, upperRoot string,
@@ -602,11 +479,19 @@ func (p *HashPipeline) Run(
 
 		for cp := range in {
 			if ctx.Err() != nil {
-				continue // drain without spawning new workers
+				continue // drain without spawning
 			}
 
 			cp := cp
-			sem <- struct{}{}
+
+			// Non-blocking select prevents deadlock if ctx is cancelled while
+			// all worker slots are occupied.
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				continue
+			}
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -626,9 +511,9 @@ func (p *HashPipeline) Run(
 	return out
 }
 
-// enrichOne performs the content comparison for a single CommonPath and
-// sets cp.HashEqual. Only regular files and symlinks are compared; directories
-// and special files are left with HashEqual==nil.
+// enrichOne performs the content comparison for a single CommonPath and sets
+// cp.HashEqual. Only regular files and symlinks are compared; directories and
+// special files are left with HashEqual==nil.
 func (p *HashPipeline) enrichOne(
 	ctx context.Context,
 	lowerRoot, upperRoot string,

@@ -46,8 +46,8 @@ type WalkFn struct {
 //
 // When an entire lower directory has no upper counterpart it is emitted as a
 // single collapsed ExclusivePath and its subtree is never recursed. This
-// reduces removal cost from O(N_files) to O(1) syscalls — one os.RemoveAll
-// or one io_uring IORING_OP_UNLINKAT covers the whole tree.
+// reduces removal cost from O(N_files) to O(1) — one os.RemoveAll or one
+// io_uring IORING_OP_UNLINKAT covers the whole tree.
 //
 // relDir is the path relative to both roots, using forward slashes.
 func walkBoth(
@@ -76,7 +76,7 @@ func walkBoth(
 			return fmt.Errorf("walker: read upper %q: %w", upperDir, err)
 		}
 		// Entire upper subtree is absent: every lower entry is exclusive.
-		return emitAllExclusive(ctx, lowerDir, relDir, lowerEntries, filter, fn)
+		return emitAllExclusive(ctx, lowerDir, relDir, lowerEntries, filter, followSymlinks, fn)
 	}
 
 	i, j := 0, 0
@@ -88,7 +88,7 @@ func walkBoth(
 		le, ue := lowerEntries[i], upperEntries[j]
 		switch strings.Compare(le.Name(), ue.Name()) {
 		case -1:
-			if err := emitExclusive(ctx, lowerDir, relDir, le, filter, fn); err != nil {
+			if err := emitExclusive(ctx, lowerDir, relDir, le, filter, followSymlinks, fn); err != nil {
 				return err
 			}
 			i++
@@ -117,7 +117,7 @@ func walkBoth(
 
 	// Drain remaining lower-only entries.
 	for ; i < len(lowerEntries); i++ {
-		if err := emitExclusive(ctx, lowerDir, relDir, lowerEntries[i], filter, fn); err != nil {
+		if err := emitExclusive(ctx, lowerDir, relDir, lowerEntries[i], filter, followSymlinks, fn); err != nil {
 			return err
 		}
 	}
@@ -128,7 +128,7 @@ func walkBoth(
 //
 // Both directories → recurse; the directory itself is not emitted.
 // Lower-dir / upper-non-dir → BuildKit overlay type mismatch: emit a CommonPath
-//   for the replacement and a collapsed ExclusivePath for the orphaned subtree.
+// for the replacement and a collapsed ExclusivePath for the orphaned subtree.
 // All other pairings → emit a single CommonPath.
 func handleCommonEntry(
 	ctx context.Context,
@@ -171,31 +171,26 @@ func handleCommonEntry(
 // For directories the function must choose between two strategies:
 //
 //   - Collapse: emit a single ExclusivePath{Collapsed:true} covering the entire
-//     subtree.  This is the O(1) syscall optimisation: one os.RemoveAll handles
-//     the whole tree.
+//     subtree.  O(1) syscall optimisation — one os.RemoveAll handles the tree.
 //
 //   - Recurse: descend into the directory and emit individual matching entries.
-//     Required when include patterns might select only a subset of the
-//     directory's children (e.g. "*.go" should yield pkg/main.go but not
-//     pkg/main.txt and should skip the entire pkg dir entry itself).
-//
-// # How to decide
+//     Required when include patterns might select only a subset of children
+//     (e.g. "*.go" should yield pkg/main.go but not pkg/main.txt).
 //
 // We call filter.Include(relPath, false) — pretending the entry is NOT a
-// directory — to check whether the path directly matches a pattern in its own
-// right.  Passing isDir=false bypasses the "couldMatchUnder" directory-descent
-// allowance in PatternFilter, so only explicit/direct matches return true.
+// directory — to check whether the path directly matches a pattern. Passing
+// isDir=false bypasses the "couldMatchUnder" allowance in PatternFilter, so
+// only explicit/direct matches return true.
 //
-//   - NoopFilter: Include always returns true regardless of isDir → always collapse.
-//   - PatternFilter with no include patterns → always collapse.
-//   - PatternFilter with include patterns: "vendor" matches "vendor" directly →
-//     collapse.  "*.go" does NOT match "pkg" directly (only its descendants
-//     might) → recurse, emit individual files.
+//   - NoopFilter / no include patterns → always collapse.
+//   - "vendor" pattern → direct match → collapse.
+//   - "*.go" pattern → does NOT match "pkg" directly → recurse.
 func emitExclusive(
 	ctx context.Context,
 	lowerDirAbs, relDir string,
 	e os.DirEntry,
 	filter Filter,
+	followSymlinks bool,
 	fn WalkFn,
 ) error {
 	if ctx.Err() != nil {
@@ -207,15 +202,11 @@ func emitExclusive(
 		return fmt.Errorf("walker: stat exclusive %q: %w",
 			filepath.Join(lowerDirAbs, e.Name()), err)
 	}
-	// Gate: is this path included at all?
 	if !filter.Include(relPath, info.IsDir()) {
 		return nil
 	}
 
 	if info.IsDir() {
-		// Check whether the directory itself directly matches (not just as a
-		// potential ancestor of matching descendants).  Pass isDir=false to
-		// skip the couldMatchUnder allowance used for descent.
 		if filter.Include(relPath, false) {
 			// Direct match → collapse the entire subtree into one op.
 			return callExclusive(fn, ExclusivePath{
@@ -225,14 +216,18 @@ func emitExclusive(
 				Collapsed: true,
 			})
 		}
-		// The dir only passes because descendants might match → recurse so we
-		// can select individual children according to the filter.
+		// The dir only passes because descendants might match → recurse.
+		// BUG FIX M2: use readDirResolved (not os.ReadDir) so that
+		// followSymlinks is honoured when recursing into exclusive subdirs.
+		// The original os.ReadDir call skipped symlink resolution, causing
+		// symlink→dir entries to never be treated as directories and thus
+		// never collapsed — even when followSymlinks=true.
 		subAbs := filepath.Join(lowerDirAbs, e.Name())
-		subEntries, err := os.ReadDir(subAbs)
+		subEntries, err := readDirResolved(subAbs, followSymlinks)
 		if err != nil {
 			return fmt.Errorf("walker: read exclusive dir %q: %w", relPath, err)
 		}
-		return emitAllExclusive(ctx, subAbs, relPath, subEntries, filter, fn)
+		return emitAllExclusive(ctx, subAbs, relPath, subEntries, filter, followSymlinks, fn)
 	}
 
 	// Non-directory: emit as a leaf exclusive entry.
@@ -245,20 +240,20 @@ func emitExclusive(
 }
 
 // emitAllExclusive calls emitExclusive for every entry in a lower directory
-// whose upper counterpart is absent. Each entry is independently evaluated for
-// collapse vs recurse by emitExclusive; no blanket collapsing happens here.
+// whose upper counterpart is absent.
 func emitAllExclusive(
 	ctx context.Context,
 	lowerDirAbs, relDir string,
 	entries []os.DirEntry,
 	filter Filter,
+	followSymlinks bool,
 	fn WalkFn,
 ) error {
 	for _, e := range entries {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := emitExclusive(ctx, lowerDirAbs, relDir, e, filter, fn); err != nil {
+		if err := emitExclusive(ctx, lowerDirAbs, relDir, e, filter, followSymlinks, fn); err != nil {
 			return err
 		}
 	}

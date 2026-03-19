@@ -22,9 +22,8 @@ import (
 // for workloads dominated by filesystem metadata operations (unlink, rmdir),
 // which are frequently parallelised by modern kernels' VFS layer.
 //
-// On Linux, for very large batches (hundreds of ops) consider using
-// [IOURingBatcher] to reduce per-op kernel transitions from one syscall each
-// to a single io_uring_enter(2) call.
+// On Linux, for very large batches consider using [IOURingBatcher] to reduce
+// per-op kernel transitions to a single io_uring_enter(2) call.
 type GoroutineBatcher struct {
 	view        MergedView
 	parallelism int
@@ -50,8 +49,6 @@ func WithBatchParallelism(n int) GoroutineBatcherOption {
 
 // WithAutoFlushAt causes the batcher to automatically call Flush whenever the
 // pending queue reaches n items. A value of 0 (default) disables auto-flush.
-// Auto-flush is useful when the caller cannot predict batch sizes in advance
-// and wants to bound peak memory usage.
 func WithAutoFlushAt(n int) GoroutineBatcherOption {
 	return func(b *GoroutineBatcher) {
 		if n >= 0 {
@@ -75,7 +72,7 @@ func NewGoroutineBatcher(view MergedView, opts ...GoroutineBatcherOption) *Gorou
 
 // Submit implements [Batcher].
 // The operation is appended to the pending queue. If AutoFlushAt is configured
-// and the queue has reached that size, Flush is called before returning.
+// and the queue has reached that threshold, Flush is called automatically.
 func (b *GoroutineBatcher) Submit(ctx context.Context, op BatchOp) error {
 	b.mu.Lock()
 	if b.closed {
@@ -93,7 +90,7 @@ func (b *GoroutineBatcher) Submit(ctx context.Context, op BatchOp) error {
 }
 
 // Flush implements [Batcher].
-// It atomically drains the pending queue and executes all collected ops
+// Atomically drains the pending queue and executes all collected ops
 // concurrently. Errors from individual ops are joined and returned.
 func (b *GoroutineBatcher) Flush(ctx context.Context) error {
 	b.mu.Lock()
@@ -101,8 +98,6 @@ func (b *GoroutineBatcher) Flush(ctx context.Context) error {
 		b.mu.Unlock()
 		return errBatcherClosed
 	}
-	// Atomically swap out the pending slice. Any Submit calls that arrive
-	// concurrently will append to a fresh slice.
 	work := b.pending
 	b.pending = make([]BatchOp, 0, cap(work)) // preserve capacity hint
 	b.mu.Unlock()
@@ -112,8 +107,25 @@ func (b *GoroutineBatcher) Flush(ctx context.Context) error {
 
 // Close implements [Batcher].
 // Flushes any remaining ops and marks the batcher as closed.
+//
+// BUG FIX M4: The original Close called Flush unconditionally, then set
+// b.closed=true. A second call to Close would then call Flush again which
+// would immediately return errBatcherClosed (non-nil). This made Close
+// non-idempotent. Defensive `defer batcher.Close(ctx)` patterns (common in
+// Go) would return a spurious error on the second call.
+//
+// Fix: check b.closed before calling Flush. If already closed, return nil
+// immediately. This matches the io.Closer contract.
 func (b *GoroutineBatcher) Close(ctx context.Context) error {
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return nil
+	}
+	b.mu.Unlock()
+
 	err := b.Flush(ctx)
+
 	b.mu.Lock()
 	b.closed = true
 	b.mu.Unlock()

@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 )
@@ -17,39 +18,51 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 const (
-	// Syscall numbers (x86_64, aarch64, riscv64).
-	sysIOURingSetup    uintptr = 425
-	sysIOURingEnter    uintptr = 426
-
-	// io_uring_setup flags.
-	ioRingSetupSQPoll uint32 = 0x2 // kernel-side SQ polling (SQPOLL)
+	// Syscall numbers — identical across x86_64, aarch64, and riscv64.
+	sysIOURingSetup uintptr = 425
+	sysIOURingEnter uintptr = 426
 
 	// io_uring_enter flags.
 	ioRingEnterGetEvents uint32 = 0x1
 
 	// Operation codes.
-	ioRingOpNop        uint8 = 0
-	ioRingOpUnlinkat   uint8 = 36 // Linux 5.11+
+	ioRingOpUnlinkat uint8 = 36 // Linux 5.11+
 
 	// AT_FDCWD — use process working directory as dirfd.
 	atFDCWD int32 = -100
-	// AT_REMOVEDIR — unlinkat removes a directory.
+	// AT_REMOVEDIR — set in sqe->unlink_flags to remove a directory (NOT in Len).
 	atRemoveDir uint32 = 0x200
 
-	// mmap protection / flags.
+	// mmap protection / flags for ring regions.
 	mmapProt  = syscall.PROT_READ | syscall.PROT_WRITE
 	mmapFlags = syscall.MAP_SHARED | syscall.MAP_POPULATE
 
-	// Feature flag: NODROP — CQEs are never silently dropped.
-	ioRingFeatNoDrop uint32 = 0x1
+	// Feature flags (linux/io_uring.h).
+	//
+	// BUG FIX C1: ioRingFeatNoDrop is 0x2, not 0x1.
+	// 0x1 = IORING_FEAT_SINGLE_MMAP (Linux 5.4)  — rings share one mmap region.
+	// 0x2 = IORING_FEAT_NODROP      (Linux 5.5)  — CQEs are never silently dropped.
+	ioRingFeatNoDrop uint32 = 0x2
+
+	// ioRingFeatSQPollNonFixed (0x80) was added in Linux 5.11.
+	// Its presence serves as a proxy for IORING_OP_UNLINKAT availability
+	// (also Linux 5.11), eliminating the need for a IORING_REGISTER_PROBE call.
+	ioRingFeatSQPollNonFixed uint32 = 0x80
+
+	// requiredFeatures: NoDrop (5.5) AND SQPollNonFixed (5.11) must both be set.
+	requiredFeatures = ioRingFeatNoDrop | ioRingFeatSQPollNonFixed
+
+	// io_uring mmap offsets (linux/io_uring.h IORING_OFF_*).
+	ioRingOffSQRing int64 = 0
+	ioRingOffCQRing int64 = 0x8000000
+	ioRingOffSQEs   int64 = 0x10000000
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// io_uring kernel structures (must match kernel ABI exactly)
+// io_uring kernel structures — layout must match the kernel ABI exactly.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ioUringParams is passed to io_uring_setup(2).
-// Total size: 120 bytes.
+// ioUringParams is passed to io_uring_setup(2). Total size: 120 bytes.
 type ioUringParams struct {
 	SqEntries    uint32
 	CqEntries    uint32
@@ -59,11 +72,11 @@ type ioUringParams struct {
 	Features     uint32
 	WqFd         uint32
 	Resv         [3]uint32
-	SqOff        ioSqringOffsets  // 40 bytes
-	CqOff        ioCqringOffsets  // 40 bytes
+	SqOff        ioSqringOffsets // 40 bytes
+	CqOff        ioCqringOffsets // 40 bytes
 }
 
-// ioSqringOffsets describes the offsets of SQ ring fields within the mmap.
+// ioSqringOffsets describes the byte offsets of SQ ring fields within the mmap.
 type ioSqringOffsets struct {
 	Head        uint32
 	Tail        uint32
@@ -76,7 +89,7 @@ type ioSqringOffsets struct {
 	UserAddr    uint64
 }
 
-// ioCqringOffsets describes the offsets of CQ ring fields within the mmap.
+// ioCqringOffsets describes the byte offsets of CQ ring fields within the mmap.
 type ioCqringOffsets struct {
 	Head        uint32
 	Tail        uint32
@@ -90,24 +103,36 @@ type ioCqringOffsets struct {
 }
 
 // ioUringSQE is a Submission Queue Entry (64 bytes, matches kernel layout).
-// Only the fields required for IORING_OP_UNLINKAT are populated here.
+//
+// Field mapping for IORING_OP_UNLINKAT (from io_uring/fs.c::io_unlinkat_prep):
+//
+//	Fd          → sqe->fd            (dirfd; AT_FDCWD = -100)
+//	Addr        → sqe->addr          (pointer to NUL-terminated pathname)
+//	Len         → sqe->len           (MUST be 0; kernel returns EINVAL otherwise)
+//	Off         → sqe->off           (MUST be 0; kernel returns EINVAL otherwise)
+//	OpcodeFlags → sqe->unlink_flags  (set AT_REMOVEDIR here for directory removal)
+//
+// BUG FIX C2: AT_REMOVEDIR belongs in OpcodeFlags (sqe->unlink_flags), NOT Len.
+// The kernel explicitly validates: if (sqe->off || sqe->len || sqe->buf_index)
+// return -EINVAL. The original code put atRemoveDir in Len, causing every
+// directory deletion to fail with EINVAL.
 type ioUringSQE struct {
 	Opcode      uint8
 	Flags       uint8
 	Ioprio      uint16
-	Fd          int32   // dirfd (AT_FDCWD)
-	Off         uint64  // unused for unlinkat
-	Addr        uint64  // uintptr to null-terminated path string
-	Len         uint32  // flags: AT_REMOVEDIR for dirs
-	OpcodeFlags uint32  // union: unlink_flags
-	UserData    uint64  // caller tag, returned in CQE
+	Fd          int32    // dirfd (AT_FDCWD)
+	Off         uint64   // must be 0 for unlinkat
+	Addr        uint64   // pointer to NUL-terminated path string
+	Len         uint32   // must be 0 for unlinkat
+	OpcodeFlags uint32   // union: unlink_flags — put AT_REMOVEDIR here
+	UserData    uint64   // echoed back in CQE for op attribution
 	_           [24]byte // padding to 64 bytes
 }
 
 // ioUringCQE is a Completion Queue Entry (16 bytes).
 type ioUringCQE struct {
 	UserData uint64
-	Res      int32  // return value of the completed syscall (negative errno on error)
+	Res      int32  // syscall return value; negative errno on failure
 	Flags    uint32
 }
 
@@ -121,10 +146,9 @@ type ioUringCQE struct {
 // # Advantage over GoroutineBatcher
 //
 // For N deletion operations, [GoroutineBatcher] issues N separate syscalls
-// (each crossing user→kernel boundary). IOURingBatcher prepares all N
-// Submission Queue Entries (SQEs) in shared memory and then issues a single
-// io_uring_enter(2) to submit them all at once, cutting kernel crossings to 1
-// regardless of batch size. This reduces total syscall overhead by up to N×.
+// (each crossing the user→kernel boundary). IOURingBatcher prepares all N
+// Submission Queue Entries in shared memory and issues a single
+// io_uring_enter(2), cutting kernel crossings from N to 1 per batch.
 //
 // # Requirements
 //
@@ -133,32 +157,31 @@ type ioUringCQE struct {
 //
 // # Path lifetime
 //
-// IORING_OP_UNLINKAT requires that the path string pointer remain valid until
-// the corresponding CQE is harvested. IOURingBatcher pins all path byte slices
-// in pathBufs until Flush completes.
+// IORING_OP_UNLINKAT requires the path-string pointer to remain valid until
+// the corresponding CQE is harvested. IOURingBatcher pins all path byte
+// slices in batchedUnlink.pathBuf until Flush completes.
 type IOURingBatcher struct {
-	view     MergedView
-	fallback *GoroutineBatcher // used when io_uring is unavailable
-	entries  uint32            // ring size (must be power of two)
+	view    MergedView
+	entries uint32 // ring capacity; must be a power of two
 
-	mu       sync.Mutex
-	pending  []batchedUnlink // collected ops waiting for Flush
-	closed   bool
+	mu      sync.Mutex
+	pending []batchedUnlink // ops waiting for the next Flush
+	closed  bool
 }
 
 // batchedUnlink holds the data for a single pending unlinkat SQE.
 type batchedUnlink struct {
 	op      BatchOp
-	pathBuf []byte  // null-terminated path; pinned until CQE arrives
+	pathBuf []byte // NUL-terminated absolute path; pinned until CQE arrives
 	isDir   bool
 }
 
 // IOURingBatcherOption is a functional option for [IOURingBatcher].
 type IOURingBatcherOption func(*IOURingBatcher)
 
-// WithRingEntries sets the io_uring submission queue size (must be a power of
-// two; clamped to the range [64, 32768]). Larger values reduce stalls when
-// batches exceed the ring capacity. Default: 256.
+// WithRingEntries sets the io_uring submission-queue capacity (must be a power
+// of two; clamped to [64, 32768]). Larger values reduce stalls when batches
+// exceed the ring size. Default: 256.
 func WithRingEntries(n uint32) IOURingBatcherOption {
 	return func(b *IOURingBatcher) {
 		if n >= 64 && n <= 32768 {
@@ -169,37 +192,46 @@ func WithRingEntries(n uint32) IOURingBatcherOption {
 
 // NewIOURingBatcher constructs an [IOURingBatcher] targeting view.
 //
-// If io_uring_setup fails (e.g., kernel < 5.11, seccomp policy restriction)
-// the function returns a nil error and falls back to a [GoroutineBatcher] so
-// callers do not need to branch. The returned Batcher is always usable.
+// If io_uring is unavailable (kernel < 5.11, seccomp restriction, etc.) the
+// function transparently returns a [GoroutineBatcher] so callers never need
+// to branch. The returned Batcher always satisfies the interface contract.
+//
+// BUG FIX H4: The previous implementation unconditionally allocated a fallback
+// GoroutineBatcher even on kernels where io_uring is fully available. That
+// field was never called; it only wasted memory.
 func NewIOURingBatcher(view MergedView, opts ...IOURingBatcherOption) (Batcher, error) {
+	if !ioURingAvailable() {
+		return NewGoroutineBatcher(view, WithBatchParallelism(runtime.NumCPU())), nil
+	}
 	b := &IOURingBatcher{
-		view:     view,
-		entries:  256,
-		fallback: NewGoroutineBatcher(view, WithBatchParallelism(runtime.NumCPU())),
+		view:    view,
+		entries: 256,
 	}
 	for _, o := range opts {
 		o(b)
 	}
-
-	// Probe for io_uring availability with a minimal setup call.
-	if !ioURingAvailable() {
-		// Silently use the goroutine fallback; the interface contract is met.
-		return b.fallback, nil
-	}
 	return b, nil
 }
 
-// ioURingAvailable probes whether io_uring_setup succeeds with a minimal ring.
-// A ring FD is created and immediately closed; no I/O is performed.
+// ioURingAvailable probes whether the running kernel supports io_uring with
+// IORING_OP_UNLINKAT (Linux 5.11+).
+//
+// BUG FIX H2: The previous implementation only checked that io_uring_setup
+// succeeded (available since Linux 5.1). IORING_OP_UNLINKAT requires 5.11+.
+// We now verify params.Features contains IORING_FEAT_SQPOLL_NONFIXED (0x80),
+// a reliable 5.11 indicator, without requiring a IORING_REGISTER_PROBE call.
 func ioURingAvailable() bool {
 	var params ioUringParams
-	fd, _, errno := syscall.Syscall(sysIOURingSetup, 1, uintptr(unsafe.Pointer(&params)), 0)
+	fd, _, errno := syscall.Syscall(sysIOURingSetup, 1,
+		uintptr(unsafe.Pointer(&params)), 0)
 	if errno != 0 || fd == 0 {
 		return false
 	}
+	// BUG FIX H3: exactly one close, via a direct call here. The old code had
+	// both an explicit close in the NODROP fallback branch AND a deferred close,
+	// causing a double-close of the ring file descriptor.
 	_ = syscall.Close(int(fd))
-	return true
+	return params.Features&requiredFeatures == requiredFeatures
 }
 
 // Submit implements [Batcher].
@@ -209,33 +241,25 @@ func (b *IOURingBatcher) Submit(_ context.Context, op BatchOp) error {
 	if b.closed {
 		return errBatcherClosed
 	}
-
-	// Determine whether the merged-view entry is a directory so we can set
-	// AT_REMOVEDIR in the SQE flags. We derive this from OpKind rather than
-	// stat-ing the path to keep Submit O(1) and non-blocking.
+	// Derive directory-ness from OpKind — keeps Submit O(1), no stat calls.
 	isDir := op.Kind == OpRemoveAll
 
-	// Build a null-terminated C string. The byte slice is pinned in pathBufs
-	// until the corresponding CQE arrives in Flush.
+	// Build a NUL-terminated C string kept alive until its CQE is harvested.
 	absPath := b.view.AbsPath(op.RelPath)
-	buf := append([]byte(absPath), 0) // NUL-terminated
+	buf := append([]byte(absPath), 0)
 
-	b.pending = append(b.pending, batchedUnlink{
-		op:      op,
-		pathBuf: buf,
-		isDir:   isDir,
-	})
+	b.pending = append(b.pending, batchedUnlink{op: op, pathBuf: buf, isDir: isDir})
 	return nil
 }
 
 // Flush implements [Batcher].
 //
-// It prepares all pending unlinks as SQEs in an io_uring ring, submits them
-// with a single io_uring_enter(2), then harvests all CQEs to collect errors.
+// Prepares all pending unlinks as SQEs, submits them with a single
+// io_uring_enter(2), then harvests all CQEs for error reporting.
 //
-// For OpRemoveAll entries, io_uring's IORING_OP_UNLINKAT handles only the
-// top-level rmdir. When the directory is non-empty (ENOTEMPTY), Flush
-// transparently falls back to [FSMergedView.RemoveAll] for that entry.
+// For OpRemoveAll, IORING_OP_UNLINKAT behaves like rmdir(2): it only removes
+// empty directories. When ENOTEMPTY is returned, Flush falls back to
+// view.RemoveAll which handles non-empty trees recursively.
 func (b *IOURingBatcher) Flush(ctx context.Context) error {
 	b.mu.Lock()
 	if b.closed {
@@ -243,20 +267,49 @@ func (b *IOURingBatcher) Flush(ctx context.Context) error {
 		return errBatcherClosed
 	}
 	work := b.pending
-	b.pending = b.pending[:0]
+	b.pending = nil // nil (not [:0]) to release backing array
 	b.mu.Unlock()
 
 	if len(work) == 0 {
 		return nil
 	}
-
 	return b.flushWithRing(ctx, work)
 }
 
-// flushWithRing performs the actual io_uring submit+harvest cycle.
+// Close implements [Batcher]. Idempotent: a second call returns nil.
+func (b *IOURingBatcher) Close(ctx context.Context) error {
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return nil
+	}
+	b.mu.Unlock()
+
+	err := b.Flush(ctx)
+
+	b.mu.Lock()
+	b.closed = true
+	b.mu.Unlock()
+	return err
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// flushWithRing — core io_uring submit+harvest cycle
+// ─────────────────────────────────────────────────────────────────────────────
+
+// flushWithRing creates a fresh io_uring ring, writes all work items as SQEs,
+// submits them in ring-sized chunks via io_uring_enter(2), and harvests CQEs.
+//
+// Memory-ordering (BUG FIX H1):
+//
+//   - SQ tail must be written with a store-release so the kernel never observes
+//     the tail advance before the SQE slots are fully populated.
+//   - SQ/CQ mask and CQ head must be read with load-acquire.
+//   - sync/atomic.StoreUint32/LoadUint32 provide these semantics on every
+//     Go-supported architecture. The original code used a plain *p = v
+//     assignment with no ordering guarantees whatsoever.
 func (b *IOURingBatcher) flushWithRing(ctx context.Context, work []batchedUnlink) error {
-	// Use a minimal ring sized to min(len(work), b.entries).
-	// io_uring_setup requires a power-of-two entries count.
+	// Size the ring to min(len(work), b.entries); must be a power of two.
 	ringSize := nextPow2(uint32(len(work)))
 	if ringSize > b.entries {
 		ringSize = b.entries
@@ -269,128 +322,105 @@ func (b *IOURingBatcher) flushWithRing(ctx context.Context, work []batchedUnlink
 	ringFD, _, errno := syscall.Syscall(sysIOURingSetup, uintptr(ringSize),
 		uintptr(unsafe.Pointer(&params)), 0)
 	if errno != 0 {
-		// Ring setup failed: fall back to goroutine batch for this flush.
-		ops := make([]BatchOp, len(work))
-		for i, w := range work {
-			ops[i] = w.op
-		}
-		return executeBatch(ctx, b.view, ops, runtime.NumCPU())
+		return b.execFallback(ctx, work)
 	}
-	defer syscall.Close(int(ringFD))
+	// BUG FIX H3: single deferred close — no other close in this function.
+	defer syscall.Close(int(ringFD)) //nolint:errcheck
 
-	// Check that the kernel reports IORING_FEAT_NODROP so we know CQEs are
-	// never silently discarded.
-	if params.Features&ioRingFeatNoDrop == 0 {
-		// Kernel too old for reliable CQE delivery; fall back.
-		ops := make([]BatchOp, len(work))
-		for i, w := range work {
-			ops[i] = w.op
-		}
-		_ = syscall.Close(int(ringFD))
-		return executeBatch(ctx, b.view, ops, runtime.NumCPU())
+	if params.Features&requiredFeatures != requiredFeatures {
+		return b.execFallback(ctx, work)
 	}
 
-	// Map the SQ ring and SQE array.
+	// Map SQ ring (head, tail, mask, and index array).
 	sqSize := params.SqOff.Array + params.SqEntries*4
-	sqRing, err := syscall.Mmap(int(ringFD), 0, int(sqSize), mmapProt, mmapFlags)
+	sqRing, err := syscall.Mmap(int(ringFD), ioRingOffSQRing, int(sqSize), mmapProt, mmapFlags)
 	if err != nil {
-		ops := make([]BatchOp, len(work))
-		for i, w := range work {
-			ops[i] = w.op
-		}
-		return executeBatch(ctx, b.view, ops, runtime.NumCPU())
+		return b.execFallback(ctx, work)
 	}
 	defer syscall.Munmap(sqRing) //nolint:errcheck
 
+	// Map SQE array (the actual submission entries).
 	sqeSize := uintptr(params.SqEntries) * unsafe.Sizeof(ioUringSQE{})
-	sqeRaw, err := syscall.Mmap(int(ringFD), 0x10000000, int(sqeSize), mmapProt, mmapFlags)
+	sqeRaw, err := syscall.Mmap(int(ringFD), ioRingOffSQEs, int(sqeSize), mmapProt, mmapFlags)
 	if err != nil {
-		ops := make([]BatchOp, len(work))
-		for i, w := range work {
-			ops[i] = w.op
-		}
-		return executeBatch(ctx, b.view, ops, runtime.NumCPU())
+		return b.execFallback(ctx, work)
 	}
 	defer syscall.Munmap(sqeRaw) //nolint:errcheck
 
-	// Map the CQ ring.
+	// Map CQ ring (head, tail, mask, and CQE array).
 	cqSize := params.CqOff.Cqes + params.CqEntries*uint32(unsafe.Sizeof(ioUringCQE{}))
-	cqRing, err := syscall.Mmap(int(ringFD), 0x8000000, int(cqSize), mmapProt, mmapFlags)
+	cqRing, err := syscall.Mmap(int(ringFD), ioRingOffCQRing, int(cqSize), mmapProt, mmapFlags)
 	if err != nil {
-		ops := make([]BatchOp, len(work))
-		for i, w := range work {
-			ops[i] = w.op
-		}
-		return executeBatch(ctx, b.view, ops, runtime.NumCPU())
+		return b.execFallback(ctx, work)
 	}
 	defer syscall.Munmap(cqRing) //nolint:errcheck
+
+	// Cache stable ring pointers. Mask values never change after setup.
+	// BUG FIX H1: atomic loads for all reads of kernel-shared memory.
+	sqTailPtr  := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.Tail]))
+	sqMask     := atomic.LoadUint32((*uint32)(unsafe.Pointer(&sqRing[params.SqOff.RingMask])))
+	sqArrayPtr := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.Array]))
+	cqHeadPtr  := (*uint32)(unsafe.Pointer(&cqRing[params.CqOff.Head]))
+	cqMask     := atomic.LoadUint32((*uint32)(unsafe.Pointer(&cqRing[params.CqOff.RingMask])))
 
 	var errs []error
 	submitted := 0
 
-	// Process work in ring-sized chunks.
 	for i := 0; i < len(work); {
 		chunk := work[i:]
 		if uint32(len(chunk)) > ringSize {
 			chunk = chunk[:ringSize]
 		}
 
-		sqTailPtr := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.Tail]))
-		sqMaskPtr := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.RingMask]))
-		sqArrayPtr := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.Array]))
-		sqMask := *sqMaskPtr
-
+		// ── Fill SQEs ────────────────────────────────────────────────────────
 		for j, w := range chunk {
 			idx := (uint32(submitted) + uint32(j)) & sqMask
-			sqePtr := (*ioUringSQE)(unsafe.Pointer(uintptr(unsafe.Pointer(&sqeRaw[0])) +
-				uintptr(idx)*unsafe.Sizeof(ioUringSQE{})))
 
-			// Populate SQE for IORING_OP_UNLINKAT.
+			sqePtr := (*ioUringSQE)(unsafe.Pointer(
+				uintptr(unsafe.Pointer(&sqeRaw[0])) +
+					uintptr(idx)*unsafe.Sizeof(ioUringSQE{}),
+			))
+
+			// BUG FIX C2: AT_REMOVEDIR in OpcodeFlags, never in Len.
 			*sqePtr = ioUringSQE{
 				Opcode:   ioRingOpUnlinkat,
 				Fd:       atFDCWD,
 				Addr:     uint64(uintptr(unsafe.Pointer(&w.pathBuf[0]))),
-				UserData: uint64(i + j), // index into work for error attribution
+				UserData: uint64(i + j), // work-slice index for CQE attribution
+				// Len and Off remain 0; kernel rejects non-zero values.
 			}
 			if w.isDir {
-				// AT_REMOVEDIR: treat path as a directory to remove.
-				sqePtr.Len = atRemoveDir
+				sqePtr.OpcodeFlags = atRemoveDir // sqe->unlink_flags
 			}
 
-			// Write index into the SQ array.
+			// Publish this SQE's slot index into the SQ index array.
 			(*[1 << 28]uint32)(unsafe.Pointer(sqArrayPtr))[idx] = idx
 		}
 
-		// Advance the SQ tail to expose SQEs to the kernel.
-		// Needs an atomic store to ensure memory ordering.
-		atomic32Store(sqTailPtr, *sqTailPtr+uint32(len(chunk)))
+		// BUG FIX H1: store-release — kernel must not see the tail advance
+		// before the SQE slots above are fully visible in shared memory.
+		curTail := atomic.LoadUint32(sqTailPtr)
+		atomic.StoreUint32(sqTailPtr, curTail+uint32(len(chunk)))
 
-		// io_uring_enter: submit len(chunk) SQEs, wait for len(chunk) CQEs.
+		// ── Submit + wait ─────────────────────────────────────────────────────
 		_, _, errno = syscall.Syscall6(sysIOURingEnter,
 			ringFD,
-			uintptr(len(chunk)),              // to_submit
-			uintptr(len(chunk)),              // min_complete
-			uintptr(ioRingEnterGetEvents),    // flags: wait for completions
+			uintptr(len(chunk)),           // to_submit
+			uintptr(len(chunk)),           // min_complete (wait for all)
+			uintptr(ioRingEnterGetEvents), // flags
 			0, 0)
 		if errno != 0 {
-			// Kernel refused the enter; fall back for this chunk.
-			ops := make([]BatchOp, len(chunk))
-			for k, w := range chunk {
-				ops[k] = w.op
-			}
-			if err := executeBatch(ctx, b.view, ops, runtime.NumCPU()); err != nil {
-				errs = append(errs, err)
+			if ferr := executeBatch(ctx, b.view, opsFromWork(chunk), runtime.NumCPU()); ferr != nil {
+				errs = append(errs, ferr)
 			}
 			i += len(chunk)
 			submitted += len(chunk)
 			continue
 		}
 
-		// Harvest CQEs and check result codes.
-		cqHeadPtr := (*uint32)(unsafe.Pointer(&cqRing[params.CqOff.Head]))
-		cqMaskPtr := (*uint32)(unsafe.Pointer(&cqRing[params.CqOff.RingMask]))
-		cqMask := *cqMaskPtr
-		cqHead := *cqHeadPtr
+		// ── Harvest CQEs ──────────────────────────────────────────────────────
+		// BUG FIX H1: load-acquire on CQ head.
+		cqHead := atomic.LoadUint32(cqHeadPtr)
 
 		for j := 0; j < len(chunk); j++ {
 			cqePtr := (*ioUringCQE)(unsafe.Pointer(
@@ -398,59 +428,66 @@ func (b *IOURingBatcher) flushWithRing(ctx context.Context, work []batchedUnlink
 					uintptr((cqHead+uint32(j))&cqMask)*unsafe.Sizeof(ioUringCQE{}),
 			))
 
-			if cqePtr.Res < 0 {
-				errno := syscall.Errno(-cqePtr.Res)
-				idx := int(cqePtr.UserData)
-				w := work[idx]
+			if cqePtr.Res >= 0 {
+				continue
+			}
 
-				// ENOTEMPTY: directory is not empty — use full RemoveAll fallback.
-				if errno == syscall.ENOTEMPTY {
-					if ferr := b.view.RemoveAll(ctx, w.op.RelPath); ferr != nil {
-						errs = append(errs, fmt.Errorf("removeAll fallback %q: %w", w.op.RelPath, ferr))
-					}
-					continue
+			eno := syscall.Errno(-cqePtr.Res)
+			wi  := work[int(cqePtr.UserData)]
+
+			switch eno {
+			case syscall.ENOENT:
+				// Already absent — idempotent, not an error.
+
+			case syscall.ENOTEMPTY:
+				// Non-empty directory: io_uring unlinkat = rmdir(2), which
+				// rejects non-empty dirs. Fall back to recursive RemoveAll.
+				if ferr := b.view.RemoveAll(ctx, wi.op.RelPath); ferr != nil {
+					errs = append(errs, fmt.Errorf("removeAll fallback %q: %w", wi.op.RelPath, ferr))
 				}
-				// ENOENT: already absent — idempotent, no error.
-				if errno == syscall.ENOENT {
-					continue
+
+			case syscall.EINVAL:
+				// Opcode restricted by seccomp, or malformed SQE. Fall back
+				// synchronously so the deletion still occurs.
+				if ferr := executeOp(ctx, b.view, wi.op); ferr != nil {
+					errs = append(errs, fmt.Errorf("sync fallback %q: %w", wi.op.RelPath, ferr))
 				}
-				errs = append(errs, fmt.Errorf("io_uring unlinkat %q: %w", w.op.RelPath, errno))
+
+			default:
+				errs = append(errs, fmt.Errorf("io_uring unlinkat %q: %w", wi.op.RelPath, eno))
 			}
 		}
 
-		// Advance CQ head to free CQE slots.
-		atomic32Store(cqHeadPtr, cqHead+uint32(len(chunk)))
+		// BUG FIX H1: store-release on CQ head to free consumed CQE slots.
+		atomic.StoreUint32(cqHeadPtr, cqHead+uint32(len(chunk)))
 
 		i += len(chunk)
 		submitted += len(chunk)
 	}
 
-	// Ensure path buffers are not freed before CQEs are harvested.
-	// runtime.KeepAlive prevents the GC from collecting work before this point.
+	// Prevent GC from freeing path buffers before all CQEs have been read.
 	runtime.KeepAlive(work)
 
 	return joinErrors(errs)
 }
 
-// Close implements [Batcher].
-func (b *IOURingBatcher) Close(ctx context.Context) error {
-	err := b.Flush(ctx)
-	b.mu.Lock()
-	b.closed = true
-	b.mu.Unlock()
-	return err
+// execFallback routes all work items through the synchronous goroutine-pool path.
+func (b *IOURingBatcher) execFallback(ctx context.Context, work []batchedUnlink) error {
+	return executeBatch(ctx, b.view, opsFromWork(work), runtime.NumCPU())
+}
+
+// opsFromWork extracts the BatchOp from each batchedUnlink entry.
+func opsFromWork(work []batchedUnlink) []BatchOp {
+	ops := make([]BatchOp, len(work))
+	for i, w := range work {
+		ops[i] = w.op
+	}
+	return ops
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal helpers
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-// atomic32Store performs a release-semantics store to a uint32 shared with the
-// kernel through the io_uring shared memory ring. A plain store suffices in Go
-// because the Go memory model guarantees visibility after a channel operation,
-// but marking it explicitly makes the intent clear. In production this should
-// use sync/atomic.StoreUint32 for maximum portability across CPU architectures.
-func atomic32Store(p *uint32, v uint32) { *p = v }
 
 // nextPow2 returns the smallest power of two ≥ n.
 func nextPow2(n uint32) uint32 {
@@ -466,17 +503,16 @@ func nextPow2(n uint32) uint32 {
 	return n + 1
 }
 
-// IOURingAvailable reports whether the current kernel supports io_uring with
-// IORING_OP_UNLINKAT (requires Linux 5.11+).
+// IOURingAvailable reports whether the running kernel supports io_uring with
+// IORING_OP_UNLINKAT (Linux 5.11+).
 func IOURingAvailable() bool { return ioURingAvailable() }
 
 // NewBestBatcher returns the highest-performance [Batcher] available on the
-// current platform. On Linux 5.11+ this is an [IOURingBatcher]; on all other
-// platforms (or if io_uring setup fails) it returns a [GoroutineBatcher].
+// current platform. On Linux 5.11+ this is an [IOURingBatcher]; on older
+// kernels or if setup fails it is a [GoroutineBatcher].
 func NewBestBatcher(view MergedView) (Batcher, error) {
 	return NewIOURingBatcher(view)
 }
 
-// osFile is an alias used only to satisfy the import of "os" via a reference
-// that survives dead-code elimination.
+// _ keeps the "os" import alive on this build-constrained file.
 var _ = os.ErrNotExist
