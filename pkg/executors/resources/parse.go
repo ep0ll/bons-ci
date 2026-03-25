@@ -3,15 +3,15 @@ package resources
 // parse.go – low-level cgroup file parsing primitives.
 //
 // All functions in this file are pure (no side effects beyond file I/O) and
-// exported only within the package.  They form the single source of truth for
-// reading cgroup pseudo-files so that the controller implementations
-// (cpu.go, memory.go, io.go, pids.go) never duplicate parsing logic.
+// package-private. They form the single source of truth for reading cgroup
+// pseudo-files so that controller implementations (cpu.go, memory.go, io.go,
+// pids.go) never duplicate parsing logic.
 //
-// Error handling policy:
-//   - os.ErrNotExist → return (zero, nil): the controller/file is not enabled.
-//   - syscall.ENOTSUP / EOPNOTSUPP → return (zero, nil): kernel lacks feature
-//     (e.g. CONFIG_PSI not set).
-//   - All other errors → return wrapped error with the offending file path.
+// Error handling policy
+//
+//   - os.ErrNotExist  → return (zero, nil): controller/file not enabled.
+//   - syscall.ENOTSUP → return (zero, nil): kernel lacks feature (CONFIG_PSI=n).
+//   - All other errors → return wrapped error carrying the offending file path.
 
 import (
 	"bufio"
@@ -32,7 +32,7 @@ import (
 //
 // Lines with fewer than two whitespace-separated fields, or whose second field
 // cannot be parsed as a uint64, are silently skipped — cgroup files
-// occasionally contain future fields the current parser does not understand.
+// occasionally expose future fields the current parser does not understand.
 //
 // Returns nil when the file does not exist (controller not enabled).
 func parseKVFile(filePath string, callback func(key string, value uint64)) error {
@@ -47,8 +47,7 @@ func parseKVFile(filePath string, callback func(key string, value uint64)) error
 
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		line := scanner.Text()
-		key, value, ok := splitKVLine(line)
+		key, value, ok := splitKVLine(scanner.Text())
 		if !ok {
 			continue
 		}
@@ -60,7 +59,7 @@ func parseKVFile(filePath string, callback func(key string, value uint64)) error
 	return nil
 }
 
-// splitKVLine splits a "key value" line into its components.
+// splitKVLine splits a space-separated "key value" line into its components.
 // Returns ok=false when the line is malformed or the value is not a uint64.
 func splitKVLine(line string) (key string, value uint64, ok bool) {
 	fields := strings.Fields(line)
@@ -74,8 +73,9 @@ func splitKVLine(line string) (key string, value uint64, ok bool) {
 	return fields[0], v, true
 }
 
-// parseKVPair splits a "key=value" token as used in io.stat and pressure files.
-// Returns ("", 0) when the token is malformed or not parseable as uint64.
+// parseKVPair splits a "key=value" token as used in io.stat lines.
+// Returns ("", 0) when the token is malformed or the value is not parseable
+// as a uint64.
 func parseKVPair(token string) (key string, value uint64) {
 	idx := strings.IndexByte(token, '=')
 	if idx < 0 {
@@ -89,19 +89,23 @@ func parseKVPair(token string) (key string, value uint64) {
 	return k, v
 }
 
-// parseFloatKVPair is like parseKVPair but parses the value as a float64.
-// Used for PSI avg10/avg60/avg300 fields.
+// parseFloatKVPair splits a "key=value" token and parses the value as a float64.
+// Returns ("", 0, false) when the token has no '=' or the value is not a valid float.
+//
+// NOTE: This function is intentionally NOT used by parsePressureValues — that
+// function dispatches on the key name first, then selects the correct parser type
+// (float64 vs uint64) to avoid ambiguity on the "total" field.  parseFloatKVPair
+// remains here as a package-level utility exercised by TestParseFloatKVPair.
 func parseFloatKVPair(token string) (key string, value float64, ok bool) {
 	idx := strings.IndexByte(token, '=')
 	if idx < 0 {
 		return "", 0, false
 	}
-	k := token[:idx]
 	v, err := strconv.ParseFloat(token[idx+1:], 64)
 	if err != nil {
 		return "", 0, false
 	}
-	return k, v, true
+	return token[:idx], v, true
 }
 
 // ─── Single-value file parsing ────────────────────────────────────────────────
@@ -110,23 +114,27 @@ func parseFloatKVPair(token string) (key string, value float64, ok bool) {
 // value (e.g. memory.peak, pids.current, memory.swap.current).
 //
 // Trailing whitespace and newlines are stripped before parsing.
-// Returns (0, nil) when the file does not exist.
-func parseSingleUint64File(filePath string) (uint64, bool, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+// The literal string "max" is returned as (0, false, nil) — callers treat a
+// false present flag as "unlimited/absent" rather than an error.
+// Returns (0, false, nil) when the file does not exist.
+func parseSingleUint64File(filePath string) (value uint64, present bool, err error) {
+	data, readErr := os.ReadFile(filePath)
+	if readErr != nil {
+		if errors.Is(readErr, os.ErrNotExist) {
 			return 0, false, nil
 		}
-		return 0, false, fmt.Errorf("read %q: %w", filePath, err)
+		return 0, false, fmt.Errorf("read %q: %w", filePath, readErr)
 	}
-	valueStr := strings.TrimSpace(string(data))
-	// cgroup files may contain "max" instead of a numeric limit.
-	if valueStr == "max" {
-		return 0, false, nil // treat unlimited as absent
+
+	s := strings.TrimSpace(string(data))
+	if s == "max" {
+		// "max" means unlimited/unset; represent as absent.
+		return 0, false, nil
 	}
-	v, err := strconv.ParseUint(valueStr, 10, 64)
-	if err != nil {
-		return 0, false, fmt.Errorf("parse %q value %q: %w", filePath, valueStr, err)
+
+	v, parseErr := strconv.ParseUint(s, 10, 64)
+	if parseErr != nil {
+		return 0, false, fmt.Errorf("parse %q from %q: %w", s, filePath, parseErr)
 	}
 	return v, true, nil
 }
@@ -135,14 +143,14 @@ func parseSingleUint64File(filePath string) (uint64, bool, error) {
 
 // parsePressureFile parses a Linux PSI pressure file.
 //
-// Format (one line per stall category):
+// File format (two lines, one per stall category):
 //
 //	some avg10=N avg60=N avg300=N total=N
 //	full avg10=N avg60=N avg300=N total=N
 //
 // Returns (nil, nil) when:
-//   - The file does not exist (controller not mounted).
-//   - The kernel returns ENOTSUP / EOPNOTSUPP (CONFIG_PSI not enabled).
+//   - The file does not exist (cgroup or /proc/pressure not mounted).
+//   - The kernel returns ENOTSUP/EOPNOTSUPP (CONFIG_PSI not compiled in).
 func parsePressureFile(filePath string) (*resourcestypes.Pressure, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -158,7 +166,9 @@ func parsePressureFile(filePath string) (*resourcestypes.Pressure, error) {
 	pressure := &resourcestypes.Pressure{}
 	populated := false
 
-	for line := range strings.SplitSeq(string(data), "\n") {
+	// strings.Split on a newline-terminated file always yields a trailing
+	// empty element; the inner trim+empty check handles it gracefully.
+	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -187,29 +197,66 @@ func parsePressureFile(filePath string) (*resourcestypes.Pressure, error) {
 	return pressure, nil
 }
 
-// parsePressureValues converts the key=value tokens from a single pressure line
-// into a PressureValues struct. Returns nil when no recognisable fields are found.
+// parsePressureValues converts the key=value tokens from a single PSI line into
+// a PressureValues struct.
+//
+// PSI token types by key name:
+//
+//	avg10, avg60, avg300 → float64  (exponential moving averages, 0.0–100.0)
+//	total                → uint64   (cumulative stall time in microseconds)
+//
+// ⚠ Bug avoidance note: the key name is checked FIRST, then the value is
+// parsed with the type that matches that specific key.  This is critical because
+// "total=3031" would be accepted by a float64 parser (3031 is a valid float64),
+// causing the uint64 branch to be silently skipped and leaving pv.Total == nil.
+// Dispatching on key name before parsing eliminates this ambiguity entirely.
+//
+// Returns nil when no recognised PSI fields are found in tokens.
 func parsePressureValues(tokens []string) *resourcestypes.PressureValues {
 	pv := &resourcestypes.PressureValues{}
 	found := false
 
 	for _, token := range tokens {
-		if k, v, ok := parseFloatKVPair(token); ok {
-			found = true
-			switch k {
-			case "avg10":
-				pv.Avg10 = float64Ptr(v)
-			case "avg60":
-				pv.Avg60 = float64Ptr(v)
-			case "avg300":
-				pv.Avg300 = float64Ptr(v)
-			}
+		idx := strings.IndexByte(token, '=')
+		if idx <= 0 || idx == len(token)-1 {
+			// Reject tokens with no '=', a leading '=', or no value after '='.
 			continue
 		}
-		// "total" is a uint64, not float64.
-		if k, v := parseKVPair(token); k == "total" {
-			found = true
-			pv.Total = uint64Ptr(v)
+		key := token[:idx]
+		valStr := token[idx+1:]
+
+		// Dispatch on key name FIRST to select the correct parser.
+		// Never attempt to infer the type from whether the value parses as float.
+		switch key {
+		case "total":
+			// uint64: cumulative stall duration in microseconds.
+			// Cannot be stored as float64 without precision loss on long-running
+			// systems where total can exceed 2^53 microseconds (~285 years).
+			v, err := strconv.ParseUint(valStr, 10, 64)
+			if err == nil {
+				pv.Total = uint64Ptr(v)
+				found = true
+			}
+		case "avg10":
+			v, err := strconv.ParseFloat(valStr, 64)
+			if err == nil {
+				pv.Avg10 = float64Ptr(v)
+				found = true
+			}
+		case "avg60":
+			v, err := strconv.ParseFloat(valStr, 64)
+			if err == nil {
+				pv.Avg60 = float64Ptr(v)
+				found = true
+			}
+		case "avg300":
+			v, err := strconv.ParseFloat(valStr, 64)
+			if err == nil {
+				pv.Avg300 = float64Ptr(v)
+				found = true
+			}
+		// Unknown keys are silently ignored for forward-compatibility with
+		// future kernel PSI extensions (e.g. per-CPU stall metrics).
 		}
 	}
 
