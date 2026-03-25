@@ -29,12 +29,9 @@ type testRepo struct {
 //	tag "v1.0.0" (lightweight): points at master HEAD
 //	tag "v1.1.0" (annotated): points at master HEAD
 //
-// The repository is completely isolated from the host's git configuration:
-// system config and global (~/.gitconfig) are suppressed, and commit/tag GPG
-// signing is disabled.  This prevents the test from failing on machines where
-// the developer has commit.gpgSign=true or tag.gpgSign=true in their config.
-//
-// The repository is automatically cleaned up when the test finishes.
+// The repository is completely isolated from the host's git configuration
+// (system config and ~/.gitconfig are suppressed, GPG signing is disabled).
+// This prevents failures on machines with commit.gpgSign=true or tag.gpgSign=true.
 func setupTestRepo(t *testing.T) testRepo {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
@@ -43,43 +40,9 @@ func setupTestRepo(t *testing.T) testRepo {
 
 	dir := t.TempDir()
 
-	// Minimal environment: suppress ALL host git config so tests are hermetic.
-	// In particular, commit.gpgSign=true and tag.gpgSign=true on the host must
-	// not affect our lightweight fixture commits and tags.
-	gitEnv := []string{
-		"PATH=" + os.Getenv("PATH"),
-		// Identity — required for git commit.
-		"GIT_AUTHOR_NAME=Test",
-		"GIT_AUTHOR_EMAIL=test@test.com",
-		"GIT_COMMITTER_NAME=Test",
-		"GIT_COMMITTER_EMAIL=test@test.com",
-		// Suppress system (/etc/gitconfig) and user (~/.gitconfig) config.
-		"GIT_CONFIG_NOSYSTEM=1",
-		"GIT_CONFIG_GLOBAL=/dev/null",
-		// Disable interactive prompts.
-		"GIT_TERMINAL_PROMPT=0",
-	}
-
-	// baseArgs are prepended to every git invocation to disable signing at the
-	// command level as well — belt-and-suspenders in case the env vars alone
-	// are not sufficient on all git versions.
-	baseArgs := []string{
-		"-c", "commit.gpgSign=false",
-		"-c", "tag.gpgSign=false",
-		"-c", "tag.forceSignAnnotated=false",
-	}
-
-	run := func(args ...string) string {
+	run := func(args ...string) {
 		t.Helper()
-		fullArgs := append(baseArgs, args...)
-		cmd := exec.Command("git", fullArgs...)
-		cmd.Dir = dir
-		cmd.Env = gitEnv
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-		return strings.TrimSpace(string(out))
+		gitHermetic(t, dir, args...)
 	}
 
 	run("-c", "init.defaultBranch=master", "init")
@@ -323,33 +286,11 @@ func TestDefaultFetcher_Fetch_subdir(t *testing.T) {
 	}
 	t.Parallel()
 
-	// Create a repo with a subdirectory structure.
+	// Build a repo with a subdirectory structure using the shared hermetic helper.
 	dir := t.TempDir()
-	runInDir := func(d string, args ...string) {
-		t.Helper()
-		baseArgs := []string{
-			"-c", "commit.gpgSign=false",
-			"-c", "tag.gpgSign=false",
-		}
-		cmd := exec.Command("git", append(baseArgs, args...)...)
-		cmd.Dir = d
-		cmd.Env = []string{
-			"PATH=" + os.Getenv("PATH"),
-			"GIT_AUTHOR_NAME=Test",
-			"GIT_AUTHOR_EMAIL=test@test.com",
-			"GIT_COMMITTER_NAME=Test",
-			"GIT_COMMITTER_EMAIL=test@test.com",
-			"GIT_CONFIG_NOSYSTEM=1",
-			"GIT_CONFIG_GLOBAL=/dev/null",
-			"GIT_TERMINAL_PROMPT=0",
-		}
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	runInDir(dir, "-c", "init.defaultBranch=master", "init")
-	runInDir(dir, "config", "user.email", "test@test.com")
-	runInDir(dir, "config", "user.name", "Test")
+	gitHermetic(t, dir, "-c", "init.defaultBranch=master", "init")
+	gitHermetic(t, dir, "config", "user.email", "test@test.com")
+	gitHermetic(t, dir, "config", "user.name", "Test")
 
 	subdir := filepath.Join(dir, "pkg", "lib")
 	if err := os.MkdirAll(subdir, 0o755); err != nil {
@@ -361,8 +302,8 @@ func TestDefaultFetcher_Fetch_subdir(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	runInDir(dir, "add", ".")
-	runInDir(dir, "commit", "-m", "initial")
+	gitHermetic(t, dir, "add", ".")
+	gitHermetic(t, dir, "commit", "-m", "initial")
 
 	f := newTestFetcher(t)
 	ctx, cancel := fetchCtx()
@@ -551,7 +492,176 @@ func TestDefaultFetcher_Fetch_concurrent(t *testing.T) {
 	}
 }
 
-// ─── fullyQualifiedRef ────────────────────────────────────────────────────────
+// ─── Submodule handling ───────────────────────────────────────────────────────
+
+// TestDefaultFetcher_Fetch_noSubmodules_noGitmodules verifies that when a repo
+// has no .gitmodules file, submodule init is skipped entirely (no error, no
+// spurious git-submodule invocation).  This is the common case for the vast
+// majority of repositories.
+func TestDefaultFetcher_Fetch_noSubmodules_noGitmodules(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("integration test not supported on Windows in CI")
+	}
+	t.Parallel()
+
+	repo := setupTestRepo(t) // no .gitmodules in fixture
+	f := newTestFetcher(t)
+	ctx, cancel := fetchCtx()
+	defer cancel()
+
+	dst := t.TempDir()
+	_, err := f.Fetch(ctx, FetchSpec{
+		Remote: repo.remote,
+		Ref:    "master",
+		// SkipSubmodules intentionally false — the code must handle the
+		// no-.gitmodules case without error.
+	}, dst)
+	if err != nil {
+		t.Fatalf("Fetch on repo without .gitmodules: %v", err)
+	}
+	// .git must not be present (KeepGitDir=false).
+	if _, err := os.Stat(filepath.Join(dst, ".git")); !os.IsNotExist(err) {
+		t.Error("stale .git gitlink must be removed after plain checkout")
+	}
+}
+
+// TestDefaultFetcher_Fetch_withSubmodule verifies the full submodule
+// initialisation path: create a parent repo that records a submodule, fetch
+// it, and confirm the submodule content is present in the checkout.
+func TestDefaultFetcher_Fetch_withSubmodule(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("integration test not supported on Windows in CI")
+	}
+	t.Parallel()
+
+	// Build a standalone "library" repo that will be used as the submodule.
+	libDir := t.TempDir()
+	buildHermeticRepo(t, libDir, map[string]string{
+		"lib.go": "package lib\n",
+	}, "initial lib")
+
+	// Build the parent repo that records the library as a submodule.
+	parentDir := t.TempDir()
+	buildHermeticRepo(t, parentDir, map[string]string{
+		"main.go": "package main\n",
+	}, "initial parent")
+
+	// Add the submodule using file:// so the URL is portable.
+	gitHermetic(t, parentDir, "submodule", "add", "file://"+libDir, "lib")
+	gitHermetic(t, parentDir, "commit", "-m", "add submodule")
+
+	f := newTestFetcher(t)
+	ctx, cancel := fetchCtx()
+	defer cancel()
+
+	dst := t.TempDir()
+	_, err := f.Fetch(ctx, FetchSpec{
+		Remote: "file://" + parentDir,
+		Ref:    "master",
+		// SkipSubmodules=false: submodule must be initialised.
+	}, dst)
+	if err != nil {
+		t.Fatalf("Fetch with submodule: %v", err)
+	}
+
+	// The submodule content must be present.
+	assertFileContent(t, filepath.Join(dst, "lib", "lib.go"), "package lib\n")
+
+	// After a plain checkout the .git gitlink must be gone.
+	if _, err := os.Stat(filepath.Join(dst, ".git")); !os.IsNotExist(err) {
+		t.Error("temporary .git gitlink must be removed after submodule init")
+	}
+}
+
+// TestDefaultFetcher_Fetch_withSubmodule_keepGitDir verifies submodule init
+// works correctly on the KeepGitDir path (where .git is a real directory).
+func TestDefaultFetcher_Fetch_withSubmodule_keepGitDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("integration test not supported on Windows in CI")
+	}
+	t.Parallel()
+
+	libDir := t.TempDir()
+	buildHermeticRepo(t, libDir, map[string]string{"util.go": "package util\n"}, "lib init")
+
+	parentDir := t.TempDir()
+	buildHermeticRepo(t, parentDir, map[string]string{"app.go": "package main\n"}, "app init")
+	gitHermetic(t, parentDir, "submodule", "add", "file://"+libDir, "util")
+	gitHermetic(t, parentDir, "commit", "-m", "add util submodule")
+
+	f := newTestFetcher(t)
+	ctx, cancel := fetchCtx()
+	defer cancel()
+
+	dst := t.TempDir()
+	_, err := f.Fetch(ctx, FetchSpec{
+		Remote:     "file://" + parentDir,
+		Ref:        "master",
+		KeepGitDir: true,
+	}, dst)
+	if err != nil {
+		t.Fatalf("Fetch with submodule + KeepGitDir: %v", err)
+	}
+
+	assertFileContent(t, filepath.Join(dst, "util", "util.go"), "package util\n")
+	// .git directory must be present.
+	if _, err := os.Stat(filepath.Join(dst, ".git")); os.IsNotExist(err) {
+		t.Error(".git directory must exist for KeepGitDir=true")
+	}
+}
+
+// ─── helpers for submodule tests ─────────────────────────────────────────────
+
+// hermeticEnv returns the minimal environment for fixture git commands.
+func hermeticEnv() []string {
+	return []string{
+		"PATH=" + os.Getenv("PATH"),
+		"GIT_AUTHOR_NAME=Test",
+		"GIT_AUTHOR_EMAIL=test@test.com",
+		"GIT_COMMITTER_NAME=Test",
+		"GIT_COMMITTER_EMAIL=test@test.com",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_TERMINAL_PROMPT=0",
+	}
+}
+
+// hermeticBaseArgs returns the -c args that disable GPG signing for fixture repos.
+var hermeticBaseArgs = []string{
+	"-c", "commit.gpgSign=false",
+	"-c", "tag.gpgSign=false",
+	"-c", "tag.forceSignAnnotated=false",
+}
+
+// gitHermetic runs git in dir with a hermetic environment.
+// It is the shared helper for all submodule fixture helpers.
+func gitHermetic(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	fullArgs := append(hermeticBaseArgs, args...)
+	cmd := exec.Command("git", fullArgs...)
+	cmd.Dir = dir
+	cmd.Env = hermeticEnv()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// buildHermeticRepo initialises a git repo at dir, writes files, and commits.
+func buildHermeticRepo(t *testing.T, dir string, files map[string]string, commitMsg string) {
+	t.Helper()
+	gitHermetic(t, dir, "-c", "init.defaultBranch=master", "init")
+	gitHermetic(t, dir, "config", "user.email", "test@test.com")
+	gitHermetic(t, dir, "config", "user.name", "Test")
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitHermetic(t, dir, "add", ".")
+	gitHermetic(t, dir, "commit", "-m", commitMsg)
+}
 
 func TestFullyQualifiedRef(t *testing.T) {
 	t.Parallel()

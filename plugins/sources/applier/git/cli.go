@@ -30,12 +30,13 @@ var gitBaseConfig = []string{
 // gitCLI holds the configuration for running git sub-commands.
 // Every field is safe to copy; use [gitCLI.with] to create a derived instance.
 type gitCLI struct {
-	runner         ProcessRunner
-	gitDir         string   // value for --git-dir; empty = omit
-	workDir        string   // value for --work-tree; empty = omit
+	runner          ProcessRunner
+	gitDir          string   // value for --git-dir; empty = omit
+	workDir         string   // value for --work-tree; empty = omit
+	dir             string   // process working directory (cmd.Dir); empty = inherit
 	extraConfigArgs []string // pre-built "-c key=value" args (e.g. auth headers)
-	sshSocketPath  string   // path to SSH agent socket
-	knownHostsPath string   // path to known_hosts file
+	sshSocketPath   string   // path to SSH agent socket
+	knownHostsPath  string   // path to known_hosts file
 
 	// Optional writers for stdout/stderr.  When nil the output is captured
 	// in memory and returned / included in error messages.
@@ -57,6 +58,12 @@ type cliOpt func(*gitCLI)
 
 func withGitDir(dir string) cliOpt     { return func(c *gitCLI) { c.gitDir = dir } }
 func withWorkTree(dir string) cliOpt   { return func(c *gitCLI) { c.workDir = dir } }
+// withDir sets the process working directory for git sub-commands.
+// This is distinct from withWorkTree (which sets the --work-tree flag):
+// withDir controls cmd.Dir and is needed for git-submodule, which is a shell
+// script that detects the working tree from the process CWD rather than from
+// --work-tree / --git-dir flags passed to the parent git process.
+func withDir(dir string) cliOpt        { return func(c *gitCLI) { c.dir = dir } }
 func withSSHSocket(p string) cliOpt    { return func(c *gitCLI) { c.sshSocketPath = p } }
 func withKnownHosts(p string) cliOpt   { return func(c *gitCLI) { c.knownHostsPath = p } }
 func withStdout(w io.Writer) cliOpt    { return func(c *gitCLI) { c.stdout = w } }
@@ -106,6 +113,12 @@ func (c *gitCLI) run(ctx context.Context, subcmdArgs ...string) ([]byte, error) 
 
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Env = c.buildEnv()
+	// Set the process working directory when configured.  An empty string means
+	// "inherit the parent's CWD", which is the correct default for all git
+	// sub-commands except git-submodule (see withDir).
+	if c.dir != "" {
+		cmd.Dir = c.dir
+	}
 
 	if c.stdout != nil {
 		cmd.Stdout = c.stdout

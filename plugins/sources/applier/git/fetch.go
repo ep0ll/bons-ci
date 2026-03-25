@@ -526,7 +526,7 @@ func (f *DefaultFetcher) checkoutWithGitDir(
 	}
 
 	if !spec.SkipSubmodules {
-		if err := f.initSubmodules(ctx, cloneCLI); err != nil {
+		if err := f.initSubmodules(ctx, cloneCLI, dstDir); err != nil {
 			return err
 		}
 	}
@@ -572,11 +572,32 @@ func (f *DefaultFetcher) checkoutPlain(
 	}
 
 	if !spec.SkipSubmodules {
-		// For submodule init we need to be in the work tree with .git pointing
-		// to the bare repo.
-		checkoutCLI = bareCLI.with(withWorkTree(dstDir))
-		if err := f.initSubmodules(ctx, checkoutCLI); err != nil {
-			return err
+		// git-submodule requires a .git marker in the process CWD to locate
+		// the git directory.  For a plain checkout (KeepGitDir=false) there is
+		// no .git in dstDir — the git dir lives in the temp bare repo.
+		// We write a gitlink file (.git containing "gitdir: <bareDir>") to
+		// satisfy the check, then remove it unconditionally after the update.
+		//
+		// This mirrors how git itself creates gitlink files for worktrees and
+		// submodule checkouts.
+		gitLinkPath := filepath.Join(dstDir, ".git")
+		gitLinkContent := "gitdir: " + bareCLI.gitDir + "\n"
+		if err := os.WriteFile(gitLinkPath, []byte(gitLinkContent), 0o644); err != nil {
+			return fmt.Errorf("gitapply: write .git gitlink: %w", err)
+		}
+		submodCLI := bareCLI.with(withWorkTree(dstDir))
+		submodErr := f.initSubmodules(ctx, submodCLI, dstDir)
+		// Always remove the gitlink — even on error — so the checkout dir is
+		// clean.  A stale gitlink could confuse subsequent git operations.
+		if rmErr := os.Remove(gitLinkPath); rmErr != nil && !os.IsNotExist(rmErr) {
+			if submodErr == nil {
+				return fmt.Errorf("gitapply: remove .git gitlink: %w", rmErr)
+			}
+			// Prefer the submodule error; the gitlink will be cleaned up when
+			// the caller removes dstDir on failure.
+		}
+		if submodErr != nil {
+			return submodErr
 		}
 	}
 	return nil
@@ -613,12 +634,36 @@ func extractSubdir(srcRoot, subdir, dstDir string) error {
 	return nil
 }
 
-// initSubmodules runs "git submodule update --init --recursive --depth=1".
-func (f *DefaultFetcher) initSubmodules(ctx context.Context, cli *gitCLI) error {
-	if _, err := cli.run(ctx,
+// initSubmodules initialises git submodules in workTree.
+//
+// It returns immediately (no error) when there is no .gitmodules file in
+// workTree, because there are no submodules to initialise.  This avoids
+// spawning git-submodule unnecessarily and is correct — a missing .gitmodules
+// means the repository has no registered submodules.
+//
+// Platform note: git-submodule is a shell script (on macOS / Apple Git) or a
+// Perl script (on most Linux distributions).  Either way, it detects the
+// working tree by looking for a .git marker in the process working directory
+// (cmd.Dir), not from the --git-dir / --work-tree flags passed to the parent
+// git invocation.  We therefore derive a CLI with withDir(workTree) so that
+// the script finds the correct .git on all platforms.
+func (f *DefaultFetcher) initSubmodules(ctx context.Context, cli *gitCLI, workTree string) error {
+	// Early exit: if .gitmodules does not exist there are no submodules.
+	// This is a correctness check, not just an optimisation — calling
+	// git-submodule on a repo with no .gitmodules is always a no-op, but on
+	// some platforms the shell script still exits non-zero when it cannot
+	// confirm a valid working tree.
+	gitModulesPath := filepath.Join(workTree, ".gitmodules")
+	if _, err := os.Stat(gitModulesPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	// Set the process CWD to workTree so git-submodule finds .git there.
+	submodCLI := cli.with(withDir(workTree))
+	if _, err := submodCLI.run(ctx,
 		"submodule", "update", "--init", "--recursive", "--depth=1",
 	); err != nil {
-		return fmt.Errorf("gitapply: submodule update: %w", err)
+		return fmt.Errorf("gitapply: submodule update in %s: %w", workTree, err)
 	}
 	return nil
 }

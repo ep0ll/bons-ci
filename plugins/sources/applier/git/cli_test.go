@@ -133,6 +133,33 @@ func TestGitCLI_buildSSHCommand_empty(t *testing.T) {
 	}
 }
 
+// ─── withDir (process CWD) ────────────────────────────────────────────────────
+
+func TestGitCLI_withDir_setsDir(t *testing.T) {
+	t.Parallel()
+	cli := newGitCLI(DefaultProcessRunner, withDir("/tmp/my-work-tree"))
+	if cli.dir != "/tmp/my-work-tree" {
+		t.Errorf("cli.dir: want %q, got %q", "/tmp/my-work-tree", cli.dir)
+	}
+}
+
+func TestGitCLI_withDir_emptyByDefault(t *testing.T) {
+	t.Parallel()
+	cli := newGitCLI(DefaultProcessRunner)
+	if cli.dir != "" {
+		t.Errorf("cli.dir should default to empty string; got %q", cli.dir)
+	}
+}
+
+func TestGitCLI_withDir_doesNotMutateParent(t *testing.T) {
+	t.Parallel()
+	parent := newGitCLI(DefaultProcessRunner)
+	_ = parent.with(withDir("/tmp/child-dir"))
+	if parent.dir != "" {
+		t.Errorf("parent.dir was mutated: got %q", parent.dir)
+	}
+}
+
 // ─── with (copy semantics) ────────────────────────────────────────────────────
 
 func TestGitCLI_with_doesNotMutateParent(t *testing.T) {
