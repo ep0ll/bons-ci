@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bons/bons-ci/content/noop"
+	"github.com/bons/bons-ci/core/content/noop"
 	"github.com/containerd/containerd/v2/core/content"
 	digest "github.com/opencontainers/go-digest"
 )

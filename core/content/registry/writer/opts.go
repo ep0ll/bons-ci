@@ -1,7 +1,7 @@
 package writer
 
 import (
-	"github.com/bons/bons-ci/content/registry/ingestion"
+	"github.com/bons/bons-ci/core/content/registry/ingestion"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 

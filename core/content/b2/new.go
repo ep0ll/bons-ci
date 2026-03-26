@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bons/bons-ci/content/b2/writer"
-	"github.com/bons/bons-ci/content/local"
+	"github.com/bons/bons-ci/core/content/b2/writer"
+	"github.com/bons/bons-ci/core/content/local"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"

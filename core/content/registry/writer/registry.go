@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/bons/bons-ci/content/registry/ingestion"
+	"github.com/bons/bons-ci/core/content/registry/ingestion"
 	"github.com/containerd/containerd/v2/core/content"
 	digest "github.com/opencontainers/go-digest"
 )

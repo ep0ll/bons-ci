@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/bons/bons-ci/content/registry/ingestion"
-	"github.com/bons/bons-ci/content/registry/registry_repo"
+	"github.com/bons/bons-ci/core/content/registry/ingestion"
+	"github.com/bons/bons-ci/core/content/registry/registry_repo"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/transfer"
 	"github.com/containerd/containerd/v2/core/transfer/registry"

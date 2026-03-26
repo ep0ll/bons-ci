@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bons/bons-ci/content/local"
+	"github.com/bons/bons-ci/core/content/local"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"

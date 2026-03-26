@@ -3,7 +3,7 @@ package content
 import (
 	"testing"
 
-	"github.com/bons/bons-ci/content/split"
+	"github.com/bons/bons-ci/core/content/split"
 	"github.com/containerd/containerd/v2/core/content"
 )
 
