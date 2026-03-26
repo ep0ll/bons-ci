@@ -647,7 +647,6 @@ github.com/mitchellh/hashstructure/v2
 github.com/moby/buildkit/api/types
 github.com/moby/buildkit/errdefs
 github.com/moby/buildkit/executor
-github.com/moby/buildkit/executor/oci
 github.com/moby/buildkit/executor/resources/types
 github.com/moby/buildkit/frontend/gateway/pb
 github.com/moby/buildkit/identity
@@ -657,13 +656,13 @@ github.com/moby/buildkit/solver/pb
 github.com/moby/buildkit/sourcepolicy/pb
 github.com/moby/buildkit/util/apicaps
 github.com/moby/buildkit/util/apicaps/pb
+github.com/moby/buildkit/util/appcontext
 github.com/moby/buildkit/util/bklog
 github.com/moby/buildkit/util/entitlements/security
 github.com/moby/buildkit/util/flightcontrol
 github.com/moby/buildkit/util/gogo/proto
 github.com/moby/buildkit/util/grpcerrors
 github.com/moby/buildkit/util/leaseutil
-github.com/moby/buildkit/util/network
 github.com/moby/buildkit/util/overlay
 github.com/moby/buildkit/util/progress
 github.com/moby/buildkit/util/resolvconf

@@ -11,7 +11,7 @@ import (
 
 	"github.com/containerd/console"
 	runc "github.com/containerd/go-runc"
-	"github.com/moby/buildkit/executor"
+	"github.com/bons/bons-ci/pkg/executors"
 	"github.com/moby/buildkit/util/bklog"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
