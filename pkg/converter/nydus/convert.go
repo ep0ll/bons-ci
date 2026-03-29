@@ -233,6 +233,9 @@ func MergeLayers(ctx context.Context, cs content.Store, descs []ocispec.Descript
 
 	// Merge all nydus bootstraps into a final nydus bootstrap.
 	pr, pw := io.Pipe()
+	// BUG FIX: Prevent goroutine leak if cw.Commit or io.CopyBuffer fails bounds below.
+	defer pr.Close()
+	
 	originalBlobDigestChan := make(chan []digest.Digest, 1)
 	go func() {
 		defer pw.Close()
@@ -244,11 +247,15 @@ func MergeLayers(ctx context.Context, cs content.Store, descs []ocispec.Descript
 	}()
 
 	// Compress final nydus bootstrap to tar.gz and write into content store.
-	cw, err := content.OpenWriter(ctx, cs, content.WithRef("nydus-merge-"+chainID.String()))
+	ref := "nydus-merge-" + chainID.String()
+	cw, err := content.OpenWriter(ctx, cs, content.WithRef(ref))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "open content store writer")
 	}
-	defer cw.Close()
+	defer func() {
+		cw.Close()
+		_ = cs.Abort(context.Background(), ref)
+	}()
 
 	gw := gzip.NewWriter(cw)
 	uncompressedDgst := digest.SHA256.Digester()

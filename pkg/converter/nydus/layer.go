@@ -118,7 +118,10 @@ func LayerConvertFunc(opt PackOption, hook LayerConvertHook) converter.ConvertFu
 		if err != nil {
 			return nil, errors.Wrap(err, "open blob writer")
 		}
-		defer dst.Close()
+		defer func() {
+			dst.Close()
+			_ = cs.Abort(context.Background(), ref)
+		}()
 
 		// ── Decompress source (or use raw for OCIRef) ─────────────────────
 		rdr := io.NewSectionReader(ra, 0, ra.Size())
@@ -169,16 +172,20 @@ func LayerConvertFunc(opt PackOption, hook LayerConvertHook) converter.ConvertFu
 			case producerErr = <-copyDone:
 			}
 
+			// Clean up components natively. tw.Close() MUST proceed to unblock Packer processes
+			trErr := tr.Close()
+			twErr := tw.Close()
+
 			if producerErr != nil {
 				pw.CloseWithError(producerErr)
 				return
 			}
-			if err := tr.Close(); err != nil {
-				pw.CloseWithError(err)
+			if trErr != nil {
+				pw.CloseWithError(trErr)
 				return
 			}
-			if err := tw.Close(); err != nil {
-				pw.CloseWithError(err)
+			if twErr != nil {
+				pw.CloseWithError(twErr)
 			}
 		}()
 

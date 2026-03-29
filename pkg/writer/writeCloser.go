@@ -25,7 +25,7 @@ func (c *writeCloser) Close() error {
 	return nil
 }
 
-func WriteCloser(wc io.WriteCloser, action func() error) *writeCloser {
+func WriteCloser(wc io.WriteCloser, action func() error) io.WriteCloser {
 	return &writeCloser{
 		WriteCloser: wc,
 		action:      action,

@@ -88,9 +88,9 @@ func packFromDirectory(ctx context.Context, dest io.Writer, opt PackOption, buil
 
 	unpackDone := make(chan bool, 1)
 	go func() {
+		defer close(unpackDone)
 		if err := unpackOciTar(ctx, sourceDir, pr); err != nil {
 			pr.CloseWithError(errors.Wrapf(err, "unpack to %s", sourceDir))
-			close(unpackDone)
 			return
 		}
 		unpackDone <- true

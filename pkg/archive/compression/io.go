@@ -50,11 +50,22 @@ func (r *bufferedReader) Read(p []byte) (n int, err error) {
 	}
 	n, err = r.buf.Read(p)
 	if err == io.EOF {
+		r.returnBuf()
+	}
+	return
+}
+
+func (r *bufferedReader) Close() error {
+	r.returnBuf()
+	return nil
+}
+
+func (r *bufferedReader) returnBuf() {
+	if r.buf != nil {
 		r.buf.Reset(nil)
 		bufioReader32KPool.Put(r.buf)
 		r.buf = nil
 	}
-	return
 }
 
 func (r *bufferedReader) Peek(n int) ([]byte, error) {
