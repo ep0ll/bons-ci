@@ -403,13 +403,13 @@ func (b *IOURingBatcher) flushWithRing(ctx context.Context, work []batchedUnlink
 		atomic.StoreUint32(sqTailPtr, curTail+uint32(len(chunk)))
 
 		// ── Submit + wait ─────────────────────────────────────────────────────
-		_, _, errno = syscall.Syscall6(sysIOURingEnter,
+		ret, _, enterErrno := syscall.Syscall6(sysIOURingEnter,
 			ringFD,
 			uintptr(len(chunk)),           // to_submit
 			uintptr(len(chunk)),           // min_complete (wait for all)
 			uintptr(ioRingEnterGetEvents), // flags
 			0, 0)
-		if errno != 0 {
+		if enterErrno != 0 || int(ret) != len(chunk) {
 			if ferr := executeBatch(ctx, b.view, opsFromWork(chunk), runtime.NumCPU()); ferr != nil {
 				errs = append(errs, ferr)
 			}

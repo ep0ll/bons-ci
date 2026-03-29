@@ -196,9 +196,10 @@ func executeBatch(ctx context.Context, view MergedView, ops []BatchOp, paralleli
 	var mu sync.Mutex
 	var errs []error
 
+	Loop:
 	for _, op := range ops {
 		if ctx.Err() != nil {
-			break
+			break Loop
 		}
 		op := op
 
@@ -206,7 +207,7 @@ func executeBatch(ctx context.Context, view MergedView, ops []BatchOp, paralleli
 		select {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
-			break
+			break Loop
 		}
 
 		wg.Add(1)
