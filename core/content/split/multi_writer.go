@@ -8,7 +8,6 @@ import (
 
 	"github.com/containerd/containerd/v2/core/content"
 	digest "github.com/opencontainers/go-digest"
-	"golang.org/x/sync/errgroup"
 )
 
 type multiWriter struct {
@@ -20,19 +19,21 @@ func (m *multiWriter) Close() error {
 	var (
 		mu   sync.Mutex
 		errs []error
+		wg   sync.WaitGroup
 	)
-	wg, _ := errgroup.WithContext(context.Background())
+
+	wg.Add(len(m.writers))
 	for _, w := range m.writers {
-		wg.Go(func() error {
+		go func(w content.Writer) {
+			defer wg.Done()
 			if err := w.Close(); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-			return nil
-		})
+		}(w)
 	}
-	_ = wg.Wait()
+	wg.Wait()
 	return errors.Join(errs...)
 }
 
@@ -41,19 +42,21 @@ func (m *multiWriter) Commit(ctx context.Context, size int64, expected digest.Di
 	var (
 		mu   sync.Mutex
 		errs []error
+		wg   sync.WaitGroup
 	)
-	wg, ctx := errgroup.WithContext(ctx)
+
+	wg.Add(len(m.writers))
 	for _, w := range m.writers {
-		wg.Go(func() error {
+		go func(w content.Writer) {
+			defer wg.Done()
 			if err := w.Commit(ctx, size, expected, opts...); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-			return nil
-		})
+		}(w)
 	}
-	_ = wg.Wait()
+	wg.Wait()
 	return errors.Join(errs...)
 }
 
@@ -85,37 +88,19 @@ func (m *multiWriter) Truncate(size int64) error {
 }
 
 // Write implements content.Writer.
-// Writes to all underlying writers concurrently.
-// Each goroutine gets its own return values to avoid data races.
+// Writes to all underlying writers sequentially. This prevents catastrophic
+// overhead from spawning goroutines for every byte slice while ensuring
+// strictly correct byte sequence delivery.
 func (m *multiWriter) Write(p []byte) (int, error) {
-	var (
-		mu   sync.Mutex
-		errs []error
-	)
-
-	wg, _ := errgroup.WithContext(context.Background())
 	for _, w := range m.writers {
-		wg.Go(func() error {
-			n, err := w.Write(p)
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			if err != nil {
-				errs = append(errs, err)
-			} else if expected := len(p); n != expected {
-				errs = append(errs, fmt.Errorf("required to write %d, wrote %d", expected, n))
-			}
-			return nil
-		})
+		n, err := w.Write(p)
+		if err != nil {
+			return n, err
+		}
+		if n != len(p) {
+			return n, fmt.Errorf("required to write %d, wrote %d", len(p), n)
+		}
 	}
-
-	_ = wg.Wait()
-
-	if len(errs) > 0 {
-		return 0, errors.Join(errs...)
-	}
-
 	return len(p), nil
 }
 

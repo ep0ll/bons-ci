@@ -3,7 +3,7 @@ package content
 import (
 	"context"
 	"fmt"
-	"sync"
+	"sync/atomic"
 
 	"github.com/bons/bons-ci/core/content/split"
 	"github.com/containerd/containerd/v2/core/content"
@@ -91,24 +91,17 @@ func (l *localFirstContentStore) Writer(ctx context.Context, opts ...content.Wri
 
 type secondaryWriter struct {
 	content.Writer
-	mu     sync.Mutex
-	failed bool
+	failed atomic.Bool
 }
 
 func (s *secondaryWriter) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	failed := s.failed
-	s.mu.Unlock()
-
-	if failed {
+	if s.failed.Load() {
 		return len(p), nil
 	}
 
 	n, err := s.Writer.Write(p)
 	if err != nil {
-		s.mu.Lock()
-		s.failed = true
-		s.mu.Unlock()
+		s.failed.Store(true)
 		s.Writer.Close()
 		return len(p), nil
 	}
@@ -116,46 +109,30 @@ func (s *secondaryWriter) Write(p []byte) (int, error) {
 }
 
 func (s *secondaryWriter) Commit(ctx context.Context, size int64, expected digest.Digest, opts ...content.Opt) error {
-	s.mu.Lock()
-	failed := s.failed
-	s.mu.Unlock()
-
-	if failed {
+	if s.failed.Load() {
 		return nil
 	}
 
 	if err := s.Writer.Commit(ctx, size, expected, opts...); err != nil {
-		s.mu.Lock()
-		s.failed = true
-		s.mu.Unlock()
+		s.failed.Store(true)
 		s.Writer.Close()
 	}
 	return nil
 }
 
 func (s *secondaryWriter) Truncate(size int64) error {
-	s.mu.Lock()
-	failed := s.failed
-	s.mu.Unlock()
-
-	if failed {
+	if s.failed.Load() {
 		return nil
 	}
 	if err := s.Writer.Truncate(size); err != nil {
-		s.mu.Lock()
-		s.failed = true
-		s.mu.Unlock()
+		s.failed.Store(true)
 		s.Writer.Close()
 	}
 	return nil
 }
 
 func (s *secondaryWriter) Close() error {
-	s.mu.Lock()
-	failed := s.failed
-	s.mu.Unlock()
-
-	if failed {
+	if s.failed.Load() {
 		return nil
 	}
 	return s.Writer.Close()

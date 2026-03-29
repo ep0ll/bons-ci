@@ -10,7 +10,6 @@ import (
 	"github.com/containerd/errdefs"
 	digest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	"golang.org/x/sync/errgroup"
 )
 
 func filterNotFoundErrors(errs []error, total int) error {
@@ -45,19 +44,20 @@ func (m *multiContentStore) Abort(ctx context.Context, ref string) error {
 	var (
 		mu   sync.Mutex
 		errs []error
+		wg   sync.WaitGroup
 	)
-	wg, ctx := errgroup.WithContext(ctx)
+	wg.Add(len(m.stores))
 	for _, cs := range m.stores {
-		wg.Go(func() error {
+		go func(cs content.Store) {
+			defer wg.Done()
 			if err := cs.Abort(ctx, ref); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-			return nil
-		})
+		}(cs)
 	}
-	_ = wg.Wait()
+	wg.Wait()
 	return filterNotFoundErrors(errs, len(m.stores))
 }
 
@@ -66,19 +66,20 @@ func (m *multiContentStore) Delete(ctx context.Context, dgst digest.Digest) erro
 	var (
 		mu   sync.Mutex
 		errs []error
+		wg   sync.WaitGroup
 	)
-	wg, ctx := errgroup.WithContext(ctx)
+	wg.Add(len(m.stores))
 	for _, cs := range m.stores {
-		wg.Go(func() error {
+		go func(cs content.Store) {
+			defer wg.Done()
 			if err := cs.Delete(ctx, dgst); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 			}
-			return nil
-		})
+		}(cs)
 	}
-	_ = wg.Wait()
+	wg.Wait()
 	return filterNotFoundErrors(errs, len(m.stores))
 }
 
@@ -99,30 +100,34 @@ func (m *multiContentStore) ListStatuses(ctx context.Context, filters ...string)
 	var (
 		mu       sync.Mutex
 		result   []content.Status
+		errs     []error
 		seenRefs = make(map[string]struct{})
+		wg       sync.WaitGroup
 	)
 
-	wg, ctx := errgroup.WithContext(ctx)
+	wg.Add(len(m.stores))
 	for _, cs := range m.stores {
-		wg.Go(func() error {
+		go func(cs content.Store) {
+			defer wg.Done()
 			statuses, err := cs.ListStatuses(ctx, filters...)
-			if err != nil {
-				return err
-			}
 			mu.Lock()
 			defer mu.Unlock()
+			if err != nil {
+				errs = append(errs, err)
+				return
+			}
 			for _, st := range statuses {
 				if _, ok := seenRefs[st.Ref]; !ok {
 					seenRefs[st.Ref] = struct{}{}
 					result = append(result, st)
 				}
 			}
-			return nil
-		})
+		}(cs)
 	}
+	wg.Wait()
 
-	if err := wg.Wait(); err != nil {
-		return nil, err
+	if len(errs) == len(m.stores) && len(m.stores) > 0 {
+		return nil, errors.Join(errs...)
 	}
 	return result, nil
 }
@@ -156,11 +161,13 @@ func (m *multiContentStore) Update(ctx context.Context, info content.Info, field
 		lastInfo content.Info
 		errs     []error
 		updated  bool
+		wg       sync.WaitGroup
 	)
 
-	wg, ctx := errgroup.WithContext(ctx)
+	wg.Add(len(m.stores))
 	for _, cs := range m.stores {
-		wg.Go(func() error {
+		go func(cs content.Store) {
+			defer wg.Done()
 			upd, err := cs.Update(ctx, info, fieldpaths...)
 			mu.Lock()
 			defer mu.Unlock()
@@ -170,11 +177,9 @@ func (m *multiContentStore) Update(ctx context.Context, info content.Info, field
 				lastInfo = upd
 				updated = true
 			}
-			return nil
-		})
+		}(cs)
 	}
-
-	_ = wg.Wait()
+	wg.Wait()
 
 	if updated {
 		// If at least one succeeded, return any non-not-found errors joined, or just success.
@@ -189,21 +194,35 @@ func (m *multiContentStore) Update(ctx context.Context, info content.Info, field
 
 // Walk implements content.Store.
 func (m *multiContentStore) Walk(ctx context.Context, fn content.WalkFunc, filters ...string) error {
-	wg, ctx := errgroup.WithContext(ctx)
-	infos := sync.Map{}
+	var (
+		wg    sync.WaitGroup
+		errs  []error
+		mu    sync.Mutex
+		infos sync.Map
+	)
+	
+	wg.Add(len(m.stores))
 	for _, cs := range m.stores {
-		wg.Go(func() error {
-			return cs.Walk(ctx, func(i content.Info) error {
+		go func(cs content.Store) {
+			defer wg.Done()
+			err := cs.Walk(ctx, func(i content.Info) error {
 				_, loaded := infos.LoadOrStore(i.Digest, i)
 				if !loaded {
-					return fn(i)
+					mu.Lock()
+					defer mu.Unlock()
+					return fn(i) // Serialize access to WalkFunc
 				}
-
 				return nil
 			}, filters...)
-		})
+			if err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+			}
+		}(cs)
 	}
-	return wg.Wait()
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 // Writer implements content.Store.
@@ -211,32 +230,28 @@ func (m *multiContentStore) Writer(ctx context.Context, opts ...content.WriterOp
 	var (
 		mu      sync.Mutex
 		writers []content.Writer
+		errs    []error
+		wg      sync.WaitGroup
 	)
 
-	wg, ctx := errgroup.WithContext(ctx)
+	wg.Add(len(m.stores))
 	for _, cs := range m.stores {
-		wg.Go(func() error {
+		go func(cs content.Store) {
+			defer wg.Done()
 			writer, err := cs.Writer(ctx, opts...)
-			if err != nil {
-				return err
-			}
 			mu.Lock()
-			writers = append(writers, writer)
-			mu.Unlock()
-			return nil
-		})
+			defer mu.Unlock()
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				writers = append(writers, writer)
+			}
+		}(cs)
 	}
-
-	if err := wg.Wait(); err != nil {
-		// Close any writers that were successfully opened
-		for _, w := range writers {
-			w.Close()
-		}
-		return nil, err
-	}
+	wg.Wait()
 
 	if len(writers) == 0 {
-		return nil, errdefs.ErrNotFound
+		return nil, filterNotFoundErrors(errs, len(m.stores))
 	}
 
 	return split.NewMultiWriter(writers...), nil

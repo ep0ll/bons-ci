@@ -2,6 +2,7 @@ package split
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/containerd/containerd/v2/core/content"
@@ -105,16 +106,26 @@ func (s *splitContentStore) Status(ctx context.Context, ref string) (status cont
 }
 
 // Update Updates read and write content.Store
-func (s *splitContentStore) Update(ctx context.Context, info content.Info, fieldpaths ...string) (cinfo content.Info, err error) {
+func (s *splitContentStore) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
+	var (
+		errs []error
+		lastInfo content.Info
+		updated bool
+	)
 	for _, scs := range s.wrts {
 		i, e := scs.Update(ctx, info, fieldpaths...)
-		if e != nil && err == nil {
-			err = e
-			cinfo = i
+		if e != nil {
+			errs = append(errs, e)
+		} else {
+			lastInfo = i
+			updated = true
 		}
 	}
 
-	return cinfo, err
+	if updated {
+		return lastInfo, errors.Join(errs...)
+	}
+	return content.Info{}, errors.Join(errs...)
 }
 
 // Walk walks through read content.Store
@@ -123,18 +134,24 @@ func (s *splitContentStore) Walk(ctx context.Context, fn content.WalkFunc, filte
 }
 
 // Writer implements content.Store.
-func (s *splitContentStore) Writer(ctx context.Context, opts ...content.WriterOpt) (wrt content.Writer, err error) {
-	var multiWriter = &multiWriter{writers: make([]content.Writer, len(s.wrts))}
-
-	var e error
-	for i, scs := range s.wrts {
-		wrt, e = scs.Writer(ctx, opts...)
-		if e != nil && err == nil {
-			err = e
+func (s *splitContentStore) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
+	var (
+		writers []content.Writer
+		errs    []error
+	)
+	
+	for _, scs := range s.wrts {
+		wrt, e := scs.Writer(ctx, opts...)
+		if e != nil {
+			errs = append(errs, e)
+		} else {
+			writers = append(writers, wrt)
 		}
-
-		multiWriter.writers[i] = wrt
 	}
 
-	return multiWriter, err
+	if len(writers) == 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return NewMultiWriter(writers...), errors.Join(errs...)
 }
