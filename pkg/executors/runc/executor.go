@@ -166,12 +166,8 @@ func (e *Executor) Run(
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create network namespace")
 	}
-	releaseNS := true
-	defer func() {
-		if releaseNS {
-			ns.Close()
-		}
-	}()
+	var nsCloseOnce sync.Once
+	defer nsCloseOnce.Do(func() { ns.Close() })
 
 	// ── DNS / hosts files ──────────────────────────────────────────────────
 	resolvConf, err := oci.GetResolvConf(ctx, e.config.Root, e.config.IdentityMapping, e.config.DNS, meta.NetMode)
@@ -324,7 +320,7 @@ func (e *Executor) Run(
 
 	// The container has exited; take ownership of network namespace teardown
 	// (deferred releaseNS would double-close otherwise).
-	releaseNS = false
+	// releaseNS = false
 	releaseContainer := func(ctx context.Context) error {
 		deleteErr := e.runtime.Delete(ctx, id, &runc.DeleteOpts{})
 		nsErr := ns.Close()

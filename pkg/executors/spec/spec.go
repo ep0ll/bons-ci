@@ -203,8 +203,11 @@ func GenerateSpec(
 
 	releaseAll := func() {
 		sm.cleanup()
-		for _, f := range releasers {
-			f()
+		// Mount teardowns MUST execute in strict LIFO order (Reverse).
+		// Unmounting a lower directory while an upper directory is still mounted
+		// fails silently with EBUSY, permanently leaking the kernel mount graphs.
+		for i := len(releasers) - 1; i >= 0; i-- {
+			releasers[i]()
 		}
 		if s.Process.SelinuxLabel != "" {
 			selinux.ReleaseLabel(s.Process.SelinuxLabel)
