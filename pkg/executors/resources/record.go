@@ -90,7 +90,9 @@ func (r *cgroupRecord) Close() {
 func (r *cgroupRecord) CloseAsync(next func(context.Context) error) error {
 	go func() {
 		r.close()
-		if err := next(context.TODO()); err != nil {
+		// CloseAsync delegates to the next stage using a background context
+		// because the request context might already be cancelled or timed out.
+		if err := next(context.Background()); err != nil {
 			bklog.L.WithError(err).Warn("resources: CloseAsync next callback failed")
 		}
 	}()
@@ -211,4 +213,4 @@ func (*nopRecord) Start()                                           {}
 func (*nopRecord) Close()                                           {}
 func (*nopRecord) Wait() error                                      { return nil }
 func (*nopRecord) Samples() (*resourcestypes.Samples, error)        { return nil, nil }
-func (*nopRecord) CloseAsync(next func(context.Context) error) error { return next(context.TODO()) }
+func (*nopRecord) CloseAsync(next func(context.Context) error) error { return next(context.Background()) }

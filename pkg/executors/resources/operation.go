@@ -113,7 +113,9 @@ func (r *OperationRecorder) Close() {
 func (r *OperationRecorder) CloseAsync(next func(context.Context) error) error {
 	go func() {
 		r.close()
-		if err := next(context.TODO()); err != nil {
+		// Execute the callback in the background because the original context
+		// may have been cancelled, but teardown must run to completion.
+		if err := next(context.Background()); err != nil {
 			bklog.L.WithError(err).Warn("resources: OperationRecorder CloseAsync next callback failed")
 		}
 	}()

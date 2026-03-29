@@ -339,14 +339,14 @@ func (e *Executor) Run(
 		if rec != nil {
 			rec.Close()
 		}
-		_ = releaseContainer(context.TODO())
+		_ = releaseContainer(context.WithoutCancel(ctx))
 		return nil, runErr
 	}
 
 	// Success path: if there is no recorder we release synchronously;
 	// otherwise the recorder closes asynchronously after its own cleanup.
 	if rec == nil {
-		return nil, releaseContainer(context.TODO())
+		return nil, releaseContainer(context.WithoutCancel(ctx))
 	}
 	return rec, rec.CloseAsync(releaseContainer)
 }

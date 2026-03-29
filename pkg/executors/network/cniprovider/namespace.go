@@ -101,7 +101,9 @@ func (ns *cniNS) Sample() (*resourcestypes.NetworkSample, error) {
 	}
 
 	var raw *resourcestypes.NetworkSample
-	err := withDetachedNetNSIfAny(context.TODO(), func(_ context.Context) error {
+	// Teardowns execute asynchronously in the background so they aren't
+	// interrupted if the client cancels the master request.
+	err := withDetachedNetNSIfAny(context.Background(), func(_ context.Context) error {
 		var err error
 		raw, err = ns.sample()
 		return err
@@ -150,7 +152,8 @@ func (ns *cniNS) release() error {
 
 	// Step 1: Ask CNI to tear down network plumbing (routes, iptables rules,
 	// IPAM lease release, bridge port removal, etc.).
-	err := ns.handle.Remove(context.TODO(), ns.id, ns.nativeID, ns.opts...)
+	// Deallocations use background contexts to ensure teardown finishes reliably.
+	err := ns.handle.Remove(context.Background(), ns.id, ns.nativeID, ns.opts...)
 	if err != nil {
 		bklog.L.WithError(err).Warnf("cniprovider: CNI Remove failed for namespace %s", ns.id)
 	}

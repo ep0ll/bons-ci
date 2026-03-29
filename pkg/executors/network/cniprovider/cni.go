@@ -109,7 +109,7 @@ func New(opt Opt) (network.Provider, error) {
 	cniOpts := buildCNIOptions(opt.BinaryDir, opt.ConfigPath)
 
 	var handle cni.CNI
-	if err := withDetachedNetNSIfAny(context.TODO(), func(_ context.Context) error {
+	if err := withDetachedNetNSIfAny(context.Background(), func(_ context.Context) error {
 		var err error
 		handle, err = cni.New(cniOpts...)
 		return err
@@ -168,7 +168,7 @@ func (c *cniProvider) probeNetwork() error {
 	}
 	defer unlock() //nolint:errcheck
 
-	ns, err := c.New(context.TODO(), "")
+	ns, err := c.New(context.Background(), "")
 	if err != nil {
 		return err
 	}
@@ -299,14 +299,14 @@ func buildNSOpts(hostname string) []cni.NamespaceOpts {
 // SetupSerially executes all plugin invocations sequentially on the calling
 // goroutine, which is pinned to the correct netns by WithNetNSPath.
 func (c *cniProvider) setupCNI(ctx context.Context, id, nativeID string, opts []cni.NamespaceOpts) (*cni.Result, error) {
-	// Use context.TODO() for the inner CNI calls: the CNI library does not
+	// Use context.Background() for the inner CNI calls: the CNI library does not
 	// propagate context to plugin processes (they communicate via stdin/stdout),
 	// so passing the caller's context would give a false impression of
 	// cancellation support.
 	if ctx.Value(contextKeyDetachedNetNS) != nil {
-		return c.handle.SetupSerially(context.TODO(), id, nativeID, opts...)
+		return c.handle.SetupSerially(context.Background(), id, nativeID, opts...)
 	}
-	return c.handle.Setup(context.TODO(), id, nativeID, opts...)
+	return c.handle.Setup(context.Background(), id, nativeID, opts...)
 }
 
 // resolveVethName scans the CNI result for the host-side veth interface used to

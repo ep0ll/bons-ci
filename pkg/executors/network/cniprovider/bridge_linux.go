@@ -73,7 +73,9 @@ func NewBridge(opt Opt) (network.Provider, error) {
 
 	if needsCreate {
 		cp.release = func() error {
-			if err := withDetachedNetNSIfAny(context.TODO(), func(_ context.Context) error {
+			// CNI initialisation blocks on background context because it must
+			// not be interrupted mid-flight.
+			if err := withDetachedNetNSIfAny(context.Background(), func(_ context.Context) error {
 				return removeBridge(opt.BridgeName)
 			}); err != nil {
 				bklog.L.WithError(err).Errorf("cniprovider: failed to remove bridge %q", opt.BridgeName)
@@ -247,7 +249,8 @@ func buildBridgeConfList(bins *bridgeBinaries, bridgeName, subnet, firewallBacke
 // bridgeExists reports whether a Linux bridge named name already exists.
 // It runs inside the detached netns when applicable.
 func bridgeExists(name string) bool {
-	err := withDetachedNetNSIfAny(context.TODO(), func(_ context.Context) error {
+	// Ensure device teardown evaluates securely against uncancelled contexts.
+	err := withDetachedNetNSIfAny(context.Background(), func(_ context.Context) error {
 		_, err := bridgeByName(name)
 		return err
 	})

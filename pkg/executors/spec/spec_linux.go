@@ -149,8 +149,9 @@ func generateProcessModeOpts(mode ProcessMode) ([]oci.SpecOpts, error) {
 			// "rbind" is used without "ro" so that tools like strace work,
 			// but maskedPaths and readonlyPaths from the default spec are
 			// preserved (see withBoundProc) to limit exposure.
-			// TODO(AkihiroSuda): add seccomp rule to block ptrace explicitly.
 			withBoundProc(),
+			// Specifically block ptrace so the container cannot modify host processes
+			withExplicitPtraceBlock(),
 		}, nil
 	}
 	return nil, nil
@@ -291,6 +292,35 @@ func withBoundProc() oci.SpecOpts {
 		// no longer exists in this mode.
 		s.Linux.MaskedPaths = filterOutPrefix(s.Linux.MaskedPaths, "/proc")
 		s.Linux.ReadonlyPaths = filterOutPrefix(s.Linux.ReadonlyPaths, "/proc")
+
+		return nil
+	}
+}
+
+// withExplicitPtraceBlock creates exactly one seccomp rule covering the
+// ptrace syscall and marks it as ERRNO, effectively blocking it, while
+// preserving the surrounding profile (or adding a default one if absent).
+func withExplicitPtraceBlock() oci.SpecOpts {
+	return func(_ context.Context, _ oci.Client, _ *containers.Container, s *specs.Spec) error {
+		if s.Linux == nil {
+			s.Linux = &specs.Linux{}
+		}
+		if s.Linux.Seccomp == nil {
+			// If there's no seccomp profile yet, fetch the default Moby one.
+			var err error
+			s.Linux.Seccomp, err = seccomp.GetDefaultProfile(s)
+			if err != nil {
+				return err
+			}
+		}
+
+		// Prepend a rule strictly preventing ptrace
+		s.Linux.Seccomp.Syscalls = append([]specs.LinuxSyscall{
+			{
+				Names:  []string{"ptrace"},
+				Action: specs.ActErrno,
+			},
+		}, s.Linux.Seccomp.Syscalls...)
 
 		return nil
 	}
