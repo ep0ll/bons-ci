@@ -87,7 +87,7 @@ func (p *StaticTokenAuthProvider) HTTPAuthArgs(_ context.Context, remote string)
 	}
 	scope := p.RemotePrefix
 	if scope == "" {
-		scope = remote
+		scope = tokenScope(remote)
 	}
 	encoded := base64.StdEncoding.EncodeToString(
 		fmt.Appendf(nil, "x-access-token:%s", p.Token),
@@ -123,7 +123,7 @@ func (p *StaticHeaderAuthProvider) HTTPAuthArgs(_ context.Context, remote string
 	}
 	scope := p.RemotePrefix
 	if scope == "" {
-		scope = remote
+		scope = tokenScope(remote)
 	}
 	return []string{"-c", "http." + scope + ".extraheader=Authorization: " + p.Header}, nil
 }

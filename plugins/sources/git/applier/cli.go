@@ -25,6 +25,11 @@ var gitBaseConfig = []string{
 	// Prevent git from applying fsck restrictions from user config that
 	// might reject valid objects we intentionally create or fetch.
 	"-c", "fetch.fsckObjects=false",
+
+	// Allow file:// protocols to match BuildKit's behaviour (which supports
+	// local build contexts and tests using local file paths for submodules).
+	// Modern git otherwise defaults to blocking file:// in submodules.
+	"-c", "protocol.file.allow=always",
 }
 
 // gitCLI holds the configuration for running git sub-commands.
@@ -95,9 +100,43 @@ func (c *gitCLI) with(opts ...cliOpt) *gitCLI {
 // stderr is captured internally and included in the returned error; it is
 // never written to the parent process's stderr unless an explicit stderr
 // writer was provided via [withStderr].
+//
+// Resilience: if git fails with stderr mentioning "--depth" or "shallow", the
+// command is retried with --depth=1 removed.  If stderr mentions "not our ref"
+// or "unadvertised object", the trailing commit-SHA refspec is stripped.
+// This matches buildkit's argsNoDepth / argsNoCommitRefspec logic.
 func (c *gitCLI) run(ctx context.Context, subcmdArgs ...string) ([]byte, error) {
-	// Build the full argument list:
-	//   [--git-dir=…] [--work-tree=…] <base-config> <extra-config> <subcmd-args>
+	args := subcmdArgs
+	for {
+		result, retry, err := c.runOnce(ctx, args)
+		if err == nil || !retry {
+			return result, err
+		}
+		// Inspect stderr for conditions that admit a retry with modified args.
+		execErr, ok := err.(*gitExecError)
+		if !ok {
+			return result, err
+		}
+		stderrStr := execErr.stderr
+		if strings.Contains(stderrStr, "--depth") || strings.Contains(stderrStr, "shallow") {
+			if newArgs := argsNoDepth(args); len(newArgs) < len(args) {
+				args = newArgs
+				continue
+			}
+		}
+		if strings.Contains(stderrStr, "not our ref") || strings.Contains(stderrStr, "unadvertised object") {
+			if newArgs := argsNoCommitRefspec(args); len(newArgs) < len(args) {
+				args = newArgs
+				continue
+			}
+		}
+		return result, err
+	}
+}
+
+// runOnce executes a single git invocation.  The second return value indicates
+// whether a retry with modified args is worth attempting.
+func (c *gitCLI) runOnce(ctx context.Context, subcmdArgs []string) ([]byte, bool, error) {
 	args := make([]string, 0, 4+len(gitBaseConfig)+len(c.extraConfigArgs)+len(subcmdArgs))
 	if c.gitDir != "" {
 		args = append(args, "--git-dir="+c.gitDir)
@@ -113,9 +152,6 @@ func (c *gitCLI) run(ctx context.Context, subcmdArgs ...string) ([]byte, error) 
 
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Env = c.buildEnv()
-	// Set the process working directory when configured.  An empty string means
-	// "inherit the parent's CWD", which is the correct default for all git
-	// sub-commands except git-submodule (see withDir).
 	if c.dir != "" {
 		cmd.Dir = c.dir
 	}
@@ -132,13 +168,36 @@ func (c *gitCLI) run(ctx context.Context, subcmdArgs ...string) ([]byte, error) 
 	}
 
 	if err := c.runner(ctx, cmd); err != nil {
-		return nil, &gitExecError{
+		return nil, true, &gitExecError{
 			args:   scrubAuthArgs(args),
 			stderr: stderrBuf.String(),
 			cause:  err,
 		}
 	}
-	return stdoutBuf.Bytes(), nil
+	return stdoutBuf.Bytes(), false, nil
+}
+
+// argsNoDepth returns args with "--depth=1" removed.
+func argsNoDepth(args []string) []string {
+	out := make([]string, 0, len(args))
+	for _, a := range args {
+		if a != "--depth=1" {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// argsNoCommitRefspec strips the trailing commit-SHA refspec from a fetch
+// command.  Some servers reject direct commit fetches with "not our ref".
+func argsNoCommitRefspec(args []string) []string {
+	if len(args) <= 2 || args[0] != "fetch" {
+		return args
+	}
+	if IsCommitSHA(args[len(args)-1]) {
+		return args[:len(args)-1]
+	}
+	return args
 }
 
 // buildEnv constructs the minimal environment for a git subprocess.
@@ -182,6 +241,16 @@ func (c *gitCLI) buildEnv() []string {
 
 	// Propagate TLS CA bundle locations so HTTPS verification works.
 	for _, key := range []string{"SSL_CERT_FILE", "SSL_CERT_DIR", "GIT_SSL_CAINFO"} {
+		if v := os.Getenv(key); v != "" {
+			env = append(env, key+"="+v)
+		}
+	}
+
+	// Propagate proxy settings so git can reach the remote through proxies.
+	for _, key := range []string{
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
+		"http_proxy", "https_proxy", "no_proxy", "all_proxy",
+	} {
 		if v := os.Getenv(key); v != "" {
 			env = append(env, key+"="+v)
 		}

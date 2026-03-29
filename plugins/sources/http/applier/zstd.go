@@ -19,15 +19,15 @@ package httpapplier
 import (
 	"io"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/pkg/errors"
 )
 
 // newZstdReader returns a zstd-decompressing reader wrapping src.
-// Replace this stub with a real zstd import for production use.
-func newZstdReader(_ io.Reader) (io.Reader, error) {
-	return nil, errors.New(
-		"zstd decompression is not compiled in; " +
-			"add github.com/klauspost/compress/zstd to go.mod and " +
-			"replace the stub in zstd.go",
-	)
+func newZstdReader(src io.Reader) (io.Reader, error) {
+	d, err := zstd.NewReader(src)
+	if err != nil {
+		return nil, errors.Wrap(err, "zstd decoder")
+	}
+	return d, nil
 }

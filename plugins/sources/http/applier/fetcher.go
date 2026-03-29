@@ -220,7 +220,7 @@ func (f *DefaultHTTPFetcher) Fetch(ctx context.Context, req FetchRequest, dst io
 		readTimeout = DefaultReadTimeout
 	}
 
-	dgst, err := f.streamVerified(ctx, resp.Body, dst, req.PinnedDigest, maxBytes, readTimeout)
+	dgst, err := f.streamVerified(ctx, resp.Body, dst, req.PinnedDigest, maxBytes, readTimeout, req.URL)
 	if err != nil {
 		return FetchResult{}, errors.Wrapf(err, "stream %s", redactURL(req.URL))
 	}
@@ -341,9 +341,10 @@ func (f *DefaultHTTPFetcher) streamVerified(
 	pinnedDigest digest.Digest,
 	maxBytes int64,
 	readTimeout time.Duration,
+	rawURL string,
 ) (digest.Digest, error) {
 	h := sha256.New()
-	limited := &limitedReader{r: body, remaining: maxBytes}
+	limited := &limitedReader{r: body, remaining: maxBytes, url: redactURL(rawURL)}
 	timed := &timedReader{r: limited, ctx: ctx, timeout: readTimeout}
 
 	multi := io.MultiWriter(dst, h)
@@ -460,7 +461,7 @@ func deriveFilename(rawURL, manual string, resp *http.Response) string {
 // safeFileName sanitises a filename to prevent directory traversal.
 // It strips path separators and enforces a non-empty fallback.
 func safeFileName(name string) string {
-	base := filepath.Base(filepath.FromSlash(name))
+	base := filepath.Base(filepath.Join("/", name))
 	if base == "." || base == "/" || base == "" {
 		return "download"
 	}

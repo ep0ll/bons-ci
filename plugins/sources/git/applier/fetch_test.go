@@ -631,6 +631,7 @@ var hermeticBaseArgs = []string{
 	"-c", "commit.gpgSign=false",
 	"-c", "tag.gpgSign=false",
 	"-c", "tag.forceSignAnnotated=false",
+	"-c", "protocol.file.allow=always",
 }
 
 // gitHermetic runs git in dir with a hermetic environment.

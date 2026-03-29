@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -194,7 +195,8 @@ func (a *httpApplier) Apply(ctx context.Context, desc ocispec.Descriptor, mounts
 
 	// ── Unpack ────────────────────────────────────────────────────────────────
 	if len(mounts) > 0 {
-		if err := a.unpacker.Unpack(ctx, src, desc.MediaType, mounts); err != nil {
+		uOpts := unpackOptionsFromDesc(desc, result)
+		if err := a.unpacker.Unpack(ctx, src, desc.MediaType, mounts, uOpts); err != nil {
 			return ocispec.Descriptor{}, errors.Wrap(err, "unpack")
 		}
 	}
@@ -263,6 +265,38 @@ func buildFetchRequest(desc ocispec.Descriptor) (FetchRequest, error) {
 	return req, nil
 }
 
+func unpackOptionsFromDesc(desc ocispec.Descriptor, result FetchResult) UnpackOptions {
+	opts := UnpackOptions{
+		Filename: result.Filename,
+		MTime:    result.LastModified,
+	}
+	if ann := desc.Annotations; ann != nil {
+		if uidStr, ok := ann["buildkit/source.http.uid"]; ok {
+			if uid, err := strconv.Atoi(uidStr); err == nil {
+				opts.UID = &uid
+			}
+		}
+		if gidStr, ok := ann["buildkit/source.http.gid"]; ok {
+			if gid, err := strconv.Atoi(gidStr); err == nil {
+				opts.GID = &gid
+			}
+		}
+		if permStr, ok := ann["buildkit/source.http.perm"]; ok {
+			if perm, err := strconv.ParseInt(permStr, 0, 32); err == nil {
+				p := int(perm)
+				opts.Perm = &p
+			}
+		}
+		if fn, ok := ann["buildkit/source.http.filename"]; ok {
+			opts.Filename = fn
+		}
+	}
+	if opts.Filename == "" {
+		opts.Filename = "download"
+	}
+	return opts
+}
+
 // buildOutputDescriptor constructs the ocispec.Descriptor that Apply returns.
 // The returned digest is the content digest of the fetched bytes (pre-unpack),
 // matching containerd's convention for the "diff-id" chain.
@@ -329,7 +363,8 @@ func ApplyBytes(ctx context.Context, applier HTTPApplier, mediaType string, data
 	// The default fetcher will reject data: URIs as insecure, so this method
 	// bypasses the fetcher entirely and calls Unpack directly.
 	unpacker := &TarUnpacker{}
-	if err := unpacker.Unpack(ctx, bytes.NewReader(data), mediaType, mounts); err != nil {
+	opts := UnpackOptions{Filename: "download"}
+	if err := unpacker.Unpack(ctx, bytes.NewReader(data), mediaType, mounts, opts); err != nil {
 		return ocispec.Descriptor{}, err
 	}
 	return ocispec.Descriptor{MediaType: mediaType}, nil

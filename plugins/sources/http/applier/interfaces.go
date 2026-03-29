@@ -41,11 +41,21 @@ type HTTPFetcher interface {
 	Fetch(ctx context.Context, req FetchRequest, dst io.Writer) (FetchResult, error)
 }
 
+// UnpackOptions passes metadata for single-file unpacking (application/octet-stream).
+// Ignored for archive media types, which define their own internal metadata.
+type UnpackOptions struct {
+	Filename string
+	MTime    *time.Time
+	UID      *int
+	GID      *int
+	Perm     *int // expected to be os.FileMode
+}
+
 // Unpacker knows how to apply a raw byte stream on top of a set of mounts.
 // The default implementation handles tar / tar+gzip / tar+zstd content; callers
 // can supply their own for exotic formats (e.g. squashfs, erofs).
 type Unpacker interface {
-	Unpack(ctx context.Context, src io.Reader, mediaType string, mounts []mount.Mount) error
+	Unpack(ctx context.Context, src io.Reader, mediaType string, mounts []mount.Mount, opts UnpackOptions) error
 }
 
 // SignatureVerifier validates an opaque digital signature against the fetched

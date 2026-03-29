@@ -63,7 +63,7 @@ type TarUnpacker struct {
 }
 
 // Unpack implements Unpacker.
-func (u *TarUnpacker) Unpack(ctx context.Context, src io.Reader, mediaType string, mounts []mount.Mount) error {
+func (u *TarUnpacker) Unpack(ctx context.Context, src io.Reader, mediaType string, mounts []mount.Mount, opts UnpackOptions) error {
 	if len(mounts) == 0 {
 		return errors.New("unpack: no mounts provided")
 	}
@@ -84,7 +84,7 @@ func (u *TarUnpacker) Unpack(ctx context.Context, src io.Reader, mediaType strin
 	}
 
 	if isOctetStream(mediaType) {
-		return u.writeOpaque(ctx, dir, src)
+		return u.writeOpaque(ctx, dir, src, opts)
 	}
 
 	return u.extractTar(ctx, dir, reader)
@@ -246,9 +246,19 @@ func (u *TarUnpacker) writeHardlink(root, dest string, hdr *tar.Header) error {
 
 // writeOpaque writes src as a single opaque file named "download" under dir.
 // Used when the content type is application/octet-stream.
-func (u *TarUnpacker) writeOpaque(ctx context.Context, dir string, src io.Reader) error {
-	dest := filepath.Join(dir, "download")
-	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+func (u *TarUnpacker) writeOpaque(ctx context.Context, dir string, src io.Reader, opts UnpackOptions) error {
+	name := opts.Filename
+	if name == "" {
+		name = "download"
+	}
+	dest := filepath.Join(dir, filepath.Base(filepath.Join("/", name)))
+
+	mode := os.FileMode(0600)
+	if opts.Perm != nil {
+		mode = os.FileMode(*opts.Perm)
+	}
+
+	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return errors.Wrap(err, "create opaque file")
 	}
@@ -261,7 +271,29 @@ func (u *TarUnpacker) writeOpaque(ctx context.Context, dir string, src io.Reader
 		f.Close()
 		return errors.Wrap(err, "fsync opaque file")
 	}
-	return f.Close()
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	if opts.MTime != nil {
+		if err := lchtimes(dest, *opts.MTime, *opts.MTime); err != nil {
+			return errors.Wrap(err, "set mtime")
+		}
+	}
+
+	if u.PreserveOwnership && (opts.UID != nil || opts.GID != nil) {
+		uid, gid := 0, 0
+		if opts.UID != nil {
+			uid = *opts.UID
+		}
+		if opts.GID != nil {
+			gid = *opts.GID
+		}
+		if err := os.Lchown(dest, uid, gid); err != nil {
+			return errors.Wrap(err, "set ownership")
+		}
+	}
+	return nil
 }
 
 // ─── Mount resolution ─────────────────────────────────────────────────────────

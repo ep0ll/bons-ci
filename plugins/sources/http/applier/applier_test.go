@@ -230,7 +230,7 @@ func TestTarUnpacker_ExtractsFiles(t *testing.T) {
 	mounts, dir := tempMount(t)
 
 	u := &httpapplier.TarUnpacker{}
-	if err := u.Unpack(context.Background(), bytes.NewReader(archive), httpapplier.MediaTypeTarGzip, mounts); err != nil {
+	if err := u.Unpack(context.Background(), bytes.NewReader(archive), httpapplier.MediaTypeTarGzip, mounts, httpapplier.UnpackOptions{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -261,7 +261,7 @@ func TestTarUnpacker_RejectsPathTraversal(t *testing.T) {
 
 	mounts, _ := tempMount(t)
 	u := &httpapplier.TarUnpacker{}
-	err := u.Unpack(context.Background(), &buf, httpapplier.MediaTypeTar, mounts)
+	err := u.Unpack(context.Background(), &buf, httpapplier.MediaTypeTar, mounts, httpapplier.UnpackOptions{})
 	if err == nil {
 		t.Fatal("expected path traversal error")
 	}
@@ -279,7 +279,7 @@ func TestTarUnpacker_RejectsDeviceNodes(t *testing.T) {
 
 	mounts, _ := tempMount(t)
 	u := &httpapplier.TarUnpacker{AllowDevices: false}
-	err := u.Unpack(context.Background(), &buf, httpapplier.MediaTypeTar, mounts)
+	err := u.Unpack(context.Background(), &buf, httpapplier.MediaTypeTar, mounts, httpapplier.UnpackOptions{})
 	if err == nil {
 		t.Fatal("expected device rejection error")
 	}

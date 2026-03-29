@@ -8,8 +8,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // defaultBranchPattern extracts the branch name from git ls-remote --symref output.
@@ -237,12 +239,31 @@ func (f *DefaultFetcher) fetchIntoBareRepo(
 
 	bareCLI = baseCLI.with(withGitDir(bareDir))
 
+	// ── Resolve ref and detect SHA-256 ────────────────────────────────────────
+
+	ref := spec.Ref
+	sha256 := false
+
+	if !IsCommitSHA(ref) {
+		var err error
+		if ref == "" {
+			ref, sha256, err = f.resolveDefaultBranch(ctx, baseCLI, spec.Remote)
+		} else {
+			ref, sha256, err = f.resolveRemoteRef(ctx, baseCLI, spec.Remote, ref)
+		}
+		if err != nil {
+			return FetchResult{}, bareDir, nil, err
+		}
+	}
+
 	// ── Init bare repo ────────────────────────────────────────────────────────
 
-	sha256 := false // updated after ls-remote if we detect SHA-256 format
 	initArgs := []string{
 		"-c", "init.defaultBranch=master", // suppress confusing hint output
 		"init", "--bare",
+	}
+	if sha256 {
+		initArgs = append(initArgs, "--object-format=sha256")
 	}
 	if _, err := bareCLI.run(ctx, initArgs...); err != nil {
 		return FetchResult{}, bareDir, nil, fmt.Errorf("gitapply: git init bare: %w", err)
@@ -251,12 +272,9 @@ func (f *DefaultFetcher) fetchIntoBareRepo(
 		return FetchResult{}, bareDir, nil, fmt.Errorf("gitapply: git remote add: %w", err)
 	}
 
-	// ── Resolve ref ───────────────────────────────────────────────────────────
+	// ── Fetch ─────────────────────────────────────────────────────────────────
 
-	ref := spec.Ref
-
-	// Fast path: if the spec names a bare commit SHA we skip ls-remote and
-	// fetch the commit directly if it is not already present.
+	// Fast path: if the spec names a bare commit SHA we fetch the commit directly.
 	if IsCommitSHA(ref) {
 		result, err := f.fetchCommitSHA(ctx, spec, ref, bareCLI, bareDir, sha256)
 		if err != nil {
@@ -265,16 +283,6 @@ func (f *DefaultFetcher) fetchIntoBareRepo(
 		return result, bareDir, bareCLI, nil
 	}
 
-	// Determine default branch if ref is empty.
-	if ref == "" {
-		ref, err = f.defaultBranch(ctx, bareCLI, spec.Remote)
-		if err != nil {
-			return FetchResult{}, bareDir, nil, err
-		}
-	}
-
-	// ── Fetch by ref ──────────────────────────────────────────────────────────
-
 	result, err := f.fetchRef(ctx, spec, ref, bareCLI, bareDir, sha256)
 	if err != nil {
 		return FetchResult{}, bareDir, nil, err
@@ -282,19 +290,74 @@ func (f *DefaultFetcher) fetchIntoBareRepo(
 	return result, bareDir, bareCLI, nil
 }
 
-// defaultBranch queries the remote for its HEAD ref using ls-remote --symref.
-func (f *DefaultFetcher) defaultBranch(ctx context.Context, bareCLI *gitCLI, remote string) (string, error) {
-	buf, err := bareCLI.run(ctx, "ls-remote", "--symref", remote, "HEAD")
+// resolveDefaultBranch queries the remote for its HEAD ref using ls-remote --symref.
+func (f *DefaultFetcher) resolveDefaultBranch(ctx context.Context, cli *gitCLI, remote string) (string, bool, error) {
+	buf, err := cli.run(ctx, "ls-remote", "--symref", "--", remote, "HEAD")
 	if err != nil {
-		return "", fmt.Errorf("gitapply: ls-remote for default branch of %s: %w",
-			redactURL(remote), err)
+		return "", false, fmt.Errorf("gitapply: ls-remote for default branch of %s: %w", redactURL(remote), err)
 	}
-	matches := defaultBranchPattern.FindStringSubmatch(string(buf))
+	out := string(buf)
+	sha256 := checkSHA256(out)
+	matches := defaultBranchPattern.FindStringSubmatch(out)
 	if len(matches) < 2 {
-		return "", fmt.Errorf("%w: ls-remote returned no HEAD for %s",
-			ErrRefNotFound, redactURL(remote))
+		return "", false, fmt.Errorf("%w: ls-remote returned no HEAD for %s", ErrRefNotFound, redactURL(remote))
 	}
-	return matches[1], nil
+	return matches[0], sha256, nil // matches[0] is the fully qualified ref (e.g. refs/heads/main)
+}
+
+// resolveRemoteRef queries the remote via ls-remote to disambiguate branch vs tag
+// and detect SHA-256. It returns the fully qualified ref and boolean true if SHA-256.
+func (f *DefaultFetcher) resolveRemoteRef(ctx context.Context, cli *gitCLI, remote, queryRef string) (string, bool, error) {
+	buf, err := cli.run(ctx, "ls-remote", "--", remote, queryRef, queryRef+"^{}", "HEAD")
+	if err != nil {
+		return "", false, fmt.Errorf("gitapply: ls-remote %q: %w", queryRef, err)
+	}
+	out := string(buf)
+	sha256 := checkSHA256(out)
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	type refMatch struct {
+		name string
+	}
+	var matches []refMatch
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			matches = append(matches, refMatch{name: parts[1]})
+		}
+	}
+
+	// Priority:
+	// 1. Exact match (if the user provided a fully qualified ref)
+	// 2. Branch
+	// 3. Annotated tag (dereferenced)
+	// 4. Lightweight tag
+	for _, p := range []string{
+		queryRef,
+		"refs/heads/" + queryRef,
+		"refs/tags/" + queryRef + "^{}",
+		"refs/tags/" + queryRef,
+	} {
+		for _, m := range matches {
+			if m.name == p {
+				return strings.TrimSuffix(m.name, "^{}"), sha256, nil
+			}
+		}
+	}
+	return "", sha256, fmt.Errorf("%w: %q", ErrRefNotFound, queryRef)
+}
+
+func checkSHA256(lsRemoteOut string) bool {
+	for _, line := range strings.Split(lsRemoteOut, "\n") {
+		parts := strings.Fields(line)
+		if len(parts) > 0 && len(parts[0]) == 64 {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchCommitSHA fetches a bare commit SHA.  If the commit is already present
@@ -340,18 +403,14 @@ func (f *DefaultFetcher) fetchRef(
 	bareDir string,
 	sha256 bool,
 ) (FetchResult, error) {
-	// Compute the local ref name under refs/tags/ so fetched refs are
-	// advertised on subsequent operations.  Force-update in case the remote
-	// branch has moved forward.
-	localTagRef := ref
-	if !strings.HasPrefix(ref, "refs/tags/") {
-		localTagRef = "tags/" + ref
-	}
+	// ref is fully qualified (e.g. refs/heads/main or refs/tags/v1.0.0)
+	// from resolveRemoteRef / resolveDefaultBranch.
+	// We fetch it exactly into the same local ref name so rev-parse matches.
 
 	_ = os.RemoveAll(filepath.Join(bareDir, "shallow.lock")) // remove stale lock
 
 	fetchArgs := []string{"fetch", "--depth=1", "--no-tags", "origin",
-		"--force", ref + ":" + localTagRef}
+		"--force", ref + ":" + ref}
 
 	rawErr := func() error {
 		_, err := bareCLI.run(ctx, fetchArgs...)
@@ -525,6 +584,12 @@ func (f *DefaultFetcher) checkoutWithGitDir(
 		return err
 	}
 
+	if spec.MTime == "commit" {
+		if err := applyCommitMTime(ctx, bareCLI, result.CommitSHA, dstDir); err != nil {
+			return err
+		}
+	}
+
 	if !spec.SkipSubmodules {
 		if err := f.initSubmodules(ctx, cloneCLI, dstDir); err != nil {
 			return err
@@ -560,13 +625,20 @@ func (f *DefaultFetcher) checkoutPlain(
 	checkoutCLI := bareCLI.with(withWorkTree(workDir))
 
 	// Use the commit SHA (not the ref name) so the checkout is deterministic
-	// even if the ref has moved on the remote.
-	if _, err := checkoutCLI.run(ctx, "checkout", result.CommitSHA, "--", "."); err != nil {
+	// even if the ref has moved on the remote.  --no-overlay ensures that files
+	// removed in the checkout commit are removed from the working tree.
+	if _, err := checkoutCLI.run(ctx, "checkout", "--no-overlay", result.CommitSHA, "--", "."); err != nil {
 		return fmt.Errorf("gitapply: checkout %s: %w", result.CommitSHA, err)
 	}
 
 	if spec.Subdir != "" {
 		if err := extractSubdir(workDir, spec.Subdir, dstDir); err != nil {
+			return err
+		}
+	}
+
+	if spec.MTime == "commit" {
+		if err := applyCommitMTime(ctx, bareCLI, result.CommitSHA, dstDir); err != nil {
 			return err
 		}
 	}
@@ -632,6 +704,34 @@ func extractSubdir(srcRoot, subdir, dstDir string) error {
 		return fmt.Errorf("gitapply: remove staging dir: %w", err)
 	}
 	return nil
+}
+
+// applyCommitMTime resets all mtimes in dir to the commit time of sha.
+func applyCommitMTime(ctx context.Context, cli *gitCLI, sha, dir string) error {
+	buf, err := cli.run(ctx, "show", "-s", "--format=%ct", sha)
+	if err != nil {
+		return fmt.Errorf("gitapply: get commit time: %w", err)
+	}
+	tsStr := strings.TrimSpace(string(buf))
+	ts, err := strconv.ParseInt(tsStr, 10, 64)
+	if err != nil {
+		return fmt.Errorf("gitapply: parse commit time %q: %w", tsStr, err)
+	}
+	t := time.Unix(ts, 0)
+
+	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if err := os.Chtimes(path, t, t); err != nil {
+			// Ignore errors on symlinks.
+			if d.Type()&os.ModeSymlink != 0 {
+				return nil
+			}
+			return fmt.Errorf("reset mtime %s: %w", path, err)
+		}
+		return nil
+	})
 }
 
 // initSubmodules initialises git submodules in workTree.
@@ -760,6 +860,6 @@ func fullyQualifiedRef(ref string) string {
 	if strings.HasPrefix(ref, "refs/") || IsCommitSHA(ref) {
 		return ref
 	}
-	// Heuristic: refs without a slash are branch names.
+	// Fallback to branch, but fetchRef now normally receives fully qualified refs.
 	return "refs/heads/" + ref
 }

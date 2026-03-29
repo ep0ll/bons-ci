@@ -3,6 +3,7 @@ package gitapply
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -33,10 +34,10 @@ func TestChecksumMismatchError_Message_withAlt(t *testing.T) {
 	if msg == "" {
 		t.Fatal("Error() must not be empty")
 	}
-	if !contains(msg, "deadbeef") {
+	if !strings.Contains(msg, "deadbeef") {
 		t.Errorf("message should mention expected prefix; got: %q", msg)
 	}
-	if !contains(msg, "aaaa") || !contains(msg, "bbbb") {
+	if !strings.Contains(msg, "aaaa") || !strings.Contains(msg, "bbbb") {
 		t.Errorf("message should mention both SHAs; got: %q", msg)
 	}
 }
@@ -48,7 +49,7 @@ func TestChecksumMismatchError_Message_withoutAlt(t *testing.T) {
 		ActualSHA:      "cccc",
 	}
 	msg := err.Error()
-	if contains(msg, "or") && contains(msg, "bbbb") {
+	if strings.Contains(msg, "or") && strings.Contains(msg, "bbbb") {
 		t.Errorf("message must not mention alt SHA when none present; got: %q", msg)
 	}
 }
@@ -62,10 +63,10 @@ func TestFetchError_Unwrap(t *testing.T) {
 	if !errors.Is(fe, inner) {
 		t.Error("FetchError.Unwrap() should return the inner error")
 	}
-	if contains(fe.Error(), "secret") {
+	if strings.Contains(fe.Error(), "secret") {
 		t.Errorf("FetchError.Error() must not expose credentials: %q", fe.Error())
 	}
-	if !contains(fe.Error(), "github.com") {
+	if !strings.Contains(fe.Error(), "github.com") {
 		t.Errorf("FetchError.Error() should contain the redacted host: %q", fe.Error())
 	}
 }

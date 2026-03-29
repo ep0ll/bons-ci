@@ -91,6 +91,11 @@ type FetchSpec struct {
 	// after fetching.  A verification failure aborts the Fetch with
 	// [ErrSignatureVerification].
 	SignatureVerify *SignatureVerifyConfig
+
+	// MTime optionally normalises the modification time of checked-out files.
+	// The only supported value currently is "commit", which resets the mtime
+	// of all files to the timestamp of the resolved commit.
+	MTime string
 }
 
 // Validate checks that the FetchSpec is well-formed and safe to use.
@@ -101,6 +106,9 @@ func (s FetchSpec) Validate() error {
 	}
 	if !isGitTransport(s.Remote) {
 		return fmt.Errorf("%w: %q", ErrInvalidRemote, redactURL(s.Remote))
+	}
+	if err := validateRef(s.Ref); err != nil {
+		return err
 	}
 	if s.Checksum != "" && !checksumPattern.MatchString(s.Checksum) {
 		return ErrInvalidChecksum
@@ -164,6 +172,28 @@ func redactURL(rawURL string) string {
 	}
 	u.User = nil
 	return u.String()
+}
+
+// validateRef rejects ref strings that could be interpreted as CLI flags.
+// This prevents argument injection when the ref is passed to git commands.
+func validateRef(ref string) error {
+	if strings.HasPrefix(ref, "-") {
+		return fmt.Errorf("%w: %q", ErrInvalidRef, ref)
+	}
+	return nil
+}
+
+// tokenScope returns the credential scope for a remote URL.
+// For GitHub remotes the scope is broadened to the whole host so the same
+// token can be reused across multiple repositories, matching the behaviour
+// of actions/checkout.
+func tokenScope(remote string) string {
+	for _, pfx := range []string{"https://github.com/", "https://www.github.com/"} {
+		if strings.HasPrefix(remote, pfx) {
+			return pfx
+		}
+	}
+	return remote
 }
 
 // IsCommitSHA reports whether s is a full (non-abbreviated) commit SHA.

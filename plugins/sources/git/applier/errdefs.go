@@ -3,6 +3,7 @@ package gitapply
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Package-level sentinel errors.  Use errors.Is to test for these in calling
@@ -125,25 +126,13 @@ func classifyFetchError(err error) error {
 		return nil
 	}
 	msg := err.Error()
-	if contains(msg, "rejected") && contains(msg, "(would clobber existing tag)") {
+	if strings.Contains(msg, "rejected") && strings.Contains(msg, "(would clobber existing tag)") {
 		return &wouldClobberTagError{cause: err}
 	}
-	if contains(msg, "some local refs could not be updated") ||
-		contains(msg, "unable to update local ref") ||
-		contains(msg, "refname conflict") {
+	if strings.Contains(msg, "some local refs could not be updated") ||
+		strings.Contains(msg, "unable to update local ref") ||
+		strings.Contains(msg, "refname conflict") {
 		return &unableToUpdateRefError{cause: err}
 	}
 	return err
-}
-
-func contains(s, sub string) bool {
-	return len(sub) > 0 && len(s) >= len(sub) &&
-		func() bool {
-			for i := 0; i <= len(s)-len(sub); i++ {
-				if s[i:i+len(sub)] == sub {
-					return true
-				}
-			}
-			return false
-		}()
 }
