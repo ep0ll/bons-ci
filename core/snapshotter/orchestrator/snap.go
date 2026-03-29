@@ -117,9 +117,10 @@ type chainInfo struct {
 // workerResult carries the outcome of one Prepare+Action execution.
 // Workers never call Commit; that is exclusively the committer's job.
 type workerResult struct {
-	seq   int   // 0-based position parsed from LabelSnapshotterEventIndex
-	event Event // originating event; committer forwards CommitOptions to sn.Commit
-	err   error
+	seq              int   // 0-based position parsed from LabelSnapshotterEventIndex
+	event            Event // originating event; committer forwards CommitOptions to sn.Commit
+	err              error
+	alreadyCommitted bool  // true if chainID already exists as a committed snapshot
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -382,6 +383,16 @@ func RunSnapshotPipeline(
 					ready := heap.Pop(&h).(workerResult)
 					ci := chains[next] // O(1) — no DiffID scan
 
+					if ready.alreadyCommitted {
+						// Skip Commit entirely; it's already committed in the store.
+						next++
+						if next == total {
+							errCh <- nil
+							return
+						}
+						continue
+					}
+
 					// Clone before appending WithParent to avoid mutating
 					// the Event's backing array (aliasing hazard if the
 					// caller reuses CommitOptions across events).
@@ -448,6 +459,13 @@ func processEvent(ctx context.Context, sn snapshots.Snapshotter, chains []chainI
 	}
 
 	diffID := chains[seq].diffID
+	chainID := chains[seq].chainID
+
+	// Fast-path idempotency check: if the snapshot is already fully committed
+	// from a previous pipeline execution, bypass Prepare and Action entirely.
+	if info, err := sn.Stat(ctx, chainID); err == nil && info.Kind == snapshots.KindCommitted {
+		return workerResult{seq: seq, event: e, alreadyCommitted: true}
+	}
 
 	// sn.Prepare: parent is always "" here. The parent relationship is
 	// established at Commit time by the committer via snapshots.WithParent,

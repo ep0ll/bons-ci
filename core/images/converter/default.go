@@ -211,8 +211,9 @@ func (c *defaultConverter) convertManifest(ctx context.Context, cs content.Store
 		ieg, ictx := errgroup.WithContext(ctx)
 		var oldDiffID digest.Digest
 		ieg.Go(func() error {
-			oldDiffID, err = images.GetDiffID(ictx, cs, l)
-			return err
+			var dErr error
+			oldDiffID, dErr = images.GetDiffID(ictx, cs, l)
+			return dErr
 		})
 		eg.Go(func() error {
 			newL, err := c.convert(ctx2, cs, l)
