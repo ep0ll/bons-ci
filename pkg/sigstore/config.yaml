@@ -1,0 +1,65 @@
+# signing-service configuration
+# All secrets (key paths, KMS paths, OIDC credentials) MUST be supplied
+# via environment variable overrides or mounted secret volumes.
+# See config.ApplyEnvOverrides for the full override map.
+
+server:
+  addr: ":8080"
+  shutdown_timeout: 30s
+
+signing:
+  # backend: "keyless" | "static_key" | "kms"
+  # Override via SIGNING_BACKEND env var.
+  backend: "keyless"
+
+  keyless:
+    # Override via FULCIO_URL env var.
+    fulcio_url: "https://fulcio.sigstore.dev"
+    # Override via REKOR_URL env var.
+    rekor_url: "https://rekor.sigstore.dev"
+    # Override via OIDC_ISSUER env var.
+    # GitHub Actions: https://token.actions.githubusercontent.com
+    # GKE Workload Identity: https://accounts.google.com
+    oidc_issuer: "https://token.actions.githubusercontent.com"
+    oidc_client_id: "sigstore"
+
+  static_key:
+    # Override via SIGNING_KEY_PATH env var.
+    # Mount from Kubernetes secret: /var/run/secrets/signing/key.pem
+    key_path: "/var/run/secrets/signing/key.pem"
+    key_name: "default"
+    rekor_url: "https://rekor.sigstore.dev"
+
+  kms:
+    # Override via KMS_PATH env var.
+    # GCP KMS example:
+    # kms_path: "gcpkms://projects/my-project/locations/global/keyRings/signing/cryptoKeys/image-signing/cryptoKeyVersions/1"
+    kms_path: ""
+    rekor_url: "https://rekor.sigstore.dev"
+
+event_bus:
+  # Tune based on: expected_rps × max_handler_latency_seconds
+  # Example: 100 rps × 2s latency → buffer_size ≥ 200
+  buffer_size: 256
+  workers_per_topic: 4
+  handler_timeout: 30s
+  max_handler_retries: 3
+
+resilience:
+  retry:
+    max_attempts: 3
+    initial_wait: 100ms
+    max_wait: 30s
+  circuit_breaker:
+    failure_threshold: 5
+    success_threshold: 2
+    open_duration: 60s
+
+observability:
+  log_level: "info"   # debug | info | warn | error
+  log_format: "json"  # json | text (use json in production)
+  metrics_addr: ":9090"
+  # Override via OTLP_ENDPOINT env var. Leave empty to disable tracing.
+  otlp_endpoint: ""
+  service_name: "signing-service"
+  service_version: "1.0.0"
