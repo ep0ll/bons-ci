@@ -41,7 +41,7 @@ func (s *splitContentStore) Abort(ctx context.Context, ref string) (err error) {
 // Delete from read and write content store
 func (s *splitContentStore) Delete(ctx context.Context, dgst digest.Digest) (err error) {
 	e := s.read.Delete(ctx, dgst)
-	if e != nil && err == nil {
+	if e != nil {
 		err = e
 	}
 
