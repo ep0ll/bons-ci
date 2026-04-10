@@ -6,209 +6,327 @@ import (
 	"maps"
 	"time"
 
-	"github.com/bons/bons-ci/core/content/b2/reader"
-	b2writer "github.com/bons/bons-ci/core/content/b2/writer"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/pkg/filters"
 	"github.com/containerd/errdefs"
 	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 	digest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-type S3ContentStore interface {
-	content.Store
+// Store is the high-level orchestrator implementing content.Store.
+// It delegates all object operations to an ObjectStorage backend and
+// emits lifecycle events to registered hooks.
+type Store struct {
+	backend ObjectStorage
+	cfg     Config
+	paths   ObjectPaths
+	hooks   []Hook
 }
 
-// Abort implements S3ContentStore.
-func (b *b2Store) Abort(ctx context.Context, ref string) error {
-	return b.client.RemoveIncompleteUpload(ctx, b.cfg.Bucket, b.tenant_prefixer.AsFolder(b.cfg.BlobsPrefix, ref))
-}
+// compile-time check
+var _ content.Store = (*Store)(nil)
 
-// Delete implements S3ContentStore.
-func (b *b2Store) Delete(ctx context.Context, dgst digest.Digest) error {
-	return b.client.RemoveObject(ctx, b.cfg.Bucket, b.tenant_prefixer.BlobPath(dgst), minio.RemoveObjectOptions{
-		ForceDelete: true,
-	})
-}
-
-// Info implements S3ContentStore.
-func (b *b2Store) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
-	attr, err := b.client.StatObject(ctx, b.cfg.Bucket, b.tenant_prefixer.BlobPath(dgst), minio.GetObjectOptions{})
+// New creates a Store from an existing ObjectStorage backend.
+// This is the primary constructor following the Dependency Inversion Principle:
+// callers supply the backend, enabling pluggability and testability.
+func New(backend ObjectStorage, cfg Config, opts ...StoreOption) (*Store, error) {
+	paths, err := NewObjectPaths(cfg)
 	if err != nil {
-		return content.Info{}, fmt.Errorf("stat object %s: %w", dgst, err)
+		return nil, fmt.Errorf("b2: build object paths: %w", err)
 	}
 
-	info := content.Info{
-		Digest:    dgst,
-		Size:      attr.Size,
-		UpdatedAt: attr.LastModified,
-		Labels:    make(map[string]string),
+	var so storeOptions
+	for _, opt := range opts {
+		opt(&so)
 	}
 
-	// Copy user metadata as labels
-	for k, v := range attr.UserMetadata {
-		info.Labels[k] = v
+	store := &Store{
+		backend: backend,
+		cfg:     cfg,
+		paths:   paths,
+		hooks:   so.hooks,
 	}
 
-	// Add S3-specific metadata as labels
-	maps.Copy(info.Labels, map[string]string{
-		"storage": attr.StorageClass,
-		"etag":    attr.ETag,
-		"version": attr.VersionID,
-		"CRC32":   attr.ChecksumCRC32,
-		"CRC32C":  attr.ChecksumCRC32C,
-		"SHA1":    attr.ChecksumSHA1,
+	// If a tracer is provided, wrap the store in a TracedStore.
+	if so.tracer != nil {
+		return store, nil // TracedStore wrapping is done by the caller via AsTraced()
+	}
+
+	return store, nil
+}
+
+// NewWithMinio is a convenience constructor that creates a minio-backed Store.
+// It handles client creation, bucket provisioning, and option application.
+func NewWithMinio(cfg Config, creds *credentials.Credentials, opts ...StoreOption) (content.Store, error) {
+	endpoint := cfg.EndpointURL
+	if endpoint == "" {
+		endpoint = fmt.Sprintf("s3.%s.backblazeb2.com", cfg.Region)
+	}
+
+	client, err := minio.New(endpoint, &minio.Options{
+		Creds:  creds,
+		Secure: true,
+		Region: cfg.Region,
 	})
-
-	if attr.ChecksumSHA256 != "" {
-		info.Digest = digest.Digest("sha256:" + attr.ChecksumSHA256)
+	if err != nil {
+		return nil, fmt.Errorf("b2: create minio client: %w", err)
 	}
+
+	backend := NewMinioBackend(client)
+
+	if err := ensureBucket(context.Background(), backend, cfg.Bucket, cfg.Region); err != nil {
+		return nil, err
+	}
+
+	var so storeOptions
+	for _, opt := range opts {
+		opt(&so)
+	}
+
+	store := &Store{
+		backend: backend,
+		cfg:     cfg,
+		hooks:   so.hooks,
+	}
+
+	paths, err := NewObjectPaths(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("b2: build object paths: %w", err)
+	}
+	store.paths = paths
+
+	// Wrap with OTel tracing if a TracerProvider was supplied.
+	if so.tracer != nil {
+		return NewTracedStore(store, so.tracer), nil
+	}
+
+	return store, nil
+}
+
+// ---------------------------------------------------------------------------
+// content.Store — Abort
+// ---------------------------------------------------------------------------
+
+func (s *Store) Abort(ctx context.Context, ref string) error {
+	key := s.paths.Folder(s.cfg.BlobsPrefix, ref)
+	if err := s.backend.RemoveIncompleteUpload(ctx, s.cfg.Bucket, key); err != nil {
+		return storeErr(classifyMinioErr(err), "Abort", ref, err)
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// content.Store — Delete
+// ---------------------------------------------------------------------------
+
+func (s *Store) Delete(ctx context.Context, dgst digest.Digest) error {
+	key := s.paths.BlobPath(dgst)
+	if err := s.backend.RemoveObject(ctx, s.cfg.Bucket, key); err != nil {
+		return storeErr(classifyMinioErr(err), "Delete", dgst.String(), err)
+	}
+
+	s.emit(ctx, Event{
+		Kind:      EventBlobDeleted,
+		Digest:    dgst,
+		Timestamp: time.Now(),
+	})
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// content.Store — Info
+// ---------------------------------------------------------------------------
+
+func (s *Store) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
+	key := s.paths.BlobPath(dgst)
+	meta, err := s.backend.StatObject(ctx, s.cfg.Bucket, key)
+	if err != nil {
+		if isNotFound(err) {
+			return content.Info{}, fmt.Errorf("b2: blob %s: %w", dgst, errdefs.ErrNotFound)
+		}
+		return content.Info{}, storeErr(classifyMinioErr(err), "Info", dgst.String(), err)
+	}
+
+	info := metaToContentInfo(dgst, meta)
+
+	s.emit(ctx, Event{
+		Kind:      EventBlobAccessed,
+		Digest:    info.Digest,
+		Size:      info.Size,
+		Labels:    info.Labels,
+		Timestamp: time.Now(),
+	})
 
 	return info, nil
 }
 
-func appendStatus(v minio.ObjectMultipartInfo) (content.Status, error) {
-	return content.Status{
-		Ref:       v.Key,
-		Total:     v.Size,
-		StartedAt: v.Initiated,
-		UpdatedAt: time.Now(),
-		Expected:  digest.Digest(v.UploadID),
-	}, v.Err
-}
+// ---------------------------------------------------------------------------
+// content.Store — ListStatuses
+// ---------------------------------------------------------------------------
 
-// ListStatuses implements S3ContentStore.
-func (b *b2Store) ListStatuses(ctx context.Context, fs ...string) (st []content.Status, err error) {
-	prefix := b.tenant_prefixer.AsFolder()
+func (s *Store) ListStatuses(ctx context.Context, fs ...string) ([]content.Status, error) {
+	prefix := s.paths.Folder()
 
-	// If filters are provided, use containerd filter matching
 	filter, err := filters.ParseAll(fs...)
 	if err != nil {
-		return nil, err
+		return nil, storeErr(ErrKindInvalidArgument, "ListStatuses", "parse filters", err)
 	}
 
-	for v := range b.client.ListIncompleteUploads(ctx, b.cfg.Bucket, prefix, true) {
-		s, err := appendStatus(v)
-		if err != nil {
-			return st, err
+	var statuses []content.Status
+	for entry := range s.backend.ListIncompleteUploads(ctx, s.cfg.Bucket, prefix) {
+		if entry.Err != nil {
+			return statuses, storeErr(ErrKindUnknown, "ListStatuses", "list", entry.Err)
 		}
 
-		if len(fs) > 0 && !filter.Match(adaptStatus(s)) {
+		st := content.Status{
+			Ref:       entry.Key,
+			Total:     entry.Size,
+			StartedAt: entry.Initiated,
+			UpdatedAt: time.Now(),
+		}
+
+		if len(fs) > 0 && !filter.Match(statusAdaptor(st)) {
 			continue
 		}
-
-		st = append(st, s)
+		statuses = append(statuses, st)
 	}
 
-	return st, nil
+	return statuses, nil
 }
 
-// ReaderAt implements S3ContentStore.
-func (b *b2Store) ReaderAt(ctx context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
-	blobPath := b.tenant_prefixer.BlobPath(desc.Digest)
-	obj, err := b.client.GetObject(ctx, b.cfg.Bucket, blobPath, minio.GetObjectOptions{})
+// ---------------------------------------------------------------------------
+// content.Store — ReaderAt
+// ---------------------------------------------------------------------------
+
+func (s *Store) ReaderAt(ctx context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
+	key := s.paths.BlobPath(desc.Digest)
+	reader, err := s.backend.GetObject(ctx, s.cfg.Bucket, key)
 	if err != nil {
-		return nil, err
+		if isNotFound(err) {
+			return nil, fmt.Errorf("b2: blob %s: %w", desc.Digest, errdefs.ErrNotFound)
+		}
+		return nil, storeErr(classifyMinioErr(err), "ReaderAt", desc.Digest.String(), err)
 	}
 
-	stat, err := obj.Stat()
-	if err != nil {
-		obj.Close()
-		return nil, err
-	}
-
-	return reader.NewReader(obj, stat), nil
-}
-
-// Status implements S3ContentStore.
-func (b *b2Store) Status(ctx context.Context, ref string) (content.Status, error) {
-	for v := range b.client.ListIncompleteUploads(ctx, b.cfg.Bucket, b.tenant_prefixer.AsFolder(ref), false) {
-		return appendStatus(v)
-	}
-
-	return content.Status{}, fmt.Errorf("no incomplete uploads by given ref %q: %w", ref, errdefs.ErrNotFound)
-}
-
-// Update implements S3ContentStore.
-func (b *b2Store) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
-	obj_folder, err := RetriveTenantPrefix(b.cfg)
-	if err != nil {
-		return content.Info{}, err
-	}
-	object := obj_folder.BlobPath(info.Digest)
-	stat, err := b.client.StatObject(ctx, b.cfg.Bucket, object, minio.GetObjectOptions{})
-	if err != nil {
-		return content.Info{}, err
-	}
-
-	filter, err := filters.ParseAll(fieldpaths...)
-	if err != nil {
-		return content.Info{}, err
-	}
-
-	filter.Match(adaptUpdate(stat))
-
-	if stat.UserMetadata == nil {
-		stat.UserMetadata = make(map[string]string)
-	}
-	maps.Copy(stat.UserMetadata, info.Labels)
-
-	uinfo, err := b.client.CopyObject(ctx, minio.CopyDestOptions{
-		Bucket:       b.cfg.Bucket,
-		Object:       object,
-		ChecksumType: minio.ChecksumSHA256,
-		UserMetadata: stat.UserMetadata,
-	}, minio.CopySrcOptions{
-		Bucket:             b.cfg.Bucket,
-		Object:             object,
-		MatchETag:          stat.ETag,
-		MatchModifiedSince: stat.LastModified,
-		VersionID:          stat.VersionID,
+	s.emit(ctx, Event{
+		Kind:      EventBlobAccessed,
+		Digest:    desc.Digest,
+		Size:      desc.Size,
+		Timestamp: time.Now(),
 	})
+
+	return &contentReaderAt{ObjectReader: reader}, nil
+}
+
+// ---------------------------------------------------------------------------
+// content.Store — Status
+// ---------------------------------------------------------------------------
+
+func (s *Store) Status(ctx context.Context, ref string) (content.Status, error) {
+	prefix := s.paths.Folder(ref)
+	for entry := range s.backend.ListIncompleteUploads(ctx, s.cfg.Bucket, prefix) {
+		if entry.Err != nil {
+			return content.Status{}, storeErr(ErrKindUnknown, "Status", ref, entry.Err)
+		}
+		return content.Status{
+			Ref:       entry.Key,
+			Total:     entry.Size,
+			StartedAt: entry.Initiated,
+			UpdatedAt: time.Now(),
+		}, nil
+	}
+
+	return content.Status{}, fmt.Errorf("b2: no incomplete upload for ref %q: %w", ref, errdefs.ErrNotFound)
+}
+
+// ---------------------------------------------------------------------------
+// content.Store — Update
+// ---------------------------------------------------------------------------
+
+func (s *Store) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
+	key := s.paths.BlobPath(info.Digest)
+	meta, err := s.backend.StatObject(ctx, s.cfg.Bucket, key)
+	if err != nil {
+		if isNotFound(err) {
+			return content.Info{}, fmt.Errorf("b2: blob %s: %w", info.Digest, errdefs.ErrNotFound)
+		}
+		return content.Info{}, storeErr(classifyMinioErr(err), "Update", info.Digest.String(), err)
+	}
+
+	// Parse fieldpath filters.
+	if len(fieldpaths) > 0 {
+		filter, err := filters.ParseAll(fieldpaths...)
+		if err != nil {
+			return content.Info{}, storeErr(ErrKindInvalidArgument, "Update", "parse fieldpaths", err)
+		}
+		filter.Match(objectEntryAdaptor(meta.Key, meta.Metadata))
+	}
+
+	// Merge incoming labels into existing metadata.
+	metadata := meta.Metadata
+	if metadata == nil {
+		metadata = make(map[string]string)
+	}
+	maps.Copy(metadata, info.Labels)
+
+	result, err := s.backend.CopyObjectMetadata(ctx, s.cfg.Bucket, key, metadata)
+	if err != nil {
+		return content.Info{}, storeErr(classifyMinioErr(err), "Update", info.Digest.String(), err)
+	}
 
 	return content.Info{
 		Digest:    info.Digest,
-		Size:      uinfo.Size,
-		CreatedAt: info.CreatedAt,
-		UpdatedAt: uinfo.LastModified,
-		Labels:    stat.UserMetadata,
-	}, err
+		Size:      result.Size,
+		CreatedAt: meta.LastModified,
+		UpdatedAt: result.LastModified,
+		Labels:    metadata,
+	}, nil
 }
 
-// Walk implements S3ContentStore.
-func (b *b2Store) Walk(ctx context.Context, fn content.WalkFunc, fs ...string) error {
-	opts := minio.ListObjectsOptions{
-		Prefix:    b.tenant_prefixer.AsFolder(),
-		Recursive: true,
-	}
+// ---------------------------------------------------------------------------
+// content.Store — Walk
+// ---------------------------------------------------------------------------
 
+func (s *Store) Walk(ctx context.Context, fn content.WalkFunc, fs ...string) error {
 	filter, err := filters.ParseAll(fs...)
 	if err != nil {
-		return err
+		return storeErr(ErrKindInvalidArgument, "Walk", "parse filters", err)
 	}
 
-	for object := range b.client.ListObjects(ctx, b.cfg.Bucket, opts) {
-		if object.Err != nil {
-			return object.Err
+	for entry := range s.backend.ListObjects(ctx, s.cfg.Bucket, s.paths.Folder(), true) {
+		if entry.Err != nil {
+			return storeErr(ErrKindUnknown, "Walk", "list", entry.Err)
 		}
 
-		if len(fs) > 0 && !filter.Match(adaptWalk(object)) {
+		if len(fs) > 0 && !filter.Match(objectEntryAdaptor(entry.Key, entry.Metadata)) {
 			continue
 		}
 
-		// Extract digest from path
-		dgst, err := digestFromPath(object.Key, b.tenant_prefixer)
+		dgst, err := digestFromPath(entry.Key, s.paths)
 		if err != nil {
-			continue // Skip invalid entries
+			continue // skip non-blob entries
 		}
+
+		labels := make(map[string]string)
+		maps.Copy(labels, entry.Metadata)
 
 		info := content.Info{
 			Digest:    dgst,
-			Size:      object.Size,
-			CreatedAt: object.LastModified,
-			UpdatedAt: object.LastModified,
+			Size:      entry.Size,
+			CreatedAt: entry.LastModified,
+			UpdatedAt: entry.LastModified,
+			Labels:    labels,
 		}
+
+		s.emit(ctx, Event{
+			Kind:      EventBlobWalked,
+			Digest:    dgst,
+			Size:      entry.Size,
+			Labels:    labels,
+			Timestamp: time.Now(),
+		})
 
 		if err := fn(info); err != nil {
 			return err
@@ -218,21 +336,82 @@ func (b *b2Store) Walk(ctx context.Context, fn content.WalkFunc, fs ...string) e
 	return nil
 }
 
-// Writer implements S3ContentStore.
-func (b *b2Store) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
-	var opt = &content.WriterOpts{}
+// ---------------------------------------------------------------------------
+// content.Store — Writer
+// ---------------------------------------------------------------------------
+
+func (s *Store) Writer(ctx context.Context, opts ...content.WriterOpt) (content.Writer, error) {
+	var wopt content.WriterOpts
 	for _, op := range opts {
-		if err := op(opt); err != nil {
-			return nil, err
+		if err := op(&wopt); err != nil {
+			return nil, storeErr(ErrKindInvalidArgument, "Writer", "apply option", err)
 		}
 	}
 
-	size := int64(-1)
-	if s := opt.Desc.Size; s != 0 {
-		size = s
+	objectPath, err := s.resolveObjectPath(wopt)
+	if err != nil {
+		return nil, err
 	}
 
-	return b2writer.B2Writer(ctx, b.client, b.cfg.Bucket, b2writer.WithSize(size), b2writer.WithDesc(opt.Desc), b2writer.WithRef(opt.Ref))
+	size := int64(-1)
+	if wopt.Desc.Size > 0 {
+		size = wopt.Desc.Size
+	}
+
+	return newContentWriter(ctx, s.backend, s.cfg.Bucket, objectPath, wopt.Ref, size, s.hooks)
 }
 
-var _ S3ContentStore = &b2Store{}
+// resolveObjectPath builds the tenant-scoped S3 key from writer options.
+func (s *Store) resolveObjectPath(wopt content.WriterOpts) (string, error) {
+	if wopt.Desc.Digest != "" {
+		return s.paths.BlobPath(wopt.Desc.Digest), nil
+	}
+	if wopt.Ref != "" {
+		dgst, err := digest.Parse(wopt.Ref)
+		if err != nil {
+			// Ref is not a digest — use it as a literal key segment.
+			return s.paths.Folder(s.cfg.BlobsPrefix, wopt.Ref), nil
+		}
+		return s.paths.BlobPath(dgst), nil
+	}
+	return "", fmt.Errorf("b2: writer requires a descriptor digest or ref: %w", errdefs.ErrInvalidArgument)
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// emit notifies all registered hooks of an event.
+func (s *Store) emit(ctx context.Context, evt Event) {
+	for _, h := range s.hooks {
+		h.OnEvent(ctx, evt)
+	}
+}
+
+// metaToContentInfo converts ObjectMeta to content.Info.
+func metaToContentInfo(dgst digest.Digest, meta ObjectMeta) content.Info {
+	info := content.Info{
+		Digest:    dgst,
+		Size:      meta.Size,
+		CreatedAt: meta.LastModified,
+		UpdatedAt: meta.LastModified,
+		Labels:    make(map[string]string),
+	}
+
+	maps.Copy(info.Labels, meta.Metadata)
+
+	if meta.StorageClass != "" {
+		info.Labels["b2.storage-class"] = meta.StorageClass
+	}
+	if meta.ETag != "" {
+		info.Labels["b2.etag"] = meta.ETag
+	}
+	if meta.VersionID != "" {
+		info.Labels["b2.version"] = meta.VersionID
+	}
+	if meta.Checksums.SHA256 != "" {
+		info.Digest = digest.Digest("sha256:" + meta.Checksums.SHA256)
+	}
+
+	return info
+}
