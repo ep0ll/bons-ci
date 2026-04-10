@@ -7,6 +7,8 @@ require (
 	github.com/anchore/stereoscope v0.1.22
 	github.com/anchore/syft v1.42.3
 	github.com/awslabs/soci-snapshotter v0.12.1
+	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/checkpoint-restore/go-criu/v7 v7.2.0
 	github.com/containerd/accelerated-container-image v1.4.1
 	github.com/containerd/console v1.0.5
 	github.com/containerd/containerd/v2 v2.2.1
@@ -29,8 +31,11 @@ require (
 	github.com/moby/sys/userns v0.1.0
 	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/opencontainers/selinux v1.13.1
+	github.com/oracle/oci-go-sdk/v65 v65.111.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/procfs v0.17.0
+	github.com/sony/gobreaker v1.0.0
+	github.com/spf13/viper v1.20.0
 	github.com/vishvananda/netlink v1.3.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0
 	go.opentelemetry.io/otel/sdk v1.40.0
@@ -284,7 +289,6 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/spf13/viper v1.20.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/sylabs/sif/v2 v2.24.0 // indirect
@@ -305,6 +309,7 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
+	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
 	github.com/zclconf/go-cty v1.16.3 // indirect
 	go.etcd.io/bbolt v1.4.3 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -375,11 +380,11 @@ require (
 	go.opentelemetry.io/otel v1.40.0
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/net v0.52.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.42.0
 	golang.org/x/text v0.35.0 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.11
 )
 
 exclude github.com/containerd/containerd v1.6.18
