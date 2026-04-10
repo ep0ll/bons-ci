@@ -1,13 +1,12 @@
-package registry
+package registry_repo
 
 import (
 	"context"
-	"sync"
+	"errors"
 
 	"github.com/containerd/containerd/v2/core/transfer/registry"
 )
 
-// RegistryRepo manages a thread-safe cache of OCI registry instances.
 type RegistryRepo interface {
 	Get(ctx context.Context, ref string) (*registry.OCIRegistry, error)
 	Put(ctx context.Context, ref string, opts ...registry.Opt) (*registry.OCIRegistry, error)
@@ -17,38 +16,21 @@ type RegistryRepo interface {
 var _ RegistryRepo = &registryRepo{}
 
 type registryRepo struct {
-	mu         sync.RWMutex
 	registries map[string]*registry.OCIRegistry
-}
-
-// newRegistryRepo creates a new registry instance cache.
-func newRegistryRepo() RegistryRepo {
-	return &registryRepo{
-		registries: make(map[string]*registry.OCIRegistry),
-	}
 }
 
 // Exists implements RegistryRepo.
 func (r *registryRepo) Exists(_ context.Context, ref string) (bool, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	reg, ok := r.registries[ref]
-	if !ok {
-		return false, nil
-	}
 	if reg == nil {
-		return false, ErrInvalidRegistry
+		return ok, ErrInvalidRegistry
 	}
 
-	return true, nil
+	return ok, nil
 }
 
 // Get implements RegistryRepo.
 func (r *registryRepo) Get(_ context.Context, ref string) (*registry.OCIRegistry, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	reg, ok := r.registries[ref]
 	if !ok {
 		return nil, ErrRegistryNotFound
@@ -67,16 +49,13 @@ func (r *registryRepo) Put(ctx context.Context, ref string, opts ...registry.Opt
 		return nil, ErrInvalidRegistryRef
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if _, ok := r.registries[ref]; ok {
-		return r.registries[ref], nil
+		return nil, ErrRegistryRefExists
 	}
 
 	reg, err := registry.NewOCIRegistry(ctx, ref, opts...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(err, ErrRegistryCreationFailed)
 	}
 
 	if reg == nil {

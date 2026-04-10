@@ -1,65 +1,22 @@
-package registry
+package writer
 
 import (
 	"context"
 	"errors"
 
+	"github.com/bons/bons-ci/core/content/registry/ingestion"
 	"github.com/containerd/containerd/v2/core/content"
 	digest "github.com/opencontainers/go-digest"
-	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 type RegistryWriter interface {
-	ActiveIngestion
-}
-
-type writerOpt struct {
-	ref           string
-	desc          ocispecs.Descriptor
-	ingestManager IngestManager
-}
-
-type WriterOpts func(*writerOpt) error
-
-// withWriterReference sets the ingestion reference string.
-// This is used as the key for tracking active ingestions.
-func withWriterReference(ref string) WriterOpts {
-	return func(o *writerOpt) error {
-		if ref == "" {
-			return ErrRequiredReference
-		}
-		o.ref = ref
-		return nil
-	}
-}
-
-// withWriterDescriptor sets the OCI descriptor for the content being written.
-func withWriterDescriptor(desc ocispecs.Descriptor) WriterOpts {
-	return func(o *writerOpt) (err error) {
-		if desc.Digest != "" {
-			err = desc.Digest.Validate()
-		}
-		o.desc = desc
-		return err
-	}
-}
-
-// withIngestManager sets the IngestManager for tracking active ingestions.
-// The writer will register itself on creation and deregister on commit/close.
-func withIngestManager(m IngestManager) WriterOpts {
-	return func(o *writerOpt) error {
-		if m == nil {
-			return ErrNoActiveIngestion
-		}
-		o.ingestManager = m
-		return nil
-	}
+	ingestion.ActiveIngestion
 }
 
 type registryWriter struct {
-	ActiveIngestion
+	ingestion.ActiveIngestion
 	ctx context.Context
-	opt *writerOpt
+	opt *opt
 }
 
 // Close implements RegistryWriter.
@@ -112,8 +69,8 @@ func (r *registryWriter) Write(p []byte) (n int, err error) {
 
 var _ RegistryWriter = &registryWriter{}
 
-func newRegistryWriter(ctx context.Context, writer content.Writer, opts ...WriterOpts) (RegistryWriter, error) {
-	var opt = &writerOpt{}
+func NewRegistryWriter(ctx context.Context, writer content.Writer, opts ...Opts) (_ RegistryWriter, err error) {
+	var opt = &opt{}
 	for _, op := range opts {
 		if err := op(opt); err != nil {
 			return nil, err
@@ -121,7 +78,7 @@ func newRegistryWriter(ctx context.Context, writer content.Writer, opts ...Write
 	}
 
 	return &registryWriter{
-		ActiveIngestion: newActiveIngestion(writer, opt.ref, opt.desc),
+		ActiveIngestion: ingestion.Ingestion(writer, opt.ref, opt.desc),
 		ctx:             ctx,
 		opt:             opt,
 	}, nil
