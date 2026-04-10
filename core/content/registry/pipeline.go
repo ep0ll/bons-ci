@@ -1,13 +1,12 @@
 //go:build !windows
 
-package ingestion
+package registry
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/bons/bons-ci/core/content/registry/registry_repo"
 	"github.com/containerd/containerd/v2/core/content"
 	"github.com/containerd/containerd/v2/core/images"
 	"github.com/containerd/containerd/v2/core/transfer"
@@ -70,7 +69,7 @@ type PipelineConfig struct {
 // to Nydus format, and pushing to S3/B2 — all in parallel.
 type Pipeline struct {
 	cfg     PipelineConfig
-	regRepo registry_repo.RegistryRepo
+	regRepo RegistryRepo
 }
 
 // NewPipeline creates a new ingestion pipeline with the given configuration.
@@ -85,7 +84,7 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 		cfg.Concurrency = 4
 	}
 
-	repo := registry_repo.NewOCIRegistryRepo()
+	repo := newRegistryRepo()
 	if _, err := repo.Put(context.Background(), cfg.SourceRef, cfg.RegistryOpts...); err != nil {
 		return nil, fmt.Errorf("pipeline: initialize source registry: %w", err)
 	}

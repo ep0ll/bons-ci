@@ -1,6 +1,6 @@
 //go:build !windows
 
-package ingestion
+package registry
 
 import (
 	"context"

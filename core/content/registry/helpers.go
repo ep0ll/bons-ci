@@ -1,4 +1,4 @@
-package ingestion
+package registry
 
 import (
 	"bytes"

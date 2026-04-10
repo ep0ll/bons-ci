@@ -7,12 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bons/bons-ci/core/content/registry/ingestion"
-	"github.com/bons/bons-ci/core/content/registry/reader"
-	ocirepo "github.com/bons/bons-ci/core/content/registry/registry_repo"
-	"github.com/bons/bons-ci/core/content/registry/writer"
 	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/core/transfer/registry"
 	"github.com/distribution/reference"
 	digest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
@@ -24,21 +19,47 @@ const (
 )
 
 type registryStore struct {
-	ref   string
 	store content.Store
-	opts  []registry.Opt
+	cfg   Config
 
 	// Cache for Info lookups to reduce remote calls
-	infoCache    sync.Map // digest.Digest -> cacheEntry
-	infoCacheTTL time.Duration
+	infoCache sync.Map // digest.Digest -> cacheEntry
 
-	registryCache ocirepo.RegistryRepo
-	ingester      ingestion.IngestManager
+	registryCache RegistryRepo
+	ingester      IngestManager
 }
 
 type cacheEntry struct {
 	info      content.Info
 	timestamp time.Time
+}
+
+// NewStore initializes a new registry-backed content store.
+// It wraps a given local store (acting as a cache).
+func NewStore(localStore content.Store, opts ...StoreOption) (content.Store, error) {
+	cfg := applyOptions(opts)
+	if cfg.Ref == "" {
+		return nil, ErrInvalidReference
+	}
+
+	// Validate reference format
+	if _, err := reference.ParseNamed(cfg.Ref); err != nil {
+		return nil, ErrInvalidReference
+	}
+
+	repo := newRegistryRepo()
+	if _, err := repo.Put(context.Background(), cfg.Ref, cfg.RegistryOpts...); err != nil {
+		return nil, err
+	}
+
+	st := &registryStore{
+		store:         localStore,
+		cfg:           cfg,
+		registryCache: repo,
+		ingester:      newIngestManager(),
+	}
+
+	return NewTracedStore(st, cfg.Tracer), nil
 }
 
 func cacheInfo(r *registryStore, dgst digest.Digest, info content.Info) {
@@ -56,7 +77,11 @@ func (r *registryStore) Abort(ctx context.Context, ref string) error {
 // Delete implements ContentStore.
 func (r *registryStore) Delete(ctx context.Context, dgst digest.Digest) error {
 	r.infoCache.Delete(dgst)
-	return r.store.Delete(ctx, dgst)
+	err := r.store.Delete(ctx, dgst)
+	if err == nil {
+		emitHook(ctx, r.cfg.Hooks, Event{Kind: EventBlobDeleted, Digest: dgst})
+	}
+	return err
 }
 
 func fetchLocalInfo(ctx context.Context, dgst digest.Digest, r *registryStore) (content.Info, error) {
@@ -64,7 +89,7 @@ func fetchLocalInfo(ctx context.Context, dgst digest.Digest, r *registryStore) (
 }
 
 func fetchRegistryInfo(ctx context.Context, dgst digest.Digest, r *registryStore) (content.Info, error) {
-	named, err := reference.ParseNamed(r.ref)
+	named, err := reference.ParseNamed(r.cfg.Ref)
 	if err != nil {
 		return content.Info{}, err
 	}
@@ -74,9 +99,12 @@ func fetchRegistryInfo(ctx context.Context, dgst digest.Digest, r *registryStore
 		return content.Info{}, err
 	}
 
-	reg, err := GetOrCreateRegistry(ctx, canonical.String(), r)
+	reg, err := r.registryCache.Get(ctx, canonical.String())
 	if err != nil {
-		return content.Info{}, err
+		reg, err = r.registryCache.Put(ctx, canonical.String(), r.cfg.RegistryOpts...)
+		if err != nil {
+			return content.Info{}, err
+		}
 	}
 
 	_, desc, err := reg.Resolve(ctx)
@@ -129,7 +157,7 @@ func loadInfoCache(r *registryStore, dgst digest.Digest) (content.Info, error) {
 	// Check cache first
 	if entry, ok := r.infoCache.Load(dgst); ok {
 		cached := entry.(cacheEntry)
-		if time.Since(cached.timestamp) < r.infoCacheTTL {
+		if time.Since(cached.timestamp) < r.cfg.InfoCacheTTL {
 			return cached.info, nil
 		}
 		r.infoCache.Delete(dgst)
@@ -140,6 +168,8 @@ func loadInfoCache(r *registryStore, dgst digest.Digest) (content.Info, error) {
 
 // Info implements ContentStore.
 func (r *registryStore) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
+	emitHook(ctx, r.cfg.Hooks, Event{Kind: EventBlobAccessed, Digest: dgst})
+
 	if info, err := loadInfoCache(r, dgst); err == nil {
 		return info, nil
 	}
@@ -170,10 +200,16 @@ func (r *registryStore) ReaderAt(ctx context.Context, desc v1.Descriptor) (conte
 	// if the content is already fetched and exists locally,
 	// use it instead of fetching it again from registry
 	if readerAt, err := r.store.ReaderAt(ctx, desc); err == nil {
+		emitHook(ctx, r.cfg.Hooks, Event{Kind: EventBlobCached, Digest: desc.Digest, Size: desc.Size})
 		return readerAt, nil
 	}
 
-	fetcher, err := Fetcher(ctx, r.ref, r.registryCache)
+	reg, err := r.registryCache.Get(ctx, r.cfg.Ref)
+	if err != nil {
+		return nil, err
+	}
+
+	fetcher, err := reg.Fetcher(ctx, r.cfg.Ref)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +227,8 @@ func (r *registryStore) ReaderAt(ctx context.Context, desc v1.Descriptor) (conte
 		return nil, err
 	}
 
-	return reader.RegistryReader(rc, w, desc.Size)
+	emitHook(ctx, r.cfg.Hooks, Event{Kind: EventBlobFetched, Digest: desc.Digest, Size: desc.Size})
+	return newRegistryReader(rc, w, desc.Size)
 }
 
 // Status implements ContentStore (IngestManager).
@@ -225,7 +262,7 @@ func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (
 
 	if dgst == "" {
 		var err error
-		dgst, err = retriveDigestFromRef(ref)
+		dgst, err = retrieveDigestFromRef(ref)
 		if err != nil {
 			return nil, err
 		}
@@ -237,7 +274,12 @@ func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (
 		ingestionRef = dgst.String()
 	}
 
-	pusher, err := GetOrCreatePusher(ctx, r, r.ref, opt.Desc)
+	reg, err := r.registryCache.Get(ctx, r.cfg.Ref)
+	if err != nil {
+		return nil, err // should not happen actively if ref existed previously
+	}
+
+	pusher, err := reg.Pusher(ctx, opt.Desc)
 	if err != nil {
 		return nil, err
 	}
@@ -247,11 +289,11 @@ func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (
 		return nil, err
 	}
 
-	rw, err := writer.NewRegistryWriter(ctx,
+	rw, err := newRegistryWriter(ctx,
 		remoteWriter,
-		writer.WithDescriptor(opt.Desc),
-		writer.WithReference(ingestionRef),
-		writer.WithIngestManager(r.ingester),
+		withWriterDescriptor(opt.Desc),
+		withWriterReference(ingestionRef),
+		withIngestManager(r.ingester),
 	)
 	if err != nil {
 		return nil, err
@@ -265,7 +307,7 @@ func (r *registryStore) Writer(ctx context.Context, opts ...content.WriterOpt) (
 	return rw, nil
 }
 
-func retriveDigestFromRef(ref string) (digest.Digest, error) {
+func retrieveDigestFromRef(ref string) (digest.Digest, error) {
 	if ref == "" {
 		return "", fmt.Errorf("%w: either descriptor or ref with digest is required", ErrMissingDescriptor)
 	}

@@ -1,4 +1,4 @@
-package ingestion
+package registry
 
 import (
 	"context"
@@ -45,8 +45,8 @@ type activeIngestion struct {
 	updatedAt atomic.AtomicTime
 }
 
-// Ingestion creates a new ActiveIngestion wrapping the given writer.
-func Ingestion(writer content.Writer, ref string, desc ocispecs.Descriptor) ActiveIngestion {
+// newActiveIngestion creates a new ActiveIngestion wrapping the given writer.
+func newActiveIngestion(writer content.Writer, ref string, desc ocispecs.Descriptor) ActiveIngestion {
 	return &activeIngestion{
 		ref:       ref,
 		desc:      desc,
@@ -101,19 +101,19 @@ func (a *activeIngestion) Write(p []byte) (n int, err error) {
 
 var _ ActiveIngestion = &activeIngestion{}
 
-// ingestion is the in-memory IngestManager implementation.
+// ingestManager is the in-memory IngestManager implementation.
 // It uses sync.Map to safely track active ingestions across goroutines.
-type ingestion struct {
+type ingestManager struct {
 	ingestions sync.Map
 }
 
-// NewIngestManager creates a new in-memory IngestManager.
-func NewIngestManager() IngestManager {
-	return &ingestion{}
+// newIngestManager creates a new in-memory IngestManager.
+func newIngestManager() IngestManager {
+	return &ingestManager{}
 }
 
 // Delete implements IngestMapper.
-func (i *ingestion) Delete(_ context.Context, ref string) (bool, error) {
+func (i *ingestManager) Delete(_ context.Context, ref string) (bool, error) {
 	_, ok := i.ingestions.LoadAndDelete(ref)
 	if ok {
 		return true, nil
@@ -124,7 +124,7 @@ func (i *ingestion) Delete(_ context.Context, ref string) (bool, error) {
 
 // Put implements IngestMapper.
 // Uses LoadOrStore to atomically check-and-insert, avoiding TOCTOU races.
-func (i *ingestion) Put(_ context.Context, ai ActiveIngestion) (bool, error) {
+func (i *ingestManager) Put(_ context.Context, ai ActiveIngestion) (bool, error) {
 	ref, _ := ai.ID()
 	_, loaded := i.ingestions.LoadOrStore(ref, ai)
 	if loaded {
@@ -136,7 +136,7 @@ func (i *ingestion) Put(_ context.Context, ai ActiveIngestion) (bool, error) {
 
 // Abort implements content.IngestManager.
 // Aborts the ingestion and removes it from the tracking map.
-func (i *ingestion) Abort(ctx context.Context, ref string) error {
+func (i *ingestManager) Abort(ctx context.Context, ref string) error {
 	ingest, err := i.Get(ctx, ref)
 	if err != nil {
 		return err
@@ -152,7 +152,7 @@ func (i *ingestion) Abort(ctx context.Context, ref string) error {
 }
 
 // Get implements IngestMapper.
-func (i *ingestion) Get(_ context.Context, ref string) (ActiveIngestion, error) {
+func (i *ingestManager) Get(_ context.Context, ref string) (ActiveIngestion, error) {
 	active, ok := i.ingestions.Load(ref)
 	if !ok {
 		return nil, ErrNoActiveIngestion
@@ -162,7 +162,7 @@ func (i *ingestion) Get(_ context.Context, ref string) (ActiveIngestion, error) 
 }
 
 // ListStatuses implements content.IngestManager.
-func (i *ingestion) ListStatuses(ctx context.Context, filters ...string) ([]content.Status, error) {
+func (i *ingestManager) ListStatuses(ctx context.Context, filters ...string) ([]content.Status, error) {
 	ingests, err := i.collectIngestions(ctx, filters...)
 	if err != nil {
 		return nil, err
@@ -181,7 +181,7 @@ func (i *ingestion) ListStatuses(ctx context.Context, filters ...string) ([]cont
 }
 
 // Status implements content.IngestManager.
-func (i *ingestion) Status(ctx context.Context, ref string) (content.Status, error) {
+func (i *ingestManager) Status(ctx context.Context, ref string) (content.Status, error) {
 	ing, err := i.Get(ctx, ref)
 	if err != nil {
 		return content.Status{}, err
@@ -193,7 +193,7 @@ func (i *ingestion) Status(ctx context.Context, ref string) (content.Status, err
 // collectIngestions gathers active ingestions matching the given filters.
 // Filters use the format "ref==<value>" following containerd conventions.
 // If no filters are provided, all active ingestions are returned.
-func (i *ingestion) collectIngestions(_ context.Context, filters ...string) ([]ActiveIngestion, error) {
+func (i *ingestManager) collectIngestions(_ context.Context, filters ...string) ([]ActiveIngestion, error) {
 	if len(filters) == 0 {
 		// Return all active ingestions
 		var all []ActiveIngestion
@@ -226,4 +226,4 @@ func (i *ingestion) collectIngestions(_ context.Context, filters ...string) ([]A
 	return ingests, nil
 }
 
-var _ IngestManager = &ingestion{}
+var _ IngestManager = &ingestManager{}

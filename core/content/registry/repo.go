@@ -1,4 +1,4 @@
-package registry_repo
+package registry
 
 import (
 	"context"
@@ -19,6 +19,13 @@ var _ RegistryRepo = &registryRepo{}
 type registryRepo struct {
 	mu         sync.RWMutex
 	registries map[string]*registry.OCIRegistry
+}
+
+// newRegistryRepo creates a new registry instance cache.
+func newRegistryRepo() RegistryRepo {
+	return &registryRepo{
+		registries: make(map[string]*registry.OCIRegistry),
+	}
 }
 
 // Exists implements RegistryRepo.

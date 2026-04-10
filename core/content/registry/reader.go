@@ -1,4 +1,4 @@
-package reader
+package registry
 
 import (
 	"context"
@@ -7,13 +7,6 @@ import (
 
 	"github.com/containerd/containerd/v2/core/content"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-)
-
-// Errors for registry reader operations.
-var (
-	ErrNilReader        = io.ErrUnexpectedEOF
-	ErrNilWriter        = io.ErrUnexpectedEOF
-	ErrSeekNotSupported = io.ErrNoProgress
 )
 
 // Reader extends content.ReaderAt with streaming read capabilities.
@@ -27,10 +20,10 @@ type FetcherAt interface {
 	FetchAt(context.Context, ocispec.Descriptor) (Reader, error)
 }
 
-// RegistryReader creates a Reader that tees data from a remote ReadCloser
+// registryReader creates a Reader that tees data from a remote ReadCloser
 // into a local content.Writer while serving reads. This implements the
 // "fetch and cache" pattern used by containerd's registry transfer.
-func RegistryReader(r io.ReadCloser, w content.Writer, size int64) (Reader, error) {
+func newRegistryReader(r io.ReadCloser, w content.Writer, size int64) (Reader, error) {
 	if r == nil {
 		return nil, ErrNilReader
 	}
