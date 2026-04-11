@@ -87,30 +87,41 @@ result := {
 	"updates": {"attrs": {"http.checksum": "sha256:abc123"}},
 } if { startswith(input.identifier, "https://") }`
 
-	// sourceLastRuleWins: deny then allow.
+	// sourceLastRuleWins: tests last-rule-wins without shadowing data.
+	// Uses a local rule set so OPA's data-shadowing prohibition is avoided.
 	sourceLastRuleWins = `
 package buildkit.policy.source
 import rego.v1
-data.buildkit.source_rules := [
-	{"selector":{"identifier":"docker-image://docker.io/library/busybox:latest"},
-	 "action":"ALLOW","updates":{}},
-	{"selector":{"identifier":"docker-image://docker.io/library/busybox:latest"},
-	 "action":"DENY","updates":{}},
-	{"selector":{"identifier":"docker-image://docker.io/library/busybox:latest"},
-	 "action":"ALLOW","updates":{}},
+
+# Local rule table (not data.buildkit.source_rules — cannot shadow data).
+# Order: ALLOW → DENY → ALLOW  → last wins = ALLOW.
+test_rules := [
+	{"action": "ALLOW"},
+	{"action": "DENY"},
+	{"action": "ALLOW"},
 ]
-default result := {"action":"ALLOW","messages":[],"updates":{}}
-# Inline last-rule-wins logic without importing source.rego.
-matching[i] if {
-	rule := data.buildkit.source_rules[i]
-	rule.selector.identifier == input.identifier
+
+all_indices[i] if {
+	_ = test_rules[i]
+	input.identifier == "docker-image://docker.io/library/busybox:latest"
 }
-allow_deny[i] if { matching[i]; data.buildkit.source_rules[i].action != "CONVERT" }
-last_idx := max(allow_deny) if count(allow_deny) > 0
-result := {"action": data.buildkit.source_rules[last_idx].action, "messages":[], "updates":{}} if {
-	defined(last_idx)
+
+allow_deny_indices[i] if {
+	all_indices[i]
+	test_rules[i].action != "CONVERT"
 }
-defined(x) if { x != null }`
+
+last_idx := max(allow_deny_indices) if count(allow_deny_indices) > 0
+
+result := {
+	"action":   test_rules[last_idx].action,
+	"messages": [],
+	"updates":  {},
+} if {
+	last_idx >= 0
+}
+
+default result := {"action": "ALLOW", "messages": [], "updates": {}}`
 
 	// dagAddScan: adds a security-scan node after source ops.
 	dagAddScan = `

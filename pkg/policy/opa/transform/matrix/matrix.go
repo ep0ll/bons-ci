@@ -95,7 +95,7 @@ func Expand(s Strategy) (Expansion, error) {
 	// Step 3: build configs with merged includes.
 	configs := make([]BuildConfig, 0, len(filtered)+len(s.Include))
 	for _, combo := range filtered {
-		extra := mergeIncludes(combo, s.Include)
+		extra := mergeIncludes(combo, axes, s.Include)
 		configs = append(configs, BuildConfig{
 			ID:    comboID(axes, combo),
 			Vars:  combo,
@@ -103,10 +103,9 @@ func Expand(s Strategy) (Expansion, error) {
 		})
 	}
 
-	// Step 4: standalone includes (no existing combo is a subset).
+	// Step 4: standalone includes (no existing combo matches the include's axis keys).
 	for _, inc := range s.Include {
-		if !isSubsumedByAnyCombo(inc, filtered) {
-			// Sort keys for deterministic ID.
+		if !isSubsumedByAnyCombo(inc, axes, filtered) {
 			incAxes := sortedStrKeys(inc)
 			configs = append(configs, BuildConfig{
 				ID:   includeID(incAxes, inc),
@@ -264,12 +263,33 @@ func subsetMatch(sub, super map[string]string) bool {
 	return true
 }
 
-// mergeIncludes returns the extra keys from includes that partially match combo.
-// Only keys not already in combo are returned.
-func mergeIncludes(combo map[string]string, includes []map[string]string) map[string]string {
+// axisAwareMatch returns true when, for every matrix-axis key present in inc,
+// the value in inc matches the value in combo. Keys in inc that are NOT matrix
+// axes are treated as "extra" columns and do not participate in matching.
+//
+// Example: axes=[os,arch], combo={os:linux,arch:amd64}, inc={os:linux,runner:ubuntu}
+//
+//	→ checks only os (a matrix axis): linux==linux → match → true
+func axisAwareMatch(combo map[string]string, axisKeys []string, inc map[string]string) bool {
+	for _, axis := range axisKeys {
+		incVal, inInc := inc[axis]
+		if !inInc {
+			continue // include doesn't constrain this axis
+		}
+		if combo[axis] != incVal {
+			return false
+		}
+	}
+	return true
+}
+
+// mergeIncludes returns the extra (non-axis) keys from include entries that
+// match combo according to GitHub Actions semantics: an include matches a combo
+// when every axis key present in the include matches the combo's value.
+func mergeIncludes(combo map[string]string, axisKeys []string, includes []map[string]string) map[string]string {
 	extra := make(map[string]string)
 	for _, inc := range includes {
-		if !subsetMatch(combo, inc) {
+		if !axisAwareMatch(combo, axisKeys, inc) {
 			continue
 		}
 		for k, v := range inc {
@@ -284,10 +304,12 @@ func mergeIncludes(combo map[string]string, includes []map[string]string) map[st
 	return extra
 }
 
-// isSubsumedByAnyCombo returns true when any combo is a subset of inc.
-func isSubsumedByAnyCombo(inc map[string]string, combos []map[string]string) bool {
+// isSubsumedByAnyCombo returns true when ANY existing combo matches the include
+// using axis-aware matching. An include that is "subsumed" will not be added as
+// a standalone configuration; instead its extra keys are merged into matching combos.
+func isSubsumedByAnyCombo(inc map[string]string, axisKeys []string, combos []map[string]string) bool {
 	for _, c := range combos {
-		if subsetMatch(c, inc) {
+		if axisAwareMatch(c, axisKeys, inc) {
 			return true
 		}
 	}
@@ -343,9 +365,3 @@ func parseOPAExpansions(raw []map[string]any) ([]BuildConfig, error) {
 	}
 	return configs, nil
 }
-
-// ─── internal use only ────────────────────────────────────────────────────────
-
-// sortedStrKeys is only used internally; exposed for tests via package-level
-// access through the pure functions.
-var _ = sortedStrKeys

@@ -164,14 +164,14 @@ func TestLoader_Changed_ClosedOnBuild(t *testing.T) {
 
 func TestLoader_Watch_HotSwapsCompiler(t *testing.T) {
 	src := &bundle.StaticSource{Modules: map[string]string{
-		"p.rego": `package p; import rego.v1; v := "v1"`,
+		"p.rego": "package p\nimport rego.v1\nv := \"v1\"",
 	}}
 	l, err := bundle.NewLoader(src)
 	require.NoError(t, err)
 	require.NoError(t, l.Build(context.Background()))
 
 	// Swap the source modules.
-	src.Modules["p.rego"] = `package p; import rego.v1; v := "v2"`
+	src.Modules["p.rego"] = "package p\nimport rego.v1\nv := \"v2\""
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

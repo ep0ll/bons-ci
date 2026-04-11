@@ -31,6 +31,12 @@ func mustEvaluator(t *testing.T, modules map[string]string) *eval.Evaluator {
 	return ev
 }
 
+// regoModule builds a properly-formatted Rego module string.
+// OPA v0.68+ with import rego.v1 requires each statement on its own line.
+func regoModule(pkg, body string) string {
+	return "package " + pkg + "\nimport rego.v1\n" + body
+}
+
 // ─── Compiler construction ────────────────────────────────────────────────────
 
 func TestNewCompiler_ParseError(t *testing.T) {
@@ -42,8 +48,9 @@ func TestNewCompiler_ParseError(t *testing.T) {
 }
 
 func TestNewCompiler_CompileError(t *testing.T) {
+	// WithStrictMode causes unknown built-ins to be compile errors.
 	_, err := eval.NewCompiler(map[string]string{
-		"bad.rego": `package p; import rego.v1; allow if { undefined_func() }`,
+		"bad.rego": regoModule("p", "allow if { undefined_func_xyz() }"),
 	}, eval.WithStrictMode())
 	require.Error(t, err)
 }
@@ -56,8 +63,8 @@ func TestNewCompiler_EmptyModules(t *testing.T) {
 
 func TestNewCompiler_MultipleModules(t *testing.T) {
 	c := mustCompiler(t, map[string]string{
-		"a.rego": `package a; import rego.v1; val := 1`,
-		"b.rego": `package b; import rego.v1; val := data.a.val + 1`,
+		"a.rego": regoModule("a", "val := 1"),
+		"b.rego": regoModule("b", "val := data.a.val + 1"),
 	})
 	ev, err := eval.NewEvaluator(c)
 	require.NoError(t, err)
@@ -71,7 +78,7 @@ func TestNewCompiler_MultipleModules(t *testing.T) {
 
 func TestEvaluator_EvalBool_True(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; allow if { input.x > 5 }`,
+		"p.rego": regoModule("p", "allow if { input.x > 5 }"),
 	})
 	ok, err := ev.EvalBool(context.Background(), "data.p.allow", map[string]any{"x": 10})
 	require.NoError(t, err)
@@ -80,7 +87,7 @@ func TestEvaluator_EvalBool_True(t *testing.T) {
 
 func TestEvaluator_EvalBool_False(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; allow if { input.x > 5 }`,
+		"p.rego": regoModule("p", "allow if { input.x > 5 }"),
 	})
 	ok, err := ev.EvalBool(context.Background(), "data.p.allow", map[string]any{"x": 3})
 	require.NoError(t, err)
@@ -89,7 +96,7 @@ func TestEvaluator_EvalBool_False(t *testing.T) {
 
 func TestEvaluator_EvalBool_Undefined_ReturnsFalseNotError(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; allow if { false }`,
+		"p.rego": regoModule("p", "allow if { false }"),
 	})
 	ok, err := ev.EvalBool(context.Background(), "data.p.allow", nil)
 	require.NoError(t, err)
@@ -98,7 +105,7 @@ func TestEvaluator_EvalBool_Undefined_ReturnsFalseNotError(t *testing.T) {
 
 func TestEvaluator_EvalBool_WrongType_ReturnsError(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; allow := "yes"`,
+		"p.rego": regoModule("p", `allow := "yes"`),
 	})
 	_, err := ev.EvalBool(context.Background(), "data.p.allow", nil)
 	require.Error(t, err)
@@ -107,8 +114,7 @@ func TestEvaluator_EvalBool_WrongType_ReturnsError(t *testing.T) {
 
 func TestEvaluator_EvalObject(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1
-result := {"action": "ALLOW", "reason": "ok"}`,
+		"p.rego": regoModule("p", `result := {"action": "ALLOW", "reason": "ok"}`),
 	})
 	m, err := ev.EvalObject(context.Background(), "data.p.result", nil)
 	require.NoError(t, err)
@@ -128,7 +134,7 @@ func TestEvaluator_EvalObject_Undefined_ReturnsNil(t *testing.T) {
 
 func TestEvaluator_InputPropagation(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; echo := input`,
+		"p.rego": regoModule("p", "echo := input"),
 	})
 	in := map[string]any{"hello": "world", "n": float64(42)}
 	rs, err := ev.Eval(context.Background(), "data.p.echo", in)
@@ -151,7 +157,7 @@ func TestEvaluator_InvalidQuery_ReturnsError(t *testing.T) {
 
 func TestResultSet_Defined(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; v := 1`,
+		"p.rego": regoModule("p", "v := 1"),
 	})
 	rs, err := ev.Eval(context.Background(), "data.p.v", nil)
 	require.NoError(t, err)
@@ -169,20 +175,18 @@ func TestResultSet_NotDefined(t *testing.T) {
 }
 
 func TestResultSet_FirstObject_InvalidJSON_ReturnsError(t *testing.T) {
-	// We can't actually cause invalid JSON from OPA — this tests the type path.
-	// Build a result set with a non-object value and verify FirstObject errors.
+	// Array value → FirstObject returns an error (not a map).
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; v := [1,2,3]`,
+		"p.rego": regoModule("p", "v := [1,2,3]"),
 	})
 	rs, err := ev.Eval(context.Background(), "data.p.v", nil)
 	require.NoError(t, err)
-	// Array → FirstObject should return an error since it's not a map.
 	m, err := rs.FirstObject()
-	// OPA returns arrays as []interface{}, json round-trip produces map only for maps.
-	// So this should error or return nil depending on implementation.
-	// Our implementation errors when the top-level isn't a map.
-	if err == nil {
-		// If no error, m must be nil (compatible behaviour)
+	// Our implementation errors when the top-level value isn't an object.
+	// Either nil+nil (if we treat array as nil map) or nil+error is acceptable.
+	if err != nil {
+		assert.Nil(t, m)
+	} else {
 		assert.Nil(t, m)
 	}
 }
@@ -191,7 +195,7 @@ func TestResultSet_FirstObject_InvalidJSON_ReturnsError(t *testing.T) {
 
 func TestCompiler_HotSwap_AtomicReplacement(t *testing.T) {
 	c1 := mustCompiler(t, map[string]string{
-		"p.rego": `package p; import rego.v1; v := "old"`,
+		"p.rego": regoModule("p", `v := "old"`),
 	})
 	ev, err := eval.NewEvaluator(c1)
 	require.NoError(t, err)
@@ -201,7 +205,7 @@ func TestCompiler_HotSwap_AtomicReplacement(t *testing.T) {
 	assert.Equal(t, "old", rs.First())
 
 	c2 := mustCompiler(t, map[string]string{
-		"p.rego": `package p; import rego.v1; v := "new"`,
+		"p.rego": regoModule("p", `v := "new"`),
 	})
 	c1.HotSwap(c2)
 
@@ -212,7 +216,7 @@ func TestCompiler_HotSwap_AtomicReplacement(t *testing.T) {
 
 func TestCompiler_HotSwap_ConcurrentSafe(t *testing.T) {
 	c := mustCompiler(t, map[string]string{
-		"p.rego": `package p; import rego.v1; v := input.x * 2`,
+		"p.rego": regoModule("p", "v := input.x * 2"),
 	})
 	ev, err := eval.NewEvaluator(c)
 	require.NoError(t, err)
@@ -228,9 +232,8 @@ func TestCompiler_HotSwap_ConcurrentSafe(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < iters; j++ {
 				if idx%5 == 0 {
-					// Swap compiler
 					nc := mustCompiler(t, map[string]string{
-						"p.rego": `package p; import rego.v1; v := input.x * 2`,
+						"p.rego": regoModule("p", "v := input.x * 2"),
 					})
 					c.HotSwap(nc)
 				}
@@ -252,7 +255,7 @@ func TestCompiler_HotSwap_ConcurrentSafe(t *testing.T) {
 
 func TestPreparedQuery_Eval(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; square := input.n * input.n`,
+		"p.rego": regoModule("p", "square := input.n * input.n"),
 	})
 	pq, err := ev.PrepareQuery(context.Background(), "data.p.square")
 	require.NoError(t, err)
@@ -269,7 +272,7 @@ func TestPreparedQuery_Eval(t *testing.T) {
 
 func TestPreparedQuery_ConcurrentSafe(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; v := input.x + 1`,
+		"p.rego": regoModule("p", "v := input.x + 1"),
 	})
 	pq, err := ev.PrepareQuery(context.Background(), "data.p.v")
 	require.NoError(t, err)
@@ -309,12 +312,11 @@ func TestPreparedQuery_InvalidQuery_ReturnsError(t *testing.T) {
 
 func TestEvaluator_ContextCancelled(t *testing.T) {
 	ev := mustEvaluator(t, map[string]string{
-		"p.rego": `package p; import rego.v1; v := 1`,
+		"p.rego": regoModule("p", "v := 1"),
 	})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // already cancelled
 	_, err := ev.Eval(ctx, "data.p.v", nil)
-	// OPA may or may not honour the cancelled context depending on version;
-	// what matters is we don't panic.
+	// OPA may or may not honour the cancelled context — must not panic.
 	_ = err
 }
