@@ -107,7 +107,7 @@ func Expand(s Strategy) (Expansion, error) {
 	for _, inc := range s.Include {
 		if !isSubsumedByAnyCombo(inc, filtered) {
 			// Sort keys for deterministic ID.
-			incAxes := sortedKeys(inc)
+			incAxes := sortedStrKeys(inc)
 			configs = append(configs, BuildConfig{
 				ID:   includeID(incAxes, inc),
 				Vars: inc,
