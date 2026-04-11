@@ -304,7 +304,7 @@ func (c *Checkpointer) finalDump(ctx context.Context, rootPID int, dir string, p
 	if c.cfg.PageServerAddr != "" {
 		host, portStr, _ := splitHostPort(c.cfg.PageServerAddr)
 		port, _ := strconv.Atoi(portStr)
-		opts.PageServer = &criurpc.CriuPageServerInfo{
+		opts.Ps = &criurpc.CriuPageServerInfo{
 			Address: proto.String(host),
 			Port:    proto.Int32(int32(port)),
 		}
@@ -347,12 +347,16 @@ func (c *Checkpointer) Restore(ctx context.Context, imageDir string) (*RestoreRe
 		TcpClose: proto.Bool(false),
 	}
 
-	pid, err := c.criu.Restore(opts, c.notify())
-	if err != nil {
+	// go-criu v7 Restore() returns only error; the restored leader PID
+	// arrives via the PostRestore notify hook. Wrap criuNotify in
+	// pidCapturingNotify to intercept that callback.
+	pn := &pidCapturingNotify{criuNotify: c.notify()}
+	if err := c.criu.Restore(opts, pn); err != nil {
 		c.emitCRIULog(imageDir, "restore.log")
 		return nil, fmt.Errorf("CRIU restore: %w", err)
 	}
 
+	pid := int(pn.restoredPID)
 	c.log.Info("restore complete",
 		zap.Int("leader_pid", pid),
 		zap.Duration("duration", time.Since(start)),
@@ -570,10 +574,12 @@ func decompressFile(src string) error {
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
 
-func (c *Checkpointer) notify() criulib.Notify {
+// notify returns a fresh criuNotify for dump operations.
+func (c *Checkpointer) notify() *criuNotify {
 	return &criuNotify{log: c.log, start: time.Now()}
 }
 
+// criuNotify implements criulib.Notify and logs each CRIU lifecycle event.
 type criuNotify struct {
 	log   *zap.Logger
 	start time.Time
@@ -598,17 +604,26 @@ func (n *criuNotify) PostRestore(pid int32) error {
 	)
 	return nil
 }
-func (n *criuNotify) NetworkLock() error {
-	n.log.Debug("criu:NetworkLock")
-	return nil
+func (n *criuNotify) NetworkLock() error            { n.log.Debug("criu:NetworkLock"); return nil }
+func (n *criuNotify) NetworkUnlock() error          { n.log.Debug("criu:NetworkUnlock"); return nil }
+func (n *criuNotify) SetupNamespaces(_ int32) error { return nil }
+func (n *criuNotify) PostSetupNamespaces() error    { return nil }
+func (n *criuNotify) PostResume() error             { return nil }
+
+// pidCapturingNotify wraps criuNotify and records the PID delivered by
+// CRIU's PostRestore callback. This is necessary because go-criu v7's
+// Restore() method returns only error — the restored leader PID is
+// communicated exclusively through the PostRestore hook.
+type pidCapturingNotify struct {
+	*criuNotify
+	restoredPID int32
 }
-func (n *criuNotify) NetworkUnlock() error {
-	n.log.Debug("criu:NetworkUnlock")
-	return nil
+
+// PostRestore overrides criuNotify.PostRestore to capture the PID before logging.
+func (p *pidCapturingNotify) PostRestore(pid int32) error {
+	p.restoredPID = pid
+	return p.criuNotify.PostRestore(pid)
 }
-func (n *criuNotify) SetupNamespaces(pid int32) error { return nil }
-func (n *criuNotify) PostSetupNamespaces() error      { return nil }
-func (n *criuNotify) PostResume() error               { return nil }
 
 func (c *Checkpointer) emitCRIULog(dir, file string) {
 	logPath := filepath.Join(dir, file)

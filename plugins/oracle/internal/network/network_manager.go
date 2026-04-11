@@ -41,12 +41,14 @@ type InterfaceState struct {
 }
 
 // RouteState captures one IP route.
+// Protocol is stored as int so we can serialise netlink.RouteProtocol
+// (a named type) portably across Go versions and netlink library updates.
 type RouteState struct {
 	Dst      string `json:"dst"`
 	Src      string `json:"src"`
 	Gw       string `json:"gw"`
 	Dev      string `json:"dev"`
-	Protocol int    `json:"protocol"`
+	Protocol int    `json:"protocol"` // cast from netlink.RouteProtocol
 	Priority int    `json:"priority"`
 	Type     int    `json:"type"`
 }
@@ -112,7 +114,9 @@ func (m *Manager) Capture(snapshotPath string) (*Snapshot, error) {
 	}
 	for _, r := range routes {
 		rs := RouteState{
-			Protocol: r.Protocol,
+			// netlink.RouteProtocol is a named integer type; cast explicitly
+			// to int so it fits the RouteState.Protocol field.
+			Protocol: int(r.Protocol),
 			Priority: r.Priority,
 			Type:     r.Type,
 		}
