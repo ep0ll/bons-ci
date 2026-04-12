@@ -18,9 +18,10 @@ import (
 // contentWriter implements content.Writer by streaming data to a B2/S3
 // object via the ObjectStorage.PutObject method.
 //
-// The upload is lazily started on the first Write call: a goroutine reads
-// from an internal pipe while Write pushes data into that pipe and
-// simultaneously feeds a SHA-256 digester.
+// The upload is lazily started on the first call to Write, Close, or Commit
+// via sync.Once. This guarantees that the background goroutine is always
+// running before any code waits on w.done, preventing deadlocks when a
+// writer is closed or committed without any prior Write.
 type contentWriter struct {
 	backend ObjectStorage
 	bucket  string
@@ -85,26 +86,31 @@ func newContentWriter(
 	}, nil
 }
 
+// startUpload launches the background PutObject goroutine exactly once.
+// It is called via w.once from Write, Close, and Commit so that w.done is
+// always closed before any caller blocks on it.
+func (w *contentWriter) startUpload() {
+	go func() {
+		defer close(w.done)
+		result, err := w.backend.PutObject(
+			w.ctx, w.bucket, w.object,
+			w.pipeR, w.size,
+			"application/octet-stream",
+		)
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		if err != nil {
+			w.putErr = err
+			w.cancel(err)
+			return
+		}
+		w.result = &result
+	}()
+}
+
 // Write pushes p into the upload stream and updates the rolling digest.
 func (w *contentWriter) Write(p []byte) (int, error) {
-	w.once.Do(func() {
-		go func() {
-			defer close(w.done)
-			result, err := w.backend.PutObject(
-				w.ctx, w.bucket, w.object,
-				w.pipeR, w.size,
-				"application/octet-stream",
-			)
-			w.mu.Lock()
-			defer w.mu.Unlock()
-			if err != nil {
-				w.putErr = err
-				w.cancel(err)
-				return
-			}
-			w.result = &result
-		}()
-	})
+	w.once.Do(w.startUpload)
 
 	n, err := w.pipeW.Write(p)
 	if err != nil {
@@ -120,8 +126,14 @@ func (w *contentWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Close closes the write side and waits for the upload goroutine.
+// Close closes the write side of the pipe and waits for the upload goroutine
+// to finish. It is safe to call without any prior Write; the upload goroutine
+// will be started here if it has not been started already, so <-w.done never
+// deadlocks.
 func (w *contentWriter) Close() error {
+	// Start the goroutine if Write was never called, so <-w.done unblocks.
+	w.once.Do(w.startUpload)
+
 	if err := w.pipeW.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
 		return fmt.Errorf("b2/writer: close pipe: %w", err)
 	}
@@ -133,6 +145,7 @@ func (w *contentWriter) Close() error {
 }
 
 // Commit finalises the upload, verifying size and digest constraints.
+// It is safe to call without any prior Write.
 func (w *contentWriter) Commit(ctx context.Context, size int64, expected digest.Digest, opts ...content.Opt) error {
 	w.mu.Lock()
 	if w.committed {
@@ -140,6 +153,9 @@ func (w *contentWriter) Commit(ctx context.Context, size int64, expected digest.
 		return fmt.Errorf("b2/writer: already committed: %w", errdefs.ErrFailedPrecondition)
 	}
 	w.mu.Unlock()
+
+	// Ensure the goroutine is running before we close the pipe and wait.
+	w.once.Do(w.startUpload)
 
 	if err := w.pipeW.Close(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
 		return fmt.Errorf("b2/writer: close pipe for commit: %w", err)
