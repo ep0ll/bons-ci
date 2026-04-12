@@ -25,19 +25,19 @@ import (
 
 // Snapshot is the serialisable network state.
 type Snapshot struct {
-	Interfaces []InterfaceState `json:"interfaces"`
-	Routes     []RouteState     `json:"routes"`
-	IPTables   IPTablesState    `json:"iptables"`
+	Interfaces []InterfaceState  `json:"interfaces"`
+	Routes     []RouteState      `json:"routes"`
+	IPTables   IPTablesState     `json:"iptables"`
 	Sysctls    map[string]string `json:"sysctls"`
 }
 
 // InterfaceState captures one network interface.
 type InterfaceState struct {
-	Name    string   `json:"name"`
-	HWAddr  string   `json:"hw_addr"`
-	MTU     int      `json:"mtu"`
-	Flags   uint32   `json:"flags"`
-	Addrs   []string `json:"addrs"`
+	Name   string   `json:"name"`
+	HWAddr string   `json:"hw_addr"`
+	MTU    int      `json:"mtu"`
+	Flags  uint32   `json:"flags"`
+	Addrs  []string `json:"addrs"`
 }
 
 // RouteState captures one IP route.

@@ -103,7 +103,7 @@ func (m *linuxMonitor) Add(path string) error {
 		if m.useRange {
 			mask |= FAN_PRE_ACCESS
 		}
-		
+
 		if err := unix.FanotifyMark(m.fd, unix.FAN_MARK_ADD, mask, unix.AT_FDCWD, walkPath); err != nil {
 			return fmt.Errorf("fsmonitor: mark failed for %s: %w", walkPath, err)
 		}
@@ -128,7 +128,7 @@ func (m *linuxMonitor) Run(ctx context.Context) error {
 	go func() {
 		defer close(m.eventChan)
 		defer unix.Close(m.fd)
-		
+
 		buf := make([]byte, eventBatchSize*unix.FAN_EVENT_METADATA_LEN)
 		for {
 			n, err := unix.Read(m.fd, buf)

@@ -255,8 +255,8 @@ func parsePressureValues(tokens []string) *resourcestypes.PressureValues {
 				pv.Avg300 = float64Ptr(v)
 				found = true
 			}
-		// Unknown keys are silently ignored for forward-compatibility with
-		// future kernel PSI extensions (e.g. per-CPU stall metrics).
+			// Unknown keys are silently ignored for forward-compatibility with
+			// future kernel PSI extensions (e.g. per-CPU stall metrics).
 		}
 	}
 

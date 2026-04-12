@@ -18,9 +18,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/moby/buildkit/solver/pb"
 	"github.com/bons/bons-ci/pkg/executors/network"
 	"github.com/bons/bons-ci/pkg/executors/network/cniprovider"
+	"github.com/moby/buildkit/solver/pb"
 	"github.com/pkg/errors"
 )
 

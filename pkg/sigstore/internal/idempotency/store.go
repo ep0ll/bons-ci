@@ -24,7 +24,7 @@ import (
 type Status string
 
 const (
-	StatusPending   Status = "pending"   // claimed but not yet complete
+	StatusPending   Status = "pending" // claimed but not yet complete
 	StatusSucceeded Status = "succeeded"
 	StatusFailed    Status = "failed"
 )

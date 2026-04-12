@@ -187,7 +187,7 @@ func TestIsCommitSHA(t *testing.T) {
 		strings.Repeat("a", 40), // SHA-1
 		strings.Repeat("f", 40),
 		strings.Repeat("0", 40),
-		strings.Repeat("a", 64), // SHA-256
+		strings.Repeat("a", 64),             // SHA-256
 		"abc1234" + strings.Repeat("0", 33), // 40 chars mixed
 	}
 	for _, sha := range validSHAs {
@@ -204,7 +204,7 @@ func TestIsCommitSHA(t *testing.T) {
 		"",
 		"main",
 		"refs/heads/main",
-		"abc123",              // too short (abbreviated)
+		"abc123",                // too short (abbreviated)
 		strings.Repeat("g", 40), // non-hex
 		strings.Repeat("a", 39), // one too short
 		strings.Repeat("a", 41), // one too long (not 40 or 64)

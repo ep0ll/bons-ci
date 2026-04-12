@@ -38,12 +38,12 @@ const regularResolvConf = `nameserver 192.168.65.5
 // so that tests can run in parallel without sharing global state.
 //
 // Why this is different from the original:
-//  - The original patched the global `resolvconfPath` variable and documented
-//    "must not run in parallel".  Each test now gets its own manager and its
-//    own injected sourcePath function, so there is no shared state to race on.
-//  - The bug where lastNotEmpty was never set is also covered: see the
-//    "TestRegenerateResolvconfToRemoveLocalDNS" case which verifies that
-//    switching from HOST→UNSET replaces the local DNS with defaults.
+//   - The original patched the global `resolvconfPath` variable and documented
+//     "must not run in parallel".  Each test now gets its own manager and its
+//     own injected sourcePath function, so there is no shared state to race on.
+//   - The bug where lastNotEmpty was never set is also covered: see the
+//     "TestRegenerateResolvconfToRemoveLocalDNS" case which verifies that
+//     switching from HOST→UNSET replaces the local DNS with defaults.
 func TestResolvConf(t *testing.T) {
 	t.Parallel()
 

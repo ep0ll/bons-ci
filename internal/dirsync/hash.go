@@ -46,23 +46,23 @@ const minSegmentSize = defaultBufSize * 4 // 4 × 64 KiB = 256 KiB
 //
 // # Three-phase decision tree
 //
-//   Phase 1a — size (zero I/O, O(1)):
-//     Different sizes → definitively not equal.
+//	Phase 1a — size (zero I/O, O(1)):
+//	  Different sizes → definitively not equal.
 //
-//   Phase 1b — mtime (zero I/O, O(1)):
-//     Same size + same mtime → assumed equal (BuildKit DiffOp convention;
-//     atime and ctime differences are intentionally ignored).
+//	Phase 1b — mtime (zero I/O, O(1)):
+//	  Same size + same mtime → assumed equal (BuildKit DiffOp convention;
+//	  atime and ctime differences are intentionally ignored).
 //
-//   Phase 2S — sequential incremental comparison (small files):
-//     Used when file size < LargeFileThreshold (default 2 MiB).
-//     Reads both files in lockstep in 64 KiB chunks; returns false immediately
-//     on the first differing chunk.
+//	Phase 2S — sequential incremental comparison (small files):
+//	  Used when file size < LargeFileThreshold (default 2 MiB).
+//	  Reads both files in lockstep in 64 KiB chunks; returns false immediately
+//	  on the first differing chunk.
 //
-//   Phase 2P — parallel segment comparison (large files):
-//     Used when file size ≥ LargeFileThreshold.
-//     Divides the file into SegmentWorkers equal segments compared concurrently
-//     using ReadAt (pread64). Any segment that finds a mismatch cancels the
-//     others via a shared context.
+//	Phase 2P — parallel segment comparison (large files):
+//	  Used when file size ≥ LargeFileThreshold.
+//	  Divides the file into SegmentWorkers equal segments compared concurrently
+//	  using ReadAt (pread64). Any segment that finds a mismatch cancels the
+//	  others via a shared context.
 //
 // # Why direct byte comparison rather than SHA-256
 //
@@ -72,11 +72,11 @@ const minSegmentSize = defaultBufSize * 4 // 4 × 64 KiB = 256 KiB
 //
 // # Symlinks
 //
-//   Compared by link-target string (os.Readlink), not target content.
+//	Compared by link-target string (os.Readlink), not target content.
 //
 // # Directories
 //
-//   Compared by mode bits and mtime.
+//	Compared by mode bits and mtime.
 type TwoPhaseHasher struct {
 	// BufPool supplies file-read buffers. Nil → sharedBufPool (64 KiB).
 	BufPool *BufPool

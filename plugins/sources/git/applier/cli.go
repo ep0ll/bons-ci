@@ -61,18 +61,19 @@ func newGitCLI(runner ProcessRunner, opts ...cliOpt) *gitCLI {
 // cliOpt is a functional option for [gitCLI].
 type cliOpt func(*gitCLI)
 
-func withGitDir(dir string) cliOpt     { return func(c *gitCLI) { c.gitDir = dir } }
-func withWorkTree(dir string) cliOpt   { return func(c *gitCLI) { c.workDir = dir } }
+func withGitDir(dir string) cliOpt   { return func(c *gitCLI) { c.gitDir = dir } }
+func withWorkTree(dir string) cliOpt { return func(c *gitCLI) { c.workDir = dir } }
+
 // withDir sets the process working directory for git sub-commands.
 // This is distinct from withWorkTree (which sets the --work-tree flag):
 // withDir controls cmd.Dir and is needed for git-submodule, which is a shell
 // script that detects the working tree from the process CWD rather than from
 // --work-tree / --git-dir flags passed to the parent git process.
-func withDir(dir string) cliOpt        { return func(c *gitCLI) { c.dir = dir } }
-func withSSHSocket(p string) cliOpt    { return func(c *gitCLI) { c.sshSocketPath = p } }
-func withKnownHosts(p string) cliOpt   { return func(c *gitCLI) { c.knownHostsPath = p } }
-func withStdout(w io.Writer) cliOpt    { return func(c *gitCLI) { c.stdout = w } }
-func withStderr(w io.Writer) cliOpt    { return func(c *gitCLI) { c.stderr = w } }
+func withDir(dir string) cliOpt      { return func(c *gitCLI) { c.dir = dir } }
+func withSSHSocket(p string) cliOpt  { return func(c *gitCLI) { c.sshSocketPath = p } }
+func withKnownHosts(p string) cliOpt { return func(c *gitCLI) { c.knownHostsPath = p } }
+func withStdout(w io.Writer) cliOpt  { return func(c *gitCLI) { c.stdout = w } }
+func withStderr(w io.Writer) cliOpt  { return func(c *gitCLI) { c.stderr = w } }
 
 // withExtraConfigArgs appends git -c config arguments (e.g. auth headers).
 // Each call appends; it does not replace the existing slice.

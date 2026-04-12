@@ -264,7 +264,7 @@ func TestContentWriter_Truncate(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestContentWriter_LocalChanFull_NoPanic(t *testing.T) {
-	data := make([]byte, 1<<20) // 1 MiB
+	data := make([]byte, 1<<20)         // 1 MiB
 	cw, _, _ := buildWriter(t, data, 1) // channel cap = 1 → will fill quickly
 	defer cw.Close()
 
@@ -324,7 +324,9 @@ func benchContentWriter(b *testing.B, chunkSize int) {
 		backend := newMockBackend()
 		local := newMockLocalStore()
 		s, err := New(backend, local, "docker.io/library/bench", WithRetryMax(1))
-		if err != nil { b.Fatal(err) }
+		if err != nil {
+			b.Fatal(err)
+		}
 		dgst := makeDigest("bench-writer")
 		desc := v1.Descriptor{Digest: dgst, Size: int64(chunkSize)}
 		remote, _ := backend.Push(context.Background(), s.ref, desc)

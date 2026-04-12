@@ -149,5 +149,5 @@ type mockReader struct {
 	size int64
 }
 
-func (r *mockReader) Close() error           { return nil }
-func (r *mockReader) Size() int64            { return r.size }
+func (r *mockReader) Close() error { return nil }
+func (r *mockReader) Size() int64  { return r.size }

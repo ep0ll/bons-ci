@@ -3,9 +3,10 @@
 // critical during the 120-second migration window where every API call counts.
 //
 // States:
-//   Closed   — normal operation, all calls pass through.
-//   Open     — OCI is unhealthy; calls fail fast without hitting the API.
-//   Half-open — one probe allowed; if it succeeds, close; if not, stay open.
+//
+//	Closed   — normal operation, all calls pass through.
+//	Open     — OCI is unhealthy; calls fail fast without hitting the API.
+//	Half-open — one probe allowed; if it succeeds, close; if not, stay open.
 package circuit
 
 import (

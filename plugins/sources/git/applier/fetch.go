@@ -24,10 +24,10 @@ var defaultBranchPattern = regexp.MustCompile(`refs/heads/(\S+)`)
 // Retry logic handles transient ref-clobber and ref-conflict errors that can
 // occur when a remote mutable ref is updated between our resolve and fetch steps.
 type DefaultFetcher struct {
-	runner   ProcessRunner
-	auth     AuthProvider
-	workDir  string // base for temp dirs; "" means os.TempDir()
-	mu       sync.Mutex
+	runner  ProcessRunner
+	auth    AuthProvider
+	workDir string // base for temp dirs; "" means os.TempDir()
+	mu      sync.Mutex
 	// remoteLocks serialises concurrent fetches to the same remote URL to
 	// prevent multiple goroutines from running "git fetch" against the same
 	// bare repo simultaneously.
@@ -91,6 +91,7 @@ func checkGitAvailable() error {
 //  7. Checkout into dstDir (normal or KeepGitDir variant).
 //  8. Extract subdir if requested.
 //  9. Initialise submodules unless suppressed.
+//
 // 10. Expire reflog and remove FETCH_HEAD (sensitive data hygiene).
 // 11. Verify signatures if requested.
 func (f *DefaultFetcher) Fetch(ctx context.Context, spec FetchSpec, dstDir string) (FetchResult, error) {

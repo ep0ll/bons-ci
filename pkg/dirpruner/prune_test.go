@@ -147,10 +147,10 @@ func TestPrune_IncludePatterns_DeletesNonMatching(t *testing.T) {
 func TestPrune_ExcludePatterns_DeletesMatchingExcludes(t *testing.T) {
 	dir := t.TempDir()
 	fixture(t, dir, map[string]string{
-		"main.go":        "main",
-		"main_test.go":   "test",
-		"util/util.go":   "util",
-		"vendor/dep.go":  "dep",
+		"main.go":       "main",
+		"main_test.go":  "test",
+		"util/util.go":  "util",
+		"vendor/dep.go": "dep",
 	})
 
 	result, err := dp.New(
@@ -174,8 +174,8 @@ func TestPrune_ExcludePatterns_DeletesMatchingExcludes(t *testing.T) {
 func TestPrune_ExactPrefixPattern_NoWildcards(t *testing.T) {
 	dir := t.TempDir()
 	fixture(t, dir, map[string]string{
-		"src/main.go":   "main",
-		"src/util.go":   "util",
+		"src/main.go":    "main",
+		"src/util.go":    "util",
 		"docs/readme.md": "docs",
 		"Makefile":       "make",
 	})
@@ -199,10 +199,10 @@ func TestPrune_ExactPrefixPattern_NoWildcards(t *testing.T) {
 func TestPrune_CollapsedDir_SingleOp(t *testing.T) {
 	dir := t.TempDir()
 	fixture(t, dir, map[string]string{
-		"keep.go":           "keep",
-		"vendor/a/b/c.txt":  "del",
-		"vendor/a/b/d.txt":  "del",
-		"vendor/x.txt":      "del",
+		"keep.go":          "keep",
+		"vendor/a/b/c.txt": "del",
+		"vendor/a/b/d.txt": "del",
+		"vendor/x.txt":     "del",
 	})
 
 	// Use a RecordingBatcher to count ops.
@@ -244,11 +244,11 @@ func TestPrune_MixedScenario(t *testing.T) {
 	dir := t.TempDir()
 	fixture(t, dir, map[string]string{
 		// kept: matches include "src"
-		"src/main.go":     "main",
-		"src/util.go":     "util",
+		"src/main.go": "main",
+		"src/util.go": "util",
 		// deleted: individual files that don't match
-		"Makefile":         "make",
-		"readme.md":        "readme",
+		"Makefile":  "make",
+		"readme.md": "readme",
 		// collapsed: entire subtree doesn't match → single OpRemoveAll
 		"vendor/dep/a.go": "dep",
 		"vendor/dep/b.go": "dep",
@@ -385,12 +385,12 @@ func TestPrune_AllExcluded_DeletesEverything(t *testing.T) {
 func TestPrune_DeepNesting_PartialSubtreeMatch(t *testing.T) {
 	dir := t.TempDir()
 	fixture(t, dir, map[string]string{
-		"pkg/api/handler.go":   "handler",
+		"pkg/api/handler.go":      "handler",
 		"pkg/api/handler_test.go": "test",
-		"pkg/api/docs/":        "",
-		"pkg/api/docs/api.md":  "docs",
-		"pkg/cmd/main.go":      "main",
-		"pkg/internal/util.go": "util",
+		"pkg/api/docs/":           "",
+		"pkg/api/docs/api.md":     "docs",
+		"pkg/cmd/main.go":         "main",
+		"pkg/internal/util.go":    "util",
 	})
 
 	// Keep only *.go files, exclude test files and docs dirs.
@@ -549,9 +549,9 @@ func TestPrune_MultiObserver(t *testing.T) {
 func TestPrune_RecordingBatcher_OpKinds(t *testing.T) {
 	dir := t.TempDir()
 	fixture(t, dir, map[string]string{
-		"keep.go":        "k",
-		"delete.txt":     "d",      // OpRemove
-		"vendor/dep.go":  "dep",    // OpRemoveAll (collapsed dir)
+		"keep.go":       "k",
+		"delete.txt":    "d",   // OpRemove
+		"vendor/dep.go": "dep", // OpRemoveAll (collapsed dir)
 	})
 
 	rb := &dirsync.RecordingBatcher{}
@@ -586,10 +586,10 @@ func TestPrune_RecordingBatcher_OpKinds(t *testing.T) {
 func TestPrune_FSBatcher_ActualDeletion(t *testing.T) {
 	dir := t.TempDir()
 	fixture(t, dir, map[string]string{
-		"main.go":       "main",
-		"util.go":       "util",
-		"Dockerfile":    "docker",
-		"scripts/":      "",
+		"main.go":           "main",
+		"util.go":           "util",
+		"Dockerfile":        "docker",
+		"scripts/":          "",
 		"scripts/deploy.sh": "sh",
 	})
 

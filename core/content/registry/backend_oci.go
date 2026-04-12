@@ -94,7 +94,7 @@ type connEntry struct {
 // lock-free loads on the read-dominant hot path.
 type ociConnPool struct {
 	opts    []registry.Opt
-	m       sync.Map     // host string → *connEntry
+	m       sync.Map // host string → *connEntry
 	once    sync.Once
 	closeCh chan struct{}
 }

@@ -31,16 +31,16 @@ const (
 // ─── Attribute keys ──────────────────────────────────────────────────────────
 
 var (
-	AttrPolicyKind   = attribute.Key("policy.kind")
-	AttrAction       = attribute.Key("policy.action")
-	AttrMutated      = attribute.Key("policy.mutated")
-	AttrIdentifier   = attribute.Key("source.identifier")
-	AttrOpID         = attribute.Key("dag.op_id")
-	AttrOpType       = attribute.Key("dag.op_type")
-	AttrMatrixSize   = attribute.Key("matrix.size")
-	AttrTransformer  = attribute.Key("transform.name")
-	AttrError        = semconv.ExceptionTypeKey
-	AttrEventKind    = attribute.Key("event.kind")
+	AttrPolicyKind  = attribute.Key("policy.kind")
+	AttrAction      = attribute.Key("policy.action")
+	AttrMutated     = attribute.Key("policy.mutated")
+	AttrIdentifier  = attribute.Key("source.identifier")
+	AttrOpID        = attribute.Key("dag.op_id")
+	AttrOpType      = attribute.Key("dag.op_type")
+	AttrMatrixSize  = attribute.Key("matrix.size")
+	AttrTransformer = attribute.Key("transform.name")
+	AttrError       = semconv.ExceptionTypeKey
+	AttrEventKind   = attribute.Key("event.kind")
 )
 
 // ─── Provider registry ────────────────────────────────────────────────────────

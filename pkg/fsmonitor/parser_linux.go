@@ -36,9 +36,9 @@ type infoRange struct {
 
 // eventInfo represents a parsed extra info record from a fanotify event.
 type eventInfo struct {
-	Type   uint8
-	Data   []byte
-	Range  *infoRange
+	Type  uint8
+	Data  []byte
+	Range *infoRange
 }
 
 // parseEventMetadata extracts metadata and trailing info records from the buffer.
@@ -58,7 +58,7 @@ func parseEvent(data []byte) (*unix.FanotifyEventMetadata, []eventInfo, int, err
 	// If the kernel supports FID reporting, there might be extra info records
 	for currentPos+infoLen <= int(meta.Event_len) {
 		h := (*infoHeader)(unsafe.Pointer(&data[currentPos]))
-		
+
 		recordLen := int(h.Len)
 		if currentPos+recordLen > int(meta.Event_len) {
 			break // Corrupted length
@@ -82,7 +82,7 @@ func parseEvent(data []byte) (*unix.FanotifyEventMetadata, []eventInfo, int, err
 
 		infos = append(infos, info)
 		currentPos += recordLen
-		
+
 		// Align to 4 bytes if necessary (kernel does this)
 		if currentPos%4 != 0 {
 			currentPos += 4 - (currentPos % 4)

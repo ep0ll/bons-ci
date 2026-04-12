@@ -4,9 +4,9 @@
 // Two constructors are exported:
 //
 //   - [New]       – file-based CNI: reads an existing .conf/.conflist and an
-//                   external CNI binary directory.
+//     external CNI binary directory.
 //   - [NewBridge] – built-in bridge: synthesises a CNI config from the bundled
-//                   buildkit-cni-* binaries (bridge_linux.go, Linux only).
+//     buildkit-cni-* binaries (bridge_linux.go, Linux only).
 //
 // # Architecture
 //
@@ -48,11 +48,11 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/bons/bons-ci/pkg/executors/network"
 	cni "github.com/containerd/go-cni"
 	"github.com/gofrs/flock"
 	"github.com/moby/buildkit/identity"
 	"github.com/moby/buildkit/util/bklog"
-	"github.com/bons/bons-ci/pkg/executors/network"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/trace"
 )

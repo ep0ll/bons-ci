@@ -74,8 +74,8 @@ func (k *ContainerKiller) Pidfile() string { return "" }
 type ExecKiller struct {
 	runC    *runc.Runc
 	id      string
-	pidfile string   // absolute path; allocated on construction
-	tempDir string   // the parent dir; removed by Close
+	pidfile string // absolute path; allocated on construction
+	tempDir string // the parent dir; removed by Close
 }
 
 // NewExecKiller allocates a temporary pidfile directory and returns a Killer

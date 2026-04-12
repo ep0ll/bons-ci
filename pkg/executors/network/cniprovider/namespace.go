@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	cni "github.com/containerd/go-cni"
 	resourcestypes "github.com/bons/bons-ci/pkg/executors/resources/types"
+	cni "github.com/containerd/go-cni"
 	"github.com/moby/buildkit/util/bklog"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"

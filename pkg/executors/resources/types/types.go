@@ -67,10 +67,10 @@ type Sample struct {
 	// The underscore suffix prevents collision with the Timestamp() method.
 	Timestamp_ time.Time `json:"timestamp"`
 
-	CPUStat    *CPUStat    `json:"cpuStat,omitempty"`
-	MemoryStat *MemoryStat `json:"memoryStat,omitempty"`
-	IOStat     *IOStat     `json:"ioStat,omitempty"`
-	PIDsStat   *PIDsStat   `json:"pidsStat,omitempty"`
+	CPUStat    *CPUStat       `json:"cpuStat,omitempty"`
+	MemoryStat *MemoryStat    `json:"memoryStat,omitempty"`
+	IOStat     *IOStat        `json:"ioStat,omitempty"`
+	PIDsStat   *PIDsStat      `json:"pidsStat,omitempty"`
 	NetStat    *NetworkSample `json:"netStat,omitempty"`
 }
 

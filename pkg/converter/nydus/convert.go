@@ -235,7 +235,7 @@ func MergeLayers(ctx context.Context, cs content.Store, descs []ocispec.Descript
 	pr, pw := io.Pipe()
 	// BUG FIX: Prevent goroutine leak if cw.Commit or io.CopyBuffer fails bounds below.
 	defer pr.Close()
-	
+
 	originalBlobDigestChan := make(chan []digest.Digest, 1)
 	go func() {
 		defer pw.Close()

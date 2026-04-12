@@ -132,7 +132,7 @@ type ioUringSQE struct {
 // ioUringCQE is a Completion Queue Entry (16 bytes).
 type ioUringCQE struct {
 	UserData uint64
-	Res      int32  // syscall return value; negative errno on failure
+	Res      int32 // syscall return value; negative errno on failure
 	Flags    uint32
 }
 
@@ -357,11 +357,11 @@ func (b *IOURingBatcher) flushWithRing(ctx context.Context, work []batchedUnlink
 
 	// Cache stable ring pointers. Mask values never change after setup.
 	// BUG FIX H1: atomic loads for all reads of kernel-shared memory.
-	sqTailPtr  := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.Tail]))
-	sqMask     := atomic.LoadUint32((*uint32)(unsafe.Pointer(&sqRing[params.SqOff.RingMask])))
+	sqTailPtr := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.Tail]))
+	sqMask := atomic.LoadUint32((*uint32)(unsafe.Pointer(&sqRing[params.SqOff.RingMask])))
 	sqArrayPtr := (*uint32)(unsafe.Pointer(&sqRing[params.SqOff.Array]))
-	cqHeadPtr  := (*uint32)(unsafe.Pointer(&cqRing[params.CqOff.Head]))
-	cqMask     := atomic.LoadUint32((*uint32)(unsafe.Pointer(&cqRing[params.CqOff.RingMask])))
+	cqHeadPtr := (*uint32)(unsafe.Pointer(&cqRing[params.CqOff.Head]))
+	cqMask := atomic.LoadUint32((*uint32)(unsafe.Pointer(&cqRing[params.CqOff.RingMask])))
 
 	var errs []error
 	submitted := 0
@@ -433,7 +433,7 @@ func (b *IOURingBatcher) flushWithRing(ctx context.Context, work []batchedUnlink
 			}
 
 			eno := syscall.Errno(-cqePtr.Res)
-			wi  := work[int(cqePtr.UserData)]
+			wi := work[int(cqePtr.UserData)]
 
 			switch eno {
 			case syscall.ENOENT:

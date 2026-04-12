@@ -736,7 +736,7 @@ func TestCompareContents_EarlyExit_DifferInMiddle(t *testing.T) {
 	chunkSize := 64 * 1024
 	lData := make([]byte, 5*chunkSize)
 	uData := make([]byte, 5*chunkSize)
-	copy(lData, uData) // start equal
+	copy(lData, uData)      // start equal
 	lData[chunkSize] = 0x01 // differ in second chunk
 	uData[chunkSize] = 0x02
 
@@ -1275,18 +1275,18 @@ func TestPipeline_BasicDeleteFlow(t *testing.T) {
 	lower, upper, merged := t.TempDir(), t.TempDir(), t.TempDir()
 
 	fixture(t, lower, map[string]string{
-		"excl.txt":        "del",
-		"excl-dir/a.txt":  "del",
-		"shared.txt":      "same",
+		"excl.txt":       "del",
+		"excl-dir/a.txt": "del",
+		"shared.txt":     "same",
 	})
 	fixture(t, upper, map[string]string{
 		"shared.txt": "same",
 	})
 	// Merged starts as a copy of lower
 	fixture(t, merged, map[string]string{
-		"excl.txt":        "del",
-		"excl-dir/a.txt":  "del",
-		"shared.txt":      "same",
+		"excl.txt":       "del",
+		"excl-dir/a.txt": "del",
+		"shared.txt":     "same",
 	})
 
 	view, _ := differ.NewFSMergedView(merged)
@@ -1480,8 +1480,8 @@ func TestPipeline_ContextCancellation(t *testing.T) {
 func TestNewDeleteEngine_E2E(t *testing.T) {
 	lower, upper, merged := t.TempDir(), t.TempDir(), t.TempDir()
 	fixture(t, lower, map[string]string{
-		"excl.txt":    "del",
-		"shared.txt":  "same",
+		"excl.txt":   "del",
+		"shared.txt": "same",
 	})
 	fixture(t, upper, map[string]string{"shared.txt": "same"})
 	fixture(t, merged, map[string]string{

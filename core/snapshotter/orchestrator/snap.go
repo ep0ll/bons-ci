@@ -120,7 +120,7 @@ type workerResult struct {
 	seq              int   // 0-based position parsed from LabelSnapshotterEventIndex
 	event            Event // originating event; committer forwards CommitOptions to sn.Commit
 	err              error
-	alreadyCommitted bool  // true if chainID already exists as a committed snapshot
+	alreadyCommitted bool // true if chainID already exists as a committed snapshot
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

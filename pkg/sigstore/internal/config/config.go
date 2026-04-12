@@ -18,10 +18,10 @@ import (
 // All durations are time.Duration for type safety; YAML values use Go syntax
 // (e.g. "30s", "2m").
 type Config struct {
-	Server     ServerConfig     `yaml:"server"`
-	Signing    SigningConfig    `yaml:"signing"`
-	EventBus   EventBusConfig   `yaml:"event_bus"`
-	Resilience ResilienceConfig `yaml:"resilience"`
+	Server        ServerConfig        `yaml:"server"`
+	Signing       SigningConfig       `yaml:"signing"`
+	EventBus      EventBusConfig      `yaml:"event_bus"`
+	Resilience    ResilienceConfig    `yaml:"resilience"`
 	Observability ObservabilityConfig `yaml:"observability"`
 }
 

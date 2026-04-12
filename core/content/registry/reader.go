@@ -24,9 +24,9 @@ import (
 // Close drains any unread bytes from the tee via a pool-allocated buffer,
 // ensuring the local cache writer always receives a complete blob.
 type contentReaderAt struct {
-	ra          io.ReaderAt    // non-nil on fast path
-	tee         io.Reader      // rc tee'd into localWriter (slow path only)
-	mu          sync.Mutex     // serialises sequential tee reads
+	ra  io.ReaderAt // non-nil on fast path
+	tee io.Reader   // rc tee'd into localWriter (slow path only)
+	mu  sync.Mutex  // serialises sequential tee reads
 
 	rc          io.ReadCloser  // raw remote stream (always set)
 	localWriter content.Writer // best-effort local cache; may be nil

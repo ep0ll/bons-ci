@@ -60,13 +60,13 @@ type MigrationConfig struct {
 }
 
 type CRIUConfig struct {
-	BinaryPath          string  `mapstructure:"binary_path"`
-	LeaveRunning        bool    `mapstructure:"leave_running"`
-	TCPEstablished      bool    `mapstructure:"tcp_established"`
-	ExternalUnixSockets bool    `mapstructure:"external_unix_sockets"`
-	ShellJob            bool    `mapstructure:"shell_job"`
-	FileLocks           bool    `mapstructure:"file_locks"`
-	PreDumpIterations   int     `mapstructure:"pre_dump_iterations"`
+	BinaryPath          string `mapstructure:"binary_path"`
+	LeaveRunning        bool   `mapstructure:"leave_running"`
+	TCPEstablished      bool   `mapstructure:"tcp_established"`
+	ExternalUnixSockets bool   `mapstructure:"external_unix_sockets"`
+	ShellJob            bool   `mapstructure:"shell_job"`
+	FileLocks           bool   `mapstructure:"file_locks"`
+	PreDumpIterations   int    `mapstructure:"pre_dump_iterations"`
 	// DirtyConvergenceThreshold: stop pre-dump when dirty page ratio < this.
 	// 0.04 = 4% means < 4% of pages dirtied per interval.
 	DirtyConvergenceThreshold float64 `mapstructure:"dirty_convergence_threshold"`
@@ -135,7 +135,7 @@ func Load() (*Root, error) {
 	v.SetDefault("criu.external_unix_sockets", true)
 	v.SetDefault("criu.shell_job", true)
 	v.SetDefault("criu.file_locks", true)
-	v.SetDefault("criu.pre_dump_iterations", 5)           // max rounds (adaptive stops earlier)
+	v.SetDefault("criu.pre_dump_iterations", 5)            // max rounds (adaptive stops earlier)
 	v.SetDefault("criu.dirty_convergence_threshold", 0.04) // 4%
 	v.SetDefault("criu.pre_freeze_ms", 50)                 // 50ms pre-freeze
 	v.SetDefault("criu.page_server_port", 27182)

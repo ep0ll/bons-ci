@@ -40,8 +40,8 @@ type contentWriter struct {
 
 	// Async local-write pipeline.
 	localCh   chan localChunk // bounded channel; deep enough to absorb bursts
-	localWg   sync.WaitGroup // tracks the single localWorker goroutine
-	localOnce sync.Once      // ensures localCh is closed exactly once
+	localWg   sync.WaitGroup  // tracks the single localWorker goroutine
+	localOnce sync.Once       // ensures localCh is closed exactly once
 }
 
 // localChunk is a pool-owned byte slice enqueued for async local writing.

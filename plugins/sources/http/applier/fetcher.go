@@ -295,7 +295,7 @@ func (f *DefaultHTTPFetcher) injectAuthHeader(ctx context.Context, httpReq *http
 	}
 
 	type candidate struct {
-		name  string
+		name   string
 		bearer bool
 	}
 

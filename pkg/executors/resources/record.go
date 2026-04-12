@@ -209,8 +209,10 @@ func (r *cgroupRecord) computeSysCPUDelta() *resourcestypes.SysCPUStat {
 // All methods are safe to call and return zero-value results.
 type nopRecord struct{}
 
-func (*nopRecord) Start()                                           {}
-func (*nopRecord) Close()                                           {}
-func (*nopRecord) Wait() error                                      { return nil }
-func (*nopRecord) Samples() (*resourcestypes.Samples, error)        { return nil, nil }
-func (*nopRecord) CloseAsync(next func(context.Context) error) error { return next(context.Background()) }
+func (*nopRecord) Start()                                    {}
+func (*nopRecord) Close()                                    {}
+func (*nopRecord) Wait() error                               { return nil }
+func (*nopRecord) Samples() (*resourcestypes.Samples, error) { return nil, nil }
+func (*nopRecord) CloseAsync(next func(context.Context) error) error {
+	return next(context.Background())
+}

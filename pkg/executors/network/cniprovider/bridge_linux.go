@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/bons/bons-ci/pkg/executors/network"
 	cni "github.com/containerd/go-cni"
 	"github.com/moby/buildkit/util/bklog"
-	"github.com/bons/bons-ci/pkg/executors/network"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
 )

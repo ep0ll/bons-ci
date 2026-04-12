@@ -27,7 +27,7 @@ type Filter interface {
 type NoopFilter struct{}
 
 func (NoopFilter) Include(_ string, _ bool) bool { return true }
-func (NoopFilter) RequiredPaths() []string        { return nil }
+func (NoopFilter) RequiredPaths() []string       { return nil }
 
 // PatternFilter implements [Filter] using include/exclude glob patterns and
 // required-path assertions.

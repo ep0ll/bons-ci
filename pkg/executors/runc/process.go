@@ -101,8 +101,8 @@ func (h *ProcessHandle) watchRequestContext(ctx context.Context, cancelRunc cont
 
 		case <-ctx.Done():
 			// Request was cancelled: kill the in-container process.
-			killCtx, killTimeout := context.WithCancelCause(context.Background()) //nolint:govet
-			killCtx, _ = context.WithTimeoutCause(killCtx, 7*time.Second, ErrKillTimeout)  //nolint:govet
+			killCtx, killTimeout := context.WithCancelCause(context.Background())         //nolint:govet
+			killCtx, _ = context.WithTimeoutCause(killCtx, 7*time.Second, ErrKillTimeout) //nolint:govet
 
 			killErr := h.killer.Kill(killCtx)
 			killTimeout(errors.WithStack(context.Canceled))

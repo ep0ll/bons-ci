@@ -9,15 +9,15 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/bons/bons-ci/pkg/executors"
+	"github.com/bons/bons-ci/pkg/executors/network"
 	"github.com/containerd/containerd/v2/core/containers"
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
 	"github.com/mitchellh/hashstructure/v2"
-	"github.com/bons/bons-ci/pkg/executors"
 	"github.com/moby/buildkit/snapshot"
 	"github.com/moby/buildkit/solver/llbsolver/cdidevices"
-	"github.com/bons/bons-ci/pkg/executors/network"
 	rootlessmountopts "github.com/moby/buildkit/util/rootless/mountopts"
 	"github.com/moby/buildkit/util/system"
 	traceexec "github.com/moby/buildkit/util/tracing/exec"
@@ -298,8 +298,8 @@ func GenerateSpec(
 //
 // Two cgroup path formats are supported:
 //
-//  systemd slice:  "system.slice:" → "system.slice:{id}"
-//  plain path:     "buildkit"      → "/buildkit/buildkit/{id}"
+//	systemd slice:  "system.slice:" → "system.slice:{id}"
+//	plain path:     "buildkit"      → "/buildkit/buildkit/{id}"
 func appendCgroupOpt(opts []oci.SpecOpts, meta executor.Meta, cgroupParent, id string) ([]oci.SpecOpts, error) {
 	if meta.CgroupParent != "" {
 		cgroupParent = meta.CgroupParent

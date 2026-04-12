@@ -20,7 +20,7 @@ type Config struct {
 	TouchRefresh      time.Duration
 	EndpointURL       string
 	AccessKeyID       string
-	SecretAccessKey    string
+	SecretAccessKey   string
 	SessionToken      string
 	UsePathStyle      bool
 	UploadParallelism int
@@ -122,7 +122,7 @@ func ParseConfig(attrs map[string]string) (Config, error) {
 		TouchRefresh:      touchRefresh,
 		EndpointURL:       attrs[attrEndpointURL],
 		AccessKeyID:       attrs[attrAccessKeyID],
-		SecretAccessKey:    attrs[attrSecretAccessKey],
+		SecretAccessKey:   attrs[attrSecretAccessKey],
 		SessionToken:      attrs[attrSessionToken],
 		UsePathStyle:      usePathStyle,
 		UploadParallelism: uploadParallelism,

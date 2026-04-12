@@ -1,34 +1,33 @@
 package fshash
 
 import (
-	"hash"
 	"runtime"
 	"sync"
 	"unsafe"
 )
 
-// ── Tiered buffer pools ───────────────────────────────────────────────────────
+// Tiered buffer pools — SKILL §2.
 //
-// Three pools cover the common file-size distribution:
+// Buffer tiers are chosen to match OS read-ahead windows and disk bandwidth:
+//   - smallBuf  (4 KiB):  tiny files; fits in a single read syscall.
+//   - mediumBuf (64 KiB): source/config files; one or two reads.
+//   - largeBuf  (1 MiB):  binaries and data; saturates sequential I/O.
+//   - xlargeBuf (4 MiB):  large blobs; maximises read bandwidth.
 //
-//   small  (  4 KiB) — config files, source code, tiny assets
-//   medium ( 64 KiB) — typical binary/data files          [default]
-//   large  (  1 MiB) — media, archives, large blobs
-//
-// Callers obtain the smallest pool whose buffer fits the file.  Using an
-// oversized buffer wastes memory and increases GC scan time; an undersized
-// buffer forces multiple Read syscalls.
-
+// getBufForSize(0) MUST return small pool (SKILL §2 invariant).
+// getBuf()          MUST return large pool (streaming where size is unknown).
 const (
-	smallBufSize  = 4 * 1024    //   4 KiB
-	mediumBufSize = 64 * 1024   //  64 KiB
-	largeBufSize  = 1024 * 1024 //   1 MiB
+	smallBufSize  = 4 * 1024        // 4 KiB
+	mediumBufSize = 64 * 1024       // 64 KiB
+	largeBufSize  = 1 * 1024 * 1024 // 1 MiB
+	xlargeBufSize = 4 * 1024 * 1024 // 4 MiB
 )
 
 var (
 	smallPool  = newBufPool(smallBufSize)
 	mediumPool = newBufPool(mediumBufSize)
 	largePool  = newBufPool(largeBufSize)
+	xlargePool = newBufPool(xlargeBufSize)
 )
 
 func newBufPool(size int) *sync.Pool {
@@ -38,55 +37,56 @@ func newBufPool(size int) *sync.Pool {
 	}}
 }
 
-// getBufForSize returns a buffer appropriate for reading a file of the given
-// size.  The caller MUST return it with putBuf using the same size.
+// getBufForSize returns the SMALLEST pool whose buffer fits size bytes.
+// size <= 0 returns the small pool (covers empty files and zero-size queries).
 func getBufForSize(size int64) (*[]byte, int64) {
 	switch {
-	case size > 0 && size <= smallBufSize:
+	case size <= smallBufSize:
 		return smallPool.Get().(*[]byte), smallBufSize
 	case size <= mediumBufSize:
 		return mediumPool.Get().(*[]byte), mediumBufSize
-	default:
+	case size <= largeBufSize:
 		return largePool.Get().(*[]byte), largeBufSize
+	default:
+		return xlargePool.Get().(*[]byte), xlargeBufSize
 	}
 }
 
-// putBuf returns a buffer to its originating pool.
+// getBuf returns a 1 MiB large buffer for streaming / unknown-size reads
+// (used by HashReader). SKILL §2: "unknown size → large pool".
+func getBuf() (*[]byte, int64) {
+	return largePool.Get().(*[]byte), largeBufSize
+}
+
+// putBuf returns b to the correct pool, keyed by cap(*b).
+// A buffer that does not match any known size goes to xlargePool (best-effort).
 func putBuf(b *[]byte) {
 	switch cap(*b) {
 	case smallBufSize:
 		smallPool.Put(b)
 	case mediumBufSize:
 		mediumPool.Put(b)
-	default:
+	case largeBufSize:
 		largePool.Put(b)
+	default:
+		xlargePool.Put(b)
 	}
 }
 
-// ── Zero-alloc digest sink ────────────────────────────────────────────────────
-//
-// hash.Hash.Sum(b) appends the hash to b and returns the extended slice.
-// Using Sum(nil) always allocates a new []byte.  Using Sum(buf[:0]) where buf
-// is a stack-allocated array re-uses stack memory — the GC never sees it.
-// We expose this pattern via digestSink which callers embed on the stack.
+// ── digest helpers ────────────────────────────────────────────────────────────
 
-// maxDigestSize is the largest hash output we support (SHA-512 = 64 bytes).
+// maxDigestSize covers SHA-512 (64 B), Blake3 (32 B), xxHash3/64 (8 B),
+// CRC32C (4 B). Stack-allocate once; never reallocate for any built-in algo.
 const maxDigestSize = 64
 
-// digestSink is a stack-allocated accumulator for hash.Sum output.
-// Zero-value is ready to use.
-type digestSink struct {
-	buf [maxDigestSize]byte
-}
+// digestSink is a stack-allocated buffer for zero-alloc h.Sum output.
+// SKILL §5: avoids one heap allocation per file digest.
+type digestSink struct{ buf [maxDigestSize]byte }
 
-// sum calls h.Sum into the sink's backing array and returns the live slice.
-// The returned slice is valid until the next call to sum or until the sink
-// goes out of scope — callers that need to store the digest must copy it.
 func (s *digestSink) sum(h interface{ Sum(b []byte) []byte }) []byte {
 	return h.Sum(s.buf[:0])
 }
 
-// clone returns a heap copy of the digest (safe to escape the stack frame).
 func cloneDigest(d []byte) []byte {
 	cp := make([]byte, len(d))
 	copy(cp, d)
@@ -94,33 +94,23 @@ func cloneDigest(d []byte) []byte {
 }
 
 // ── workerPool ────────────────────────────────────────────────────────────────
-//
-// Design:
-//   - Fixed number of goroutines (= Workers option, capped at 64).
-//   - Work items transmitted as func() over a buffered channel.
-//   - Channel buffer = Workers*8 so producers rarely block.
-//   - No context parameter — callers check ctx.Err() inside the func.
-//   - stop() closes the channel; goroutines drain and exit cleanly.
-//
-// False-sharing avoidance: the WaitGroup counter is in a separate cache line
-// from the channel pointer by padding the struct.
 
+// workerPool — SKILL §10: fixed goroutines, buffered channel, close-to-stop.
+//
+// The 56-byte pad between jobs and wg places them on separate cache lines,
+// eliminating false sharing between the producer (writing to jobs) and the
+// workers (decrementing the WaitGroup counter).
 type workerPool struct {
 	jobs chan func()
-	// Pad to a cache line to avoid false sharing between the channel header
-	// (pointer, 8 bytes) and the WaitGroup counter on adjacent cache lines.
-	// chan header is 8 bytes on 64-bit; pad 56 bytes to reach 64-byte alignment.
-	_  [56]byte
-	wg sync.WaitGroup
+	_    [56]byte // cache-line pad: sizeof(chan) = 8; pad to 64-byte boundary
+	wg   sync.WaitGroup
 }
 
 func newWorkerPool(n int) *workerPool {
 	if n < 1 {
 		n = runtime.NumCPU()
 	}
-	wp := &workerPool{
-		jobs: make(chan func(), n*8),
-	}
+	wp := &workerPool{jobs: make(chan func(), n*8)}
 	for range n {
 		wp.wg.Add(1)
 		go func() {
@@ -133,37 +123,23 @@ func newWorkerPool(n int) *workerPool {
 	return wp
 }
 
-// submit enqueues fn.  Blocks when the internal queue is full.
-// Must not be called after stop().
 func (wp *workerPool) submit(fn func()) { wp.jobs <- fn }
+func (wp *workerPool) stop()            { close(wp.jobs); wp.wg.Wait() }
 
-// stop drains the queue and waits for all goroutines to exit.
-// Must be called exactly once.
-func (wp *workerPool) stop() {
-	close(wp.jobs)
-	wp.wg.Wait()
-}
+// ── string/byte write helpers ─────────────────────────────────────────────────
 
-// getBuf returns a medium-sized (64 KiB) buffer from the shared pool.
-// Use this when the file size is unknown (e.g. streaming readers).
-// The caller must return the buffer with putBuf.
-func getBuf() *[]byte { return mediumPool.Get().(*[]byte) }
-
-// ── String → hash write without []byte alloc ─────────────────────────────────
-//
-// hash.Hash embeds io.Writer.  io.WriteString checks whether the writer
-// implements io.StringWriter and avoids the []byte conversion if it does.
-// Standard library hash implementations (sha256 etc.) do NOT implement
-// io.StringWriter, so we use unsafe.Slice to produce a []byte header over
-// the string's backing storage without copying.
-
-// writeString writes s to h without allocating a []byte intermediate.
-// h must be a hash.Hash; the broader interface is kept for zero-cast convenience.
-func writeString(h hash.Hash, s string) {
+// writeString writes s to h with zero allocation via unsafe.Slice.
+// SKILL §5: avoids a []byte copy per name in hashDir.
+func writeString(h interface{ Write([]byte) (int, error) }, s string) {
 	if len(s) == 0 {
 		return
 	}
-	//nolint:gosec // safe: slice shares string's memory for the Write call duration
-	b := unsafe.Slice(unsafe.StringData(s), len(s))
-	mustWrite(h, b)
+	b := unsafe.Slice(unsafe.StringData(s), len(s)) //nolint:gosec
+	mustWriteBytes(h, b)
+}
+
+func mustWriteBytes(h interface{ Write([]byte) (int, error) }, p []byte) {
+	if _, err := h.Write(p); err != nil {
+		panic("fshash: hash.Write: " + err.Error())
+	}
 }

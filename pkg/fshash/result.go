@@ -77,8 +77,6 @@ func (r Result) Equal(other Result) bool {
 	return true
 }
 
-
-
 // ── Error types ───────────────────────────────────────────────────────────────
 
 // String returns a human-readable summary of the diff.

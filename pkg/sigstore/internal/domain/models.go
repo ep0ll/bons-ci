@@ -15,8 +15,8 @@ type SigningResult struct {
 // KeySpec identifies which key (or key-flow) to use for signing.
 // An empty Name implies keyless (Fulcio) signing.
 type KeySpec struct {
-	Name     string // logical name, resolved by KeyProvider
-	KMSPath  string // e.g. gcpkms://...; empty for static keys
+	Name      string // logical name, resolved by KeyProvider
+	KMSPath   string // e.g. gcpkms://...; empty for static keys
 	IsKeyless bool
 }
 

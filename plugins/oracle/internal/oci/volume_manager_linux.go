@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/sys/unix"
 	"go.uber.org/zap"
+	"golang.org/x/sys/unix"
 )
 
 // waitForDevicePlatform uses Linux inotify on /dev so we react in < 1ms

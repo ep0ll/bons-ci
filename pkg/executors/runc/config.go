@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	oci "github.com/bons/bons-ci/pkg/executors/spec"
 	"github.com/bons/bons-ci/pkg/executors/resources"
+	oci "github.com/bons/bons-ci/pkg/executors/spec"
 	"github.com/moby/buildkit/solver/llbsolver/cdidevices"
 	"github.com/moby/sys/user"
 	"github.com/pkg/errors"

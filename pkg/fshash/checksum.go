@@ -17,16 +17,13 @@ import (
 	"sync/atomic"
 )
 
-// ── Checksummer ───────────────────────────────────────────────────────────────
-
-// Checksummer computes reproducible digests for files and directory trees.
-// Create one with [New] and reuse it across calls; it is safe for concurrent
-// use.
+// Checksummer computes reproducible, hermetic digests for files and directory
+// trees. Create with New and reuse across calls; safe for concurrent use.
 type Checksummer struct {
 	opts Options
 }
 
-// New creates a [Checksummer] configured with the provided options.
+// New creates a Checksummer from the provided options.
 func New(opts ...Option) (*Checksummer, error) {
 	var o Options
 	for _, opt := range opts {
@@ -38,7 +35,7 @@ func New(opts ...Option) (*Checksummer, error) {
 	return &Checksummer{opts: o}, nil
 }
 
-// MustNew is like [New] but panics on error.
+// MustNew is like New but panics on error.
 func MustNew(opts ...Option) *Checksummer {
 	cs, err := New(opts...)
 	if err != nil {
@@ -47,17 +44,12 @@ func MustNew(opts ...Option) *Checksummer {
 	return cs
 }
 
-// Options returns a copy of the options used by this Checksummer.
+// Options returns a copy of the configuration (safe to mutate).
 func (cs *Checksummer) Options() Options { return cs.opts }
 
-// Sum computes the checksum of the file or directory rooted at absPath.
-//
-// Digest derivation:
-//   - Regular file:  H(meta-header || file-content)
-//   - Directory:     H(dir-meta-header || child₁-name NUL child₁-digest …)
-//   - Symlink (no follow): H(meta-header || link-target)
-//
-// Sum is safe for concurrent use.
+// Sum computes the checksum of the file or directory at absPath.
+// SKILL §1: digest depends only on content, MetaFlag, Algorithm, and the
+// compile-time shardThreshold constant — never on worker count.
 func (cs *Checksummer) Sum(ctx context.Context, absPath string) (Result, error) {
 	fi, err := cs.opts.Walker.Lstat(absPath)
 	if err != nil {
@@ -80,9 +72,8 @@ func (cs *Checksummer) Sum(ctx context.Context, absPath string) (Result, error) 
 		}
 	}
 
-	// When FollowSymlinks is false, no cycle can occur via symlinks
-	// (they are hashed as leaves).  Pass a nil visited map to save the
-	// alloc + clone cost on every recursive directory call.
+	// SKILL §8: when FollowSymlinks=false, symlinks are leaves — no cycles
+	// possible; skip visited-map allocation and cloning entirely.
 	var visited map[string]struct{}
 	if cs.opts.FollowSymlinks {
 		visited = make(map[string]struct{}, 8)
@@ -95,20 +86,21 @@ func (cs *Checksummer) Sum(ctx context.Context, absPath string) (Result, error) 
 
 	if cs.opts.CollectEntries {
 		mu.Lock()
-		// Sort with "." last (root dir = bottom-up order).
+		// Sort with "." (root dir) LAST — natural bottom-up traversal order.
 		slices.SortFunc(entries, func(a, b EntryResult) int {
-			switch {
-			case a.RelPath == ".":
+			if a.RelPath == "." {
 				return 1
-			case b.RelPath == ".":
-				return -1
-			case a.RelPath < b.RelPath:
-				return -1
-			case a.RelPath > b.RelPath:
-				return 1
-			default:
-				return 0
 			}
+			if b.RelPath == "." {
+				return -1
+			}
+			if a.RelPath < b.RelPath {
+				return -1
+			}
+			if a.RelPath > b.RelPath {
+				return 1
+			}
+			return 0
 		})
 		mu.Unlock()
 	}
@@ -117,7 +109,6 @@ func (cs *Checksummer) Sum(ctx context.Context, absPath string) (Result, error) 
 }
 
 // Verify computes the digest of absPath and compares it to expected.
-// Returns nil on match, *[VerifyError] on mismatch.
 func (cs *Checksummer) Verify(ctx context.Context, absPath string, expected []byte) error {
 	res, err := cs.Sum(ctx, absPath)
 	if err != nil {
@@ -129,7 +120,7 @@ func (cs *Checksummer) Verify(ctx context.Context, absPath string, expected []by
 	return nil
 }
 
-// VerifyError is returned by [Checksummer.Verify] on a digest mismatch.
+// VerifyError is returned by Checksummer.Verify on a digest mismatch.
 type VerifyError struct {
 	Path string
 	Got  []byte
@@ -140,7 +131,17 @@ func (e *VerifyError) Error() string {
 	return fmt.Sprintf("fshash: verify %q: got %x, want %x", e.Path, e.Got, e.Want)
 }
 
-// ── Internal recursive hasher ─────────────────────────────────────────────────
+// ── sharding constants ────────────────────────────────────────────────────────
+//
+// SKILL §1+§3: shardThreshold is compile-time; mode selection is a function
+// of file SIZE alone, guaranteeing identical digests across all worker counts.
+
+const (
+	shardThreshold = 4 * 1024 * 1024 // 4 MiB: files >= this use shard mode
+	shardSize      = 1 * 1024 * 1024 // 1 MiB per parallel shard
+)
+
+// ── internal dispatcher ───────────────────────────────────────────────────────
 
 func (cs *Checksummer) sum(
 	ctx context.Context,
@@ -163,37 +164,19 @@ func (cs *Checksummer) sum(
 	return cs.hashFile(absPath, relPath, fi, collect)
 }
 
-// ── hashFile ─────────────────────────────────────────────────────────────────
-//
-// Optimisations:
-//   - SizeLimit check before any I/O
-//   - FileCache check before opening the file
-//   - Tiered buffer pool: 4KB / 64KB / 1MB based on file size
-//   - Zero-alloc digest: stack-allocated digestSink, heap-copy only on store
-//   - Large-file shard hashing (>= shardThreshold): parallel ReadAt over N
-//     fixed-size shards; results combined deterministically (order by shard
-//     index) so the digest is identical regardless of worker count
-//   - Explicit resource release (no defer in tight path)
-
-// shardThreshold is the minimum file size for parallel shard hashing.
-// Below this threshold sequential reading is faster due to goroutine overhead.
-const shardThreshold = 4 * 1024 * 1024 // 4 MiB
-
-// shardSize is the size of each parallel read chunk.
-const shardSize = 1 * 1024 * 1024 // 1 MiB
+// ── hashFile ──────────────────────────────────────────────────────────────────
 
 func (cs *Checksummer) hashFile(
 	absPath, relPath string,
 	fi fs.FileInfo,
 	collect func(EntryResult),
 ) ([]byte, error) {
-	// ── size limit ────────────────────────────────────────────────────────────
 	fileSize := fi.Size()
+
 	if cs.opts.SizeLimit > 0 && fileSize > cs.opts.SizeLimit {
 		return nil, &FileTooLargeError{Path: absPath, Size: fileSize, Limit: cs.opts.SizeLimit}
 	}
 
-	// ── cache check ───────────────────────────────────────────────────────────
 	if cs.opts.FileCache != nil {
 		if cached, ok := cs.opts.FileCache.Get(absPath); ok {
 			collect(EntryResult{RelPath: relPath, Kind: KindFile, Digest: cached})
@@ -204,11 +187,13 @@ func (cs *Checksummer) hashFile(
 	h := cs.opts.Hasher.New()
 	writeMetaHeader(h, fi, cs.opts.Meta, "")
 
-	if fi.Mode().IsRegular() && fileSize > 0 {
-		var dgst []byte
-		var hashErr error
+	var dgst []byte
 
-		if fileSize >= shardThreshold && cs.opts.Workers > 1 {
+	if fi.Mode().IsRegular() && fileSize > 0 {
+		var hashErr error
+		// SKILL §1+§3: shard mode triggered by file SIZE alone — never by
+		// Workers — guaranteeing digest idempotency across configurations.
+		if fileSize >= shardThreshold {
 			dgst, hashErr = cs.hashFileSharded(h, absPath, fileSize)
 		} else {
 			hashErr = cs.hashFileSequential(h, absPath, fileSize)
@@ -216,22 +201,13 @@ func (cs *Checksummer) hashFile(
 		if hashErr != nil {
 			return nil, hashErr
 		}
-
-		if dgst == nil {
-			var sink digestSink
-			dgst = cloneDigest(sink.sum(h))
-		}
-
-		if cs.opts.FileCache != nil {
-			cs.opts.FileCache.Set(absPath, dgst)
-		}
-		collect(EntryResult{RelPath: relPath, Kind: KindFile, Digest: dgst})
-		return dgst, nil
 	}
 
-	// Zero-size or non-regular file (device, FIFO…) — hash metadata only.
-	var sink digestSink
-	dgst := cloneDigest(sink.sum(h))
+	if dgst == nil {
+		var sink digestSink
+		dgst = cloneDigest(sink.sum(h))
+	}
+
 	if cs.opts.FileCache != nil {
 		cs.opts.FileCache.Set(absPath, dgst)
 	}
@@ -239,54 +215,52 @@ func (cs *Checksummer) hashFile(
 	return dgst, nil
 }
 
-// hashFileSequential reads the file once with a pooled buffer.
+// hashFileSequential reads the file with a pooled buffer (SKILL §2+§4).
 func (cs *Checksummer) hashFileSequential(h hash.Hash, absPath string, size int64) error {
-	f, err := os.Open(absPath) //nolint:gosec
+	f, err := openForHash(absPath, size) // SKILL §4: O_NOATIME + fadvise
 	if err != nil {
 		return fmt.Errorf("fshash: open %q: %w", absPath, err)
 	}
-
-	buf, _ := getBufForSize(size)
+	buf, _ := getBufForSize(size) // SKILL §2: smallest fitting tier
 	_, err = io.CopyBuffer(h, f, *buf)
 	putBuf(buf)
+	releasePageCache(f, size) // SKILL §4: drop pages after hashing
 	f.Close()
-
 	if err != nil {
 		return fmt.Errorf("fshash: read %q: %w", absPath, err)
 	}
 	return nil
 }
 
-// hashFileSharded hashes a large file using parallel ReadAt calls.
+// hashFileSharded hashes a large file using parallel pread calls (SKILL §3).
 //
-// Algorithm (deterministic regardless of CPU count):
-//  1. Divide the file into ceil(size/shardSize) shards.
-//  2. Hash each shard independently in parallel using ReadAt.
-//  3. Write each shard's digest into h in index order, producing the
-//     combined file hash.
-//
-// The "shard-mode" sentinel distinguishes this from a sequential hash of the
-// same content, so callers are not surprised by digest changes when
-// shardThreshold is crossed (files exactly at the boundary always use
-// sequential mode).
+// Algorithm (DETERMINISTIC regardless of worker count — SKILL §1):
+//  1. Divide into ceil(size/shardSize) chunks.
+//  2. Hash each chunk independently in parallel via File.ReadAt (= pread(2),
+//     safe to call concurrently on the same fd, no seek-position races).
+//  3. Combine shard digests in INDEX ORDER with a sentinel:
+//     H(masterHash | 0xFE | nShards_BE32 | shardSize_BE32 | d_0 | d_1 … d_N)
 func (cs *Checksummer) hashFileSharded(h hash.Hash, absPath string, size int64) ([]byte, error) {
-	f, err := os.Open(absPath) //nolint:gosec
+	f, err := openForHash(absPath, size)
 	if err != nil {
 		return nil, fmt.Errorf("fshash: open %q: %w", absPath, err)
 	}
-	defer f.Close()
+	defer func() {
+		releasePageCache(f, size)
+		f.Close()
+	}()
 
 	nShards := int((size + shardSize - 1) / shardSize)
 	shardDigests := make([][]byte, nShards)
 	shardErrs := make([]error, nShards)
 
-	// Use min(Workers, nShards, NumCPU) goroutines to avoid over-subscription.
+	// Bound concurrency: min(Workers, nShards, NumCPU).
 	concurrency := cs.opts.Workers
 	if concurrency > nShards {
 		concurrency = nShards
 	}
-	if concurrency > runtime.NumCPU() {
-		concurrency = runtime.NumCPU()
+	if maxCPU := runtime.NumCPU(); concurrency > maxCPU {
+		concurrency = maxCPU
 	}
 
 	sem := make(chan struct{}, concurrency)
@@ -295,9 +269,9 @@ func (cs *Checksummer) hashFileSharded(h hash.Hash, absPath string, size int64) 
 	for i := range nShards {
 		i := i
 		offset := int64(i) * shardSize
-		length := shardSize
-		if remaining := size - offset; remaining < int64(length) {
-			length = int(remaining)
+		chunkLen := shardSize
+		if remaining := size - offset; remaining < int64(chunkLen) {
+			chunkLen = int(remaining)
 		}
 
 		wg.Add(1)
@@ -305,23 +279,19 @@ func (cs *Checksummer) hashFileSharded(h hash.Hash, absPath string, size int64) 
 		go func() {
 			defer func() { <-sem; wg.Done() }()
 
-			// Use a pooled large buffer; length ≤ shardSize = largeBufSize.
-			pb := largePool.Get().(*[]byte)
-			buf := (*pb)[:length]
-			_, readErr := f.ReadAt(buf, offset)
+			buf, _ := getBufForSize(int64(chunkLen))
+			b := (*buf)[:chunkLen]
 
-			// Hash the shard data while the buffer is still live.
-			sh := cs.opts.Hasher.New()
-			mustWrite(sh, buf)
-
-			// Return the buffer to the pool before storing the digest so
-			// the GC can reclaim it quickly even under high concurrency.
-			largePool.Put(pb)
-
-			if readErr != nil && readErr != io.EOF {
+			if _, readErr := f.ReadAt(b, offset); readErr != nil && readErr != io.EOF {
 				shardErrs[i] = fmt.Errorf("fshash: shard %d read %q: %w", i, absPath, readErr)
+				putBuf(buf)
 				return
 			}
+
+			sh := cs.opts.Hasher.New()
+			mustWrite(sh, b)
+			putBuf(buf)
+
 			var sink digestSink
 			shardDigests[i] = cloneDigest(sink.sum(sh))
 		}()
@@ -334,20 +304,19 @@ func (cs *Checksummer) hashFileSharded(h hash.Hash, absPath string, size int64) 
 		}
 	}
 
-	// Write shard-mode sentinel so this digest is distinguishable from a
-	// sequential hash of the same bytes.
+	// Shard-mode sentinel: 0xFE | nShards_BE32 | shardSize_BE32.
+	// Distinguishes sharded digests from sequential digests of the same bytes.
 	//
-	// Layout (9 bytes, big-endian):
-	//   [0]    0xFE  shard-mode marker
-	//   [1:5]  uint32  number of shards
-	//   [5:9]  uint32  shard size in bytes
+	// BUG FIX: shardSize = 1<<20 = 1048576, so byte(shardSize>>8) = byte(4096)
+	// overflows at compile time. Use binary.BigEndian.PutUint32 to encode into
+	// a typed uint32 first; runtime truncation to byte is well-defined.
 	var sentinel [9]byte
 	sentinel[0] = 0xFE
 	binary.BigEndian.PutUint32(sentinel[1:5], uint32(nShards))
 	binary.BigEndian.PutUint32(sentinel[5:9], uint32(shardSize))
 	mustWrite(h, sentinel[:])
 
-	// Combine shard digests in deterministic order.
+	// Combine in DETERMINISTIC INDEX ORDER (SKILL §1).
 	for _, sd := range shardDigests {
 		mustWrite(h, sd)
 	}
@@ -382,7 +351,7 @@ func (cs *Checksummer) hashSymlink(
 	}
 
 	if target == "" {
-		return nil, fmt.Errorf("fshash: cannot follow symlink %q: walker returned empty target", absPath)
+		return nil, fmt.Errorf("fshash: cannot follow symlink %q: walker returned empty target (does the Walker support ReadSymlink?)", absPath)
 	}
 
 	resolved := target
@@ -405,15 +374,6 @@ func (cs *Checksummer) hashSymlink(
 }
 
 // ── hashDir ───────────────────────────────────────────────────────────────────
-//
-// Optimisations:
-//   - Skips defensive sort when Walker.IsSorted() returns true
-//   - Uses slices.SortFunc (generic, inlined compare) instead of sort.Slice
-//   - Fast path path join: single string concat instead of filepath.Join
-//   - Atomic first-error propagation: no errs slice; uses atomic pointer
-//   - Avoids cloneVisited when FollowSymlinks=false (visited == nil)
-//   - Single NUL-terminated write per child name (writeString + NUL byte)
-//   - Zero-alloc digest via stack-based digestSink
 
 func (cs *Checksummer) hashDir(
 	ctx context.Context,
@@ -428,21 +388,18 @@ func (cs *Checksummer) hashDir(
 		return nil, fmt.Errorf("fshash: readdir %q: %w", absPath, err)
 	}
 
-	// Sort only when the Walker does not guarantee order.
+	// SKILL §6: skip O(n log n) sort when Walker guarantees sorted output.
 	if !cs.opts.Walker.IsSorted() {
 		slices.SortFunc(des, func(a, b fs.DirEntry) int {
-			switch {
-			case a.Name() < b.Name():
+			if a.Name() < b.Name() {
 				return -1
-			case a.Name() > b.Name():
-				return 1
-			default:
-				return 0
 			}
+			if a.Name() > b.Name() {
+				return 1
+			}
+			return 0
 		})
 	}
-
-	// ── Phase 1: resolve metadata, apply filter ───────────────────────────────
 
 	type child struct {
 		name            string
@@ -454,12 +411,17 @@ func (cs *Checksummer) hashDir(
 	}
 
 	children := make([]child, 0, len(des))
-	sep := string(os.PathSeparator)
 
 	for _, de := range des {
 		name := de.Name()
-		// Fast path join: absPath is already clean, name has no separators.
-		childAbs := absPath + sep + name
+
+		// SKILL §7: fast-path join; handle "." root for FSWalker correctness.
+		var childAbs string
+		if absPath == "." {
+			childAbs = name
+		} else {
+			childAbs = absPath + string(os.PathSeparator) + name
+		}
 		childRel := joinRelPath(relPath, name)
 
 		info, err := de.Info()
@@ -483,17 +445,10 @@ func (cs *Checksummer) hashDir(
 		})
 	}
 
-	// ── Phase 2: compute digests ──────────────────────────────────────────────
-	//
-	// Files → worker pool (I/O-bound, can overlap).
-	// Dirs/symlinks → calling goroutine (must isolate visited state).
-	//
-	// Error propagation: atomic pointer to the first error avoids allocating a
-	// full []error slice (the common path has zero errors).
-
 	results := make([][]byte, len(children))
 	var firstErr atomic.Pointer[error]
 
+	// Files → worker pool (I/O-bound, can overlap).
 	var wg sync.WaitGroup
 	for i, c := range children {
 		if c.kind != KindFile && c.kind != KindOther {
@@ -516,16 +471,31 @@ func (cs *Checksummer) hashDir(
 		})
 	}
 
+	nul := []byte{0x00}
+
+	// Dirs/symlinks → calling goroutine (isolates visited state without locking).
 	for i, c := range children {
 		if c.kind == KindFile || c.kind == KindOther {
 			continue
 		}
-		// Only clone visited when we actually follow symlinks.
+
+		// SKILL §8 (ExcludeDir): recurse but suppress the directory node's
+		// own collect call; children at deeper relPaths pass through unchanged.
+		childCollect := collect
+		if !c.includeInParent {
+			selfRelPath := c.relPath
+			childCollect = func(e EntryResult) {
+				if e.RelPath != selfRelPath {
+					collect(e)
+				}
+			}
+		}
+
 		var childVisited map[string]struct{}
 		if visited != nil {
 			childVisited = cloneVisited(visited)
 		}
-		dgst, err := cs.sum(ctx, wp, c.absPath, c.relPath, c.fi, childVisited, collect)
+		dgst, err := cs.sum(ctx, wp, c.absPath, c.relPath, c.fi, childVisited, childCollect)
 		results[i] = dgst
 		if err != nil {
 			wg.Wait()
@@ -539,16 +509,9 @@ func (cs *Checksummer) hashDir(
 		return nil, *ep
 	}
 
-	// ── Phase 3: combine in sorted-name order ─────────────────────────────────
-	//
-	// Format: H( dir-meta | name₁ NUL digest₁ … nameₙ NUL digestₙ )
-	//
-	// The NUL byte between name and digest prevents ambiguity between
-	// "abc" + digest and "ab" + "c" + digest.
-
+	// Combine: H( dir-meta | name_1 NUL d_1 … name_n NUL d_n )
 	h := cs.opts.Hasher.New()
 	writeMetaHeader(h, fi, cs.opts.Meta, "")
-	nul := []byte{0x00}
 	for i, c := range children {
 		if !c.includeInParent {
 			continue
@@ -564,7 +527,7 @@ func (cs *Checksummer) hashDir(
 	return dgst, nil
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 func joinRelPath(parent, name string) string {
 	if parent == "." || parent == "" {
@@ -597,7 +560,7 @@ func cloneVisited(m map[string]struct{}) map[string]struct{} {
 
 // ── Convenience API ───────────────────────────────────────────────────────────
 
-// FileDigest returns the SHA-256 digest of a single file at absPath.
+// FileDigest returns the digest of a single file.
 func FileDigest(ctx context.Context, absPath string, opts ...Option) ([]byte, error) {
 	cs, err := New(append([]Option{WithWorkers(1)}, opts...)...)
 	if err != nil {
@@ -610,7 +573,7 @@ func FileDigest(ctx context.Context, absPath string, opts ...Option) ([]byte, er
 	return res.Digest, nil
 }
 
-// DirDigest returns the digest of the directory tree rooted at absPath.
+// DirDigest returns the digest of a directory tree.
 func DirDigest(ctx context.Context, absPath string, opts ...Option) ([]byte, error) {
 	cs, err := New(opts...)
 	if err != nil {
@@ -625,15 +588,16 @@ func DirDigest(ctx context.Context, absPath string, opts ...Option) ([]byte, err
 
 // ── FileCache ─────────────────────────────────────────────────────────────────
 
-// FileCache maps absolute paths to previously computed digests.
-// Implementations must be safe for concurrent use.
+// FileCache maps absolute paths to pre-computed digests.
+// Implementations MUST be safe for concurrent use.
 type FileCache interface {
 	Get(absPath string) (digest []byte, ok bool)
 	Set(absPath string, digest []byte)
 	Invalidate(absPath string)
 }
 
-// MemoryCache is a thread-safe in-memory [FileCache].
+// MemoryCache is a thread-safe in-memory FileCache backed by sync.Map.
+// It never evicts entries; use MtimeCache for automatic invalidation.
 type MemoryCache struct{ m sync.Map }
 
 func (c *MemoryCache) Get(absPath string) ([]byte, bool) {
@@ -657,14 +621,14 @@ func (c *MemoryCache) InvalidateAll() {
 	c.m.Range(func(k, _ any) bool { c.m.Delete(k); return true })
 }
 
-// NewCachingChecksummer creates a [Checksummer] backed by cache.
+// NewCachingChecksummer creates a Checksummer backed by cache.
 func NewCachingChecksummer(cache FileCache, opts ...Option) (*Checksummer, error) {
 	return New(append([]Option{WithFileCache(cache)}, opts...)...)
 }
 
 // ── Diff ──────────────────────────────────────────────────────────────────────
 
-// DiffResult describes entry-level differences between two directory trees.
+// DiffResult describes entry-level differences between two trees.
 type DiffResult struct {
 	Added    []string
 	Removed  []string
@@ -722,7 +686,7 @@ func entryMap(entries []EntryResult) map[string][]byte {
 	m := make(map[string][]byte, len(entries))
 	for i := range entries {
 		if entries[i].RelPath == "." {
-			continue
+			continue // root represented by root digest, not in diff sets
 		}
 		m[entries[i].RelPath] = entries[i].Digest
 	}

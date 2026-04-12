@@ -108,9 +108,9 @@ func (s *splitContentStore) Status(ctx context.Context, ref string) (status cont
 // Update Updates read and write content.Store
 func (s *splitContentStore) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
 	var (
-		errs []error
+		errs     []error
 		lastInfo content.Info
-		updated bool
+		updated  bool
 	)
 	for _, scs := range s.wrts {
 		i, e := scs.Update(ctx, info, fieldpaths...)
@@ -139,7 +139,7 @@ func (s *splitContentStore) Writer(ctx context.Context, opts ...content.WriterOp
 		writers []content.Writer
 		errs    []error
 	)
-	
+
 	for _, scs := range s.wrts {
 		wrt, e := scs.Writer(ctx, opts...)
 		if e != nil {

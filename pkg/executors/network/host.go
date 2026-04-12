@@ -5,8 +5,8 @@ package network
 import (
 	"context"
 
-	"github.com/containerd/containerd/v2/pkg/oci"
 	resourcestypes "github.com/bons/bons-ci/pkg/executors/resources/types"
+	"github.com/containerd/containerd/v2/pkg/oci"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 

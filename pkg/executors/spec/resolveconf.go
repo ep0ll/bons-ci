@@ -147,14 +147,16 @@ func GetResolvConf(
 // network mode.
 //
 // HOST mode: always /etc/resolv.conf.
-//   The container shares the host network namespace so loopback addresses
-//   (127.0.0.53) are reachable.  See:
-//   https://github.com/moby/buildkit/pull/5207#discussion_r1705362230
+//
+//	The container shares the host network namespace so loopback addresses
+//	(127.0.0.53) are reachable.  See:
+//	https://github.com/moby/buildkit/pull/5207#discussion_r1705362230
 //
 // Non-HOST mode: if /etc/resolv.conf lists *only* 127.0.0.53, assume that
-//   systemd-resolved is managing DNS via its stub listener.  That listener is
-//   NOT reachable from inside a private network namespace, so use the upstream
-//   resolv.conf that systemd-resolved itself generates.
+//
+//	systemd-resolved is managing DNS via its stub listener.  That listener is
+//	NOT reachable from inside a private network namespace, so use the upstream
+//	resolv.conf that systemd-resolved itself generates.
 func selectHostResolvConf(netMode pb.NetMode) string {
 	if netMode == pb.NetMode_HOST {
 		return hostResolvConfDefault

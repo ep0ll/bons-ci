@@ -48,8 +48,8 @@ func TestAnnotationDescriptorParser_ParseFetchSpec_valid(t *testing.T) {
 func TestAnnotationDescriptorParser_ParseFetchSpec_missingRemote(t *testing.T) {
 	t.Parallel()
 	cases := []ocispec.Descriptor{
-		{},                                        // nil annotations
-		{Annotations: map[string]string{}},        // no remote key
+		{},                                 // nil annotations
+		{Annotations: map[string]string{}}, // no remote key
 		{Annotations: map[string]string{AnnotationRemote: ""}}, // empty remote
 	}
 	parser := AnnotationDescriptorParser{}

@@ -42,7 +42,7 @@ func calculateSHA256FromFD(fd int) (string, error) {
 		return "", os.ErrInvalid
 	}
 	// We don't close f as the caller (handleEvent) manages the FD
-	
+
 	// Seek to beginning if possible
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		// Non-seekable file, just read what's left or return error

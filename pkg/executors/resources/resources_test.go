@@ -806,8 +806,8 @@ func TestAddUint64Ptr_Accumulates(t *testing.T) {
 func TestSysCPUStat_JSONRounding(t *testing.T) {
 	s := resourcestypes.SysCPUStat{
 		User:   1.23456789, // rounds to 1.235
-		System: 0.0001234, // rounds to 0.000 → omitted from output? No: still 0.000
-		Idle:   100.0005,  // rounds to 100.001
+		System: 0.0001234,  // rounds to 0.000 → omitted from output? No: still 0.000
+		Idle:   100.0005,   // rounds to 100.001
 	}
 	data, err := s.MarshalJSON()
 	require.NoError(t, err)

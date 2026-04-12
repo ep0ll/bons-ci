@@ -233,10 +233,10 @@ type captureContentWriter struct {
 	closed bool
 }
 
-func (c *captureContentWriter) Write(p []byte) (int, error)  { return c.w.Write(p) }
-func (c *captureContentWriter) Close() error                  { c.closed = true; return nil }
-func (c *captureContentWriter) Digest() digest.Digest         { return digest.FromBytes(c.w.Bytes()) }
-func (c *captureContentWriter) Truncate(_ int64) error        { c.w.Reset(); return nil }
+func (c *captureContentWriter) Write(p []byte) (int, error) { return c.w.Write(p) }
+func (c *captureContentWriter) Close() error                { c.closed = true; return nil }
+func (c *captureContentWriter) Digest() digest.Digest       { return digest.FromBytes(c.w.Bytes()) }
+func (c *captureContentWriter) Truncate(_ int64) error      { c.w.Reset(); return nil }
 func (c *captureContentWriter) Status() (content.Status, error) {
 	return content.Status{Offset: int64(c.w.Len())}, nil
 }

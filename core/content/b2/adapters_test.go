@@ -82,11 +82,11 @@ func TestObjectEntryAdaptor_Empty(t *testing.T) {
 
 func TestMapLookup(t *testing.T) {
 	tests := []struct {
-		name     string
-		fp       []string
-		m        map[string]string
-		wantVal  string
-		wantOK   bool
+		name    string
+		fp      []string
+		m       map[string]string
+		wantVal string
+		wantOK  bool
 	}{
 		{"nil fieldpath", nil, map[string]string{"a": "b"}, "", false},
 		{"nil map", []string{"a"}, nil, "", false},

@@ -19,7 +19,7 @@ const (
 	EventTypeSigningStarted    EventType = "signing.started"
 	EventTypeSigningSucceeded  EventType = "signing.succeeded"
 	EventTypeSigningFailed     EventType = "signing.failed"
-	EventTypeSigningDuplicate  EventType = "signing.duplicate"  // idempotency guard
+	EventTypeSigningDuplicate  EventType = "signing.duplicate" // idempotency guard
 	EventTypeRekorEntryCreated EventType = "rekor.entry.created"
 	EventTypeDeadLetter        EventType = "signing.dead_letter"
 )
@@ -27,11 +27,11 @@ const (
 // BaseEvent carries fields common to every event. Embed this in all events.
 // OccurredAt is set at construction and never mutated.
 type BaseEvent struct {
-	ID          string    `json:"id"`           // UUID v4, globally unique
-	CorrelationID string  `json:"correlation_id"` // traces a request end-to-end
-	OccurredAt  time.Time `json:"occurred_at"`
-	Type        EventType `json:"type"`
-	Version     int       `json:"version"` // schema version for forward-compat
+	ID            string    `json:"id"`             // UUID v4, globally unique
+	CorrelationID string    `json:"correlation_id"` // traces a request end-to-end
+	OccurredAt    time.Time `json:"occurred_at"`
+	Type          EventType `json:"type"`
+	Version       int       `json:"version"` // schema version for forward-compat
 }
 
 // --- concrete events --------------------------------------------------------
@@ -41,8 +41,8 @@ type BaseEvent struct {
 // derive their payload from this one.
 type SigningRequestedEvent struct {
 	BaseEvent
-	ImageRef   string            `json:"image_ref"`   // e.g. registry/repo:tag@digest
-	KeyHint    string            `json:"key_hint"`    // empty → keyless
+	ImageRef    string            `json:"image_ref"`   // e.g. registry/repo:tag@digest
+	KeyHint     string            `json:"key_hint"`    // empty → keyless
 	Annotations map[string]string `json:"annotations"` // passed through to cosign
 }
 
@@ -59,7 +59,7 @@ type SigningStartedEvent struct {
 type SigningSucceededEvent struct {
 	BaseEvent
 	ImageRef      string `json:"image_ref"`
-	SignatureRef  string `json:"signature_ref"`  // OCI ref where sig is pushed
+	SignatureRef  string `json:"signature_ref"`   // OCI ref where sig is pushed
 	RekorLogIndex int64  `json:"rekor_log_index"` // 0 if transparency log skipped
 	CertChain     string `json:"cert_chain"`      // PEM; empty for static-key flows
 	DurationMs    int64  `json:"duration_ms"`
@@ -69,10 +69,10 @@ type SigningSucceededEvent struct {
 // and dead-letter routing.
 type SigningFailedEvent struct {
 	BaseEvent
-	ImageRef    string `json:"image_ref"`
-	Reason      string `json:"reason"`      // human-readable
-	Retryable   bool   `json:"retryable"`   // false → route to dead-letter
-	AttemptNum  int    `json:"attempt_num"`
+	ImageRef   string `json:"image_ref"`
+	Reason     string `json:"reason"`    // human-readable
+	Retryable  bool   `json:"retryable"` // false → route to dead-letter
+	AttemptNum int    `json:"attempt_num"`
 }
 
 // SigningDuplicateEvent is emitted when the idempotency store rejects a

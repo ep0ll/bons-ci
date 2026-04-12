@@ -4,34 +4,34 @@
 //
 // # Semantics
 //
-//   upper directory = the MergedView (deletion target)
-//   lower directory = the reference baseline
+//	upper directory = the MergedView (deletion target)
+//	lower directory = the reference baseline
 //
-//   After Apply:
-//     upper keeps  : files that exist only in upper, OR that differ from lower
-//     upper removes: files whose content is identical in both lower and upper
-//                    (they are redundant — lower already carries the canonical copy)
+//	After Apply:
+//	  upper keeps  : files that exist only in upper, OR that differ from lower
+//	  upper removes: files whose content is identical in both lower and upper
+//	                 (they are redundant — lower already carries the canonical copy)
 //
 // # Relationship to the overlay model
 //
-//   In a standard lower/upper/merged overlay:
-//     merged = lower ∪ (upper overrides lower)
+//	In a standard lower/upper/merged overlay:
+//	  merged = lower ∪ (upper overrides lower)
 //
-//   This operation computes:
-//     upper' = upper − {paths where lower == upper}
+//	This operation computes:
+//	  upper' = upper − {paths where lower == upper}
 //
-//   That is: strip from upper everything that did not actually change relative
-//   to lower, leaving only the true diff layer.
+//	That is: strip from upper everything that did not actually change relative
+//	to lower, leaving only the true diff layer.
 //
 // # Wire-up
 //
-//   dirsync.NewClassifier(lower, upper)     → produces ExclusivePath + CommonPath streams
-//   dirsync.NewHashPipeline(...)            → enriches CommonPath with HashEqual
-//   dirsync.NewFSMergedView(upper)          → upper IS the target for deletions
-//   dirsync.NewBestBatcher(view)            → io_uring on Linux 5.11+, goroutine pool elsewhere
-//   dirsync.NewPipeline(...)
-//       WithExclusiveBatcher(NopBatcher)    → ignore lower-exclusive paths (they aren't in upper)
-//       WithCommonBatcher(batcher)          → delete hash-equal common paths from upper
+//	dirsync.NewClassifier(lower, upper)     → produces ExclusivePath + CommonPath streams
+//	dirsync.NewHashPipeline(...)            → enriches CommonPath with HashEqual
+//	dirsync.NewFSMergedView(upper)          → upper IS the target for deletions
+//	dirsync.NewBestBatcher(view)            → io_uring on Linux 5.11+, goroutine pool elsewhere
+//	dirsync.NewPipeline(...)
+//	    WithExclusiveBatcher(NopBatcher)    → ignore lower-exclusive paths (they aren't in upper)
+//	    WithCommonBatcher(batcher)          → delete hash-equal common paths from upper
 //
 // Note: exclusive paths (paths only in lower, not in upper) are ignored here
 // because they do not exist in upper — there is nothing to delete.

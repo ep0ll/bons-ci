@@ -14,11 +14,11 @@ type Topic string
 // Lifecycle topics emitted by the engine and pipeline.
 const (
 	// Scan lifecycle
-	TopicScanRequested  Topic = "sbom.scan.requested"
-	TopicScanStarted    Topic = "sbom.scan.started"
-	TopicScanProgress   Topic = "sbom.scan.progress"
-	TopicScanCompleted  Topic = "sbom.scan.completed"
-	TopicScanFailed     Topic = "sbom.scan.failed"
+	TopicScanRequested Topic = "sbom.scan.requested"
+	TopicScanStarted   Topic = "sbom.scan.started"
+	TopicScanProgress  Topic = "sbom.scan.progress"
+	TopicScanCompleted Topic = "sbom.scan.completed"
+	TopicScanFailed    Topic = "sbom.scan.failed"
 
 	// Resolve lifecycle
 	TopicResolveStarted   Topic = "sbom.resolve.started"

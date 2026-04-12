@@ -175,8 +175,8 @@ func BenchmarkStore_Writer_Concurrent(b *testing.B) {
 	})
 }
 
-func BenchmarkWriter_Write_LocalAsync_1KB(b *testing.B)  { benchWriterAsync(b, 1<<10) }
-func BenchmarkWriter_Write_LocalAsync_1MB(b *testing.B)  { benchWriterAsync(b, 1<<20) }
+func BenchmarkWriter_Write_LocalAsync_1KB(b *testing.B) { benchWriterAsync(b, 1<<10) }
+func BenchmarkWriter_Write_LocalAsync_1MB(b *testing.B) { benchWriterAsync(b, 1<<20) }
 
 func benchWriterAsync(b *testing.B, chunkSize int) {
 	b.Helper()
@@ -188,7 +188,9 @@ func benchWriterAsync(b *testing.B, chunkSize int) {
 		backend := newMockBackend()
 		local := newMockLocalStore()
 		s, err := New(backend, local, "docker.io/library/bench", WithRetryMax(1))
-		if err != nil { b.Fatal(err) }
+		if err != nil {
+			b.Fatal(err)
+		}
 		dgst := makeDigest(fmt.Sprintf("async-%d", i))
 		w, err := s.Writer(context.Background(), content.WithRef(dgst.String()))
 		if err != nil {

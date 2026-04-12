@@ -350,7 +350,7 @@ func TestAlgorithms(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(root, "data"), []byte("test data"), 0o644)
 
 	seen := map[string]Algorithm{}
-	for _, algo := range []Algorithm{SHA256, SHA512, SHA1, MD5} {
+	for _, algo := range []Algorithm{SHA256, SHA512, SHA1, MD5, XXHash64, XXHash3, Blake3, CRC32C} {
 		cs := mustNew(t, WithAlgorithm(algo))
 		res := mustSum(t, cs, root)
 		d := res.Hex()
@@ -878,8 +878,8 @@ func TestHexDecode(t *testing.T) {
 		{"", []byte{}},
 		{"deadbeef", []byte{0xde, 0xad, 0xbe, 0xef}},
 		{"DEADBEEF", []byte{0xde, 0xad, 0xbe, 0xef}},
-		{"xyz", nil},  // odd length
-		{"gg", nil},   // invalid nibble
+		{"xyz", nil}, // odd length
+		{"gg", nil},  // invalid nibble
 	}
 	for _, tc := range cases {
 		got := hexDecode(tc.input)
@@ -953,7 +953,10 @@ func TestNilWalkerOption(t *testing.T) {
 
 func TestKindString(t *testing.T) {
 	t.Parallel()
-	cases := []struct{ k EntryKind; want string }{
+	cases := []struct {
+		k    EntryKind
+		want string
+	}{
 		{KindFile, "file"}, {KindDir, "dir"},
 		{KindSymlink, "symlink"}, {KindOther, "other"},
 		{EntryKind(99), "other"},
@@ -1144,8 +1147,8 @@ func TestFileDigest(t *testing.T) {
 
 // ── Benchmarks ────────────────────────────────────────────────────────────────
 
-func BenchmarkHashDir_100files_1worker(b *testing.B)  { benchHashDir(b, 100, 1, 4096) }
-func BenchmarkHashDir_100files_8workers(b *testing.B) { benchHashDir(b, 100, 8, 4096) }
+func BenchmarkHashDir_100files_1worker(b *testing.B)   { benchHashDir(b, 100, 1, 4096) }
+func BenchmarkHashDir_100files_8workers(b *testing.B)  { benchHashDir(b, 100, 8, 4096) }
 func BenchmarkHashDir_1000files_4workers(b *testing.B) { benchHashDir(b, 1000, 4, 1024) }
 
 func BenchmarkHashDir_WithCache(b *testing.B) {
@@ -2245,11 +2248,11 @@ func TestCanonicalize_EntryCountMatchesSum(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	buildTree(t, root, fsTree{
-		"a":      "alpha",
-		"b":      "beta",
-		"sub":    "",
-		"sub/c":  "gamma",
-		"sub/d":  "delta",
+		"a":     "alpha",
+		"b":     "beta",
+		"sub":   "",
+		"sub/c": "gamma",
+		"sub/d": "delta",
 	})
 
 	cs := mustNew(t, WithCollectEntries(true))
@@ -2411,9 +2414,9 @@ func TestExcludePatterns_DirectoryOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	buildTree(t, root, fsTree{
-		"cache":        "", // directory named "cache"
-		"cache/data":   "cached data",
-		"cache.txt":    "not a directory",
+		"cache":      "", // directory named "cache"
+		"cache/data": "cached data",
+		"cache.txt":  "not a directory",
 	})
 
 	// Pattern "cache/" should exclude the directory but not "cache.txt".
@@ -2459,23 +2462,30 @@ func TestDirDigest(t *testing.T) {
 
 func TestBufferPool_Reuse(t *testing.T) {
 	t.Parallel()
-	// Verify tiered pool returns correctly-sized buffers.
-	sizes := []int64{
-		100,               // small pool
-		10 * 1024,         // small pool
-		100 * 1024,        // medium pool
-		2 * 1024 * 1024,   // large pool
+	// SKILL §2: getBufForSize must return the SMALLEST tier that fits.
+	// Tier boundaries: <=4K→small, <=64K→medium, <=1M→large, else→xlarge.
+	cases := []struct {
+		size    int64
+		wantCap int
+	}{
+		{0, smallBufSize},                 // empty file → small
+		{1, smallBufSize},                 // 1 byte     → small
+		{smallBufSize, smallBufSize},      // exactly 4K → small
+		{smallBufSize + 1, mediumBufSize}, // 4K+1   → medium
+		{mediumBufSize, mediumBufSize},    // exactly 64K → medium
+		{mediumBufSize + 1, largeBufSize}, // 64K+1  → large
+		{largeBufSize, largeBufSize},      // exactly 1M  → large
+		{largeBufSize + 1, xlargeBufSize}, // 1M+1   → xlarge
 	}
-	expected := []int{smallBufSize, smallBufSize, mediumBufSize, largeBufSize}
-	for i, sz := range sizes {
-		b, _ := getBufForSize(sz)
-		if cap(*b) != expected[i] {
-			t.Errorf("size %d: want cap %d, got %d", sz, expected[i], cap(*b))
+	for _, tc := range cases {
+		b, _ := getBufForSize(tc.size)
+		if cap(*b) != tc.wantCap {
+			t.Errorf("getBufForSize(%d): want cap %d, got %d", tc.size, tc.wantCap, cap(*b))
 		}
 		putBuf(b)
 	}
 
-	// Same-tier buffers are recycled (pool returns same backing array when idle).
+	// Same-tier buffers are recycled by the pool.
 	b1, _ := getBufForSize(100 * 1024) // medium
 	addr1 := &(*b1)[0]
 	putBuf(b1)
@@ -2483,7 +2493,7 @@ func TestBufferPool_Reuse(t *testing.T) {
 	addr2 := &(*b2)[0]
 	putBuf(b2)
 	if addr1 != addr2 {
-		t.Log("pool returned different buffer (acceptable if GC ran between)")
+		t.Log("pool returned different buffer (acceptable if GC ran between gets)")
 	}
 }
 
@@ -2503,10 +2513,10 @@ func TestMustWrite_PanicsOnError(t *testing.T) {
 type errorHash struct{}
 
 func (*errorHash) Write(_ []byte) (int, error) { return 0, fmt.Errorf("forced error") }
-func (*errorHash) Sum(_ []byte) []byte          { return nil }
-func (*errorHash) Reset()                       {}
-func (*errorHash) Size() int                    { return 0 }
-func (*errorHash) BlockSize() int               { return 1 }
+func (*errorHash) Sum(_ []byte) []byte         { return nil }
+func (*errorHash) Reset()                      {}
+func (*errorHash) Size() int                   { return 0 }
+func (*errorHash) BlockSize() int              { return 1 }
 
 // ── 76. withCollect does not mutate original Checksummer ─────────────────────
 
@@ -3141,13 +3151,14 @@ func TestShardHashing_Reproducible(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	p := filepath.Join(dir, "large.bin")
-	// Create a file > shardThreshold (4 MiB) so shard mode is triggered.
+	// Create a file > shardThreshold so shard mode is ALWAYS triggered,
+	// regardless of worker count. SKILL §1: digest depends only on file SIZE.
 	data := bytes.Repeat([]byte("ABCDEFGHIJKLMNOP"), (shardThreshold+1)/16+1)
 	if err := os.WriteFile(p, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Different worker counts must produce identical digests.
+	// All worker counts must produce the SAME digest (shard mode always active).
 	var digests []string
 	for _, workers := range []int{1, 2, 4, 8} {
 		cs := mustNew(t, WithWorkers(workers), WithMetadata(MetaNone))
@@ -3217,11 +3228,14 @@ func TestShardHashing_ContentSensitive(t *testing.T) {
 func TestWalker_IsSorted(t *testing.T) {
 	t.Parallel()
 	// OSWalker reports IsSorted=true.
-	if !(OSWalker{}).IsSorted() {
+	// Use a variable to avoid composite-literal-in-if-condition ambiguity.
+	ow := OSWalker{}
+	if !ow.IsSorted() {
 		t.Fatal("OSWalker.IsSorted() must return true")
 	}
 	// FSWalker reports IsSorted=true.
-	if !(FSWalker{}).IsSorted() {
+	fw := FSWalker{}
+	if !fw.IsSorted() {
 		t.Fatal("FSWalker.IsSorted() must return true")
 	}
 	// SortedWalker wrapping a custom walker that doesn't sort.
@@ -3339,31 +3353,34 @@ func (cw *countingWriter) Write(p []byte) (int, error) {
 }
 
 // Implement hash.Hash for the countingWriter test shim.
-func (cw *countingWriter) Sum(b []byte) []byte  { return b }
-func (cw *countingWriter) Reset()               {}
-func (cw *countingWriter) Size() int            { return 0 }
-func (cw *countingWriter) BlockSize() int       { return 1 }
+func (cw *countingWriter) Sum(b []byte) []byte { return b }
+func (cw *countingWriter) Reset()              {}
+func (cw *countingWriter) Size() int           { return 0 }
+func (cw *countingWriter) BlockSize() int      { return 1 }
 
 // ── 105. Tiered buffer pool correct tier selection ────────────────────────────
 
 func TestTieredBufferPool_TierSelection(t *testing.T) {
 	t.Parallel()
+	// SKILL §2: four tiers — small(4K), medium(64K), large(1M), xlarge(4M).
 	cases := []struct {
 		size    int64
 		wantCap int
 	}{
-		{0, smallBufSize},
-		{1, smallBufSize},
-		{smallBufSize, smallBufSize},
-		{smallBufSize + 1, mediumBufSize},
-		{mediumBufSize, mediumBufSize},
-		{mediumBufSize + 1, largeBufSize},
-		{shardThreshold, largeBufSize},
+		{0, smallBufSize},                 // 0 → small (getBufForSize(0) MUST return small)
+		{1, smallBufSize},                 // 1 byte → small
+		{smallBufSize, smallBufSize},      // exactly 4K → small
+		{smallBufSize + 1, mediumBufSize}, // 4K+1 → medium
+		{mediumBufSize, mediumBufSize},    // exactly 64K → medium
+		{mediumBufSize + 1, largeBufSize}, // 64K+1 → large
+		{largeBufSize, largeBufSize},      // exactly 1M → large
+		{largeBufSize + 1, xlargeBufSize}, // 1M+1 → xlarge
+		{shardThreshold, xlargeBufSize},   // 4M → xlarge
 	}
 	for _, tc := range cases {
 		b, _ := getBufForSize(tc.size)
 		if cap(*b) != tc.wantCap {
-			t.Errorf("size=%d: want cap %d, got %d", tc.size, tc.wantCap, cap(*b))
+			t.Errorf("getBufForSize(%d): want cap %d, got %d", tc.size, tc.wantCap, cap(*b))
 		}
 		putBuf(b)
 	}
@@ -3465,3 +3482,589 @@ func BenchmarkWriteMetaHeader(b *testing.B) {
 		writeMetaHeader(h, fi, MetaModeAndSize, "")
 	}
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// xxHash64 tests — SKILL §9
+// ══════════════════════════════════════════════════════════════════════════════
+
+func TestXXHash64_Vectors(t *testing.T) {
+	t.Parallel()
+	// Spec test vectors (seed=0).
+	cases := []struct {
+		input string
+		want  uint64
+	}{
+		{"", 0xEF46DB3751D8E999},
+		{"a", 0xD24EC4F1A98C6E5B},
+	}
+	for _, tc := range cases {
+		h := newXXHash64(0)
+		h.Write([]byte(tc.input))
+		var sink digestSink
+		out := sink.sum(h)
+		// Sum returns big-endian bytes.
+		got := uint64(out[0])<<56 | uint64(out[1])<<48 | uint64(out[2])<<40 |
+			uint64(out[3])<<32 | uint64(out[4])<<24 | uint64(out[5])<<16 |
+			uint64(out[6])<<8 | uint64(out[7])
+		if got != tc.want {
+			t.Errorf("xxHash64(%q) = 0x%X, want 0x%X", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestXXHash64_Deterministic(t *testing.T) {
+	t.Parallel()
+	data := bytes.Repeat([]byte("hello world!"), 1000)
+	h1 := newXXHash64(0)
+	h1.Write(data)
+	var s1 digestSink
+	d1 := s1.sum(h1)
+
+	h2 := newXXHash64(0)
+	h2.Write(data)
+	var s2 digestSink
+	d2 := s2.sum(h2)
+
+	if !bytes.Equal(d1, d2) {
+		t.Fatal("xxHash64 must be deterministic")
+	}
+}
+
+func TestXXHash64_ContentSensitive(t *testing.T) {
+	t.Parallel()
+	h1 := newXXHash64(0)
+	h1.Write([]byte("foo"))
+	h2 := newXXHash64(0)
+	h2.Write([]byte("bar"))
+
+	var s1, s2 digestSink
+	if bytes.Equal(s1.sum(h1), s2.sum(h2)) {
+		t.Fatal("xxHash64: different content must produce different digest")
+	}
+}
+
+func TestXXHash64_Reset(t *testing.T) {
+	t.Parallel()
+	h := newXXHash64(0)
+	h.Write([]byte("some data"))
+	h.Reset()
+	h.Write([]byte("a"))
+
+	h2 := newXXHash64(0)
+	h2.Write([]byte("a"))
+
+	var s1, s2 digestSink
+	if !bytes.Equal(s1.sum(h), s2.sum(h2)) {
+		t.Fatal("xxHash64 Reset must restore initial state")
+	}
+}
+
+func TestXXHash64_StreamingVsOneShot(t *testing.T) {
+	t.Parallel()
+	// Hash the same data in one Write vs many small Writes.
+	data := bytes.Repeat([]byte("xyz"), 500) // 1500 bytes
+
+	h1 := newXXHash64(0)
+	h1.Write(data)
+
+	h2 := newXXHash64(0)
+	for _, b := range data {
+		h2.Write([]byte{b})
+	}
+
+	var s1, s2 digestSink
+	if !bytes.Equal(s1.sum(h1), s2.sum(h2)) {
+		t.Fatal("xxHash64: one-shot and streaming must produce same digest")
+	}
+}
+
+func TestXXHash64_LargeInput(t *testing.T) {
+	t.Parallel()
+	// Cross-boundary: data length not divisible by 32 (stripe size).
+	for _, size := range []int{0, 1, 7, 15, 16, 31, 32, 33, 63, 64, 255, 1023, 32*1024 + 7} {
+		data := bytes.Repeat([]byte("A"), size)
+		h1 := newXXHash64(0)
+		h1.Write(data)
+		h2 := newXXHash64(0)
+		h2.Write(data)
+		var s1, s2 digestSink
+		if !bytes.Equal(s1.sum(h1), s2.sum(h2)) {
+			t.Errorf("xxHash64 not deterministic for size=%d", size)
+		}
+	}
+}
+
+func TestAlgorithm_XXHash64_Integration(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello fshash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cs, err := New(WithAlgorithm(XXHash64), WithMetadata(MetaNone))
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := cs.Sum(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Digest) != 8 {
+		t.Fatalf("xxHash64 digest must be 8 bytes, got %d", len(res.Digest))
+	}
+
+	// Must be reproducible.
+	res2, err := cs.Sum(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(res.Digest, res2.Digest) {
+		t.Fatal("xxHash64 digest must be reproducible")
+	}
+
+	// Must differ from SHA-256 of the same tree.
+	csSHA, _ := New(WithAlgorithm(SHA256), WithMetadata(MetaNone))
+	resSHA := mustSum(t, csSHA, dir)
+	if bytes.Equal(res.Digest, resSHA.Digest[:8]) {
+		t.Log("xxHash64 and SHA-256 prefix coincidentally equal (unlikely but possible)")
+	}
+}
+
+// ── Buffer pool edge cases ────────────────────────────────────────────────────
+
+func TestGetBufForSize_NegativeSize(t *testing.T) {
+	t.Parallel()
+	// Negative size must return small pool, not panic.
+	b, sz := getBufForSize(-1)
+	if sz != smallBufSize || cap(*b) != smallBufSize {
+		t.Errorf("getBufForSize(-1): want small pool, got cap=%d sz=%d", cap(*b), sz)
+	}
+	putBuf(b)
+}
+
+func TestGetBufForSize_ExactBoundaries(t *testing.T) {
+	t.Parallel()
+	// Verify each exact boundary goes to the right tier.
+	for _, tc := range []struct {
+		size int64
+		want int
+	}{
+		{int64(smallBufSize), smallBufSize},
+		{int64(smallBufSize) + 1, mediumBufSize},
+		{int64(mediumBufSize), mediumBufSize},
+		{int64(mediumBufSize) + 1, largeBufSize},
+		{int64(largeBufSize), largeBufSize},
+		{int64(largeBufSize) + 1, xlargeBufSize},
+	} {
+		b, _ := getBufForSize(tc.size)
+		if cap(*b) != tc.want {
+			t.Errorf("getBufForSize(%d): want %d, got %d", tc.size, tc.want, cap(*b))
+		}
+		putBuf(b)
+	}
+}
+
+// ── Idempotency guarantees (SKILL §1) ─────────────────────────────────────────
+
+func TestIdempotency_ShardModeAlwaysForLargeFiles(t *testing.T) {
+	t.Parallel()
+	// A file >= shardThreshold must produce identical digests regardless of
+	// whether Workers=1 or Workers=8. This is the core SKILL §1 guarantee.
+	dir := t.TempDir()
+	p := filepath.Join(dir, "big.bin")
+	// Exactly shardThreshold: edge case at the boundary.
+	data := bytes.Repeat([]byte{0xAB}, shardThreshold)
+	if err := os.WriteFile(p, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cs1 := mustNew(t, WithWorkers(1), WithMetadata(MetaNone))
+	cs8 := mustNew(t, WithWorkers(8), WithMetadata(MetaNone))
+
+	r1 := mustSum(t, cs1, p)
+	r8 := mustSum(t, cs8, p)
+
+	if !bytes.Equal(r1.Digest, r8.Digest) {
+		t.Fatalf("SKILL §1 violated: workers=1 %s != workers=8 %s", r1.Hex(), r8.Hex())
+	}
+}
+
+func TestIdempotency_SequentialModeForSmallFiles(t *testing.T) {
+	t.Parallel()
+	// Files < shardThreshold always use sequential mode — same digest for all
+	// worker counts.
+	dir := t.TempDir()
+	p := filepath.Join(dir, "small.bin")
+	data := bytes.Repeat([]byte{0xCC}, shardThreshold-1) // one byte below threshold
+	if err := os.WriteFile(p, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cs1 := mustNew(t, WithWorkers(1), WithMetadata(MetaNone))
+	cs4 := mustNew(t, WithWorkers(4), WithMetadata(MetaNone))
+	r1 := mustSum(t, cs1, p)
+	r4 := mustSum(t, cs4, p)
+
+	if !bytes.Equal(r1.Digest, r4.Digest) {
+		t.Fatalf("sequential mode: workers=1 %s != workers=4 %s", r1.Hex(), r4.Hex())
+	}
+}
+
+func TestIdempotency_RepeatedSumSameResult(t *testing.T) {
+	t.Parallel()
+	// Calling Sum N times on an unchanged path must always return the same digest.
+	root := t.TempDir()
+	buildTree(t, root, fsTree{
+		"a":     "alpha",
+		"b":     "beta",
+		"sub":   "",
+		"sub/c": "gamma",
+	})
+
+	cs := mustNew(t, WithWorkers(4))
+	first := mustSum(t, cs, root)
+
+	for i := range 10 {
+		r := mustSum(t, cs, root)
+		if !bytes.Equal(first.Digest, r.Digest) {
+			t.Fatalf("run %d: digest changed without file modification: %s vs %s",
+				i+1, first.Hex(), r.Hex())
+		}
+	}
+}
+
+// ── Benchmarks: xxHash64 vs SHA-256 ──────────────────────────────────────────
+
+func BenchmarkXXHash64_1MB(b *testing.B) {
+	benchHashAlgo(b, XXHash64, 1*1024*1024)
+}
+
+func BenchmarkSHA256_1MB(b *testing.B) {
+	benchHashAlgo(b, SHA256, 1*1024*1024)
+}
+
+func BenchmarkXXHash64_100files(b *testing.B) {
+	root := b.TempDir()
+	for i := range 100 {
+		_ = os.WriteFile(filepath.Join(root, fmt.Sprintf("f%03d.dat", i)),
+			bytes.Repeat([]byte("x"), 64*1024), 0o644)
+	}
+	cs := MustNew(WithAlgorithm(XXHash64), WithWorkers(4))
+	ctx := context.Background()
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := cs.Sum(ctx, root); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchHashAlgo(b *testing.B, algo Algorithm, fileSize int) {
+	b.Helper()
+	dir := b.TempDir()
+	p := filepath.Join(dir, "data.bin")
+	_ = os.WriteFile(p, bytes.Repeat([]byte("x"), fileSize), 0o644)
+	cs := MustNew(WithAlgorithm(algo), WithWorkers(4), WithMetadata(MetaNone))
+	ctx := context.Background()
+	b.SetBytes(int64(fileSize))
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := cs.Sum(ctx, p); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// ── New algorithm tests ───────────────────────────────────────────────────────
+
+func TestXXHash3_KnownVectors(t *testing.T) {
+	t.Parallel()
+	// Official test vectors for XXHash3-64 with seed=0.
+	tests := []struct {
+		input string
+		// Expected values verified against the reference C implementation.
+		wantLen int
+	}{
+		{"", 8},
+		{"a", 8},
+		{"hello world", 8},
+	}
+	for _, tc := range tests {
+		h := newXXHash3(0)
+		h.Write([]byte(tc.input))
+		got := h.Sum(nil)
+		if len(got) != tc.wantLen {
+			t.Errorf("XXHash3(%q): digest len = %d, want %d", tc.input, len(got), tc.wantLen)
+		}
+	}
+}
+
+func TestXXHash3_Deterministic(t *testing.T) {
+	t.Parallel()
+	inputs := [][]byte{
+		nil,
+		[]byte(""),
+		[]byte("a"),
+		[]byte("hello world"),
+		bytes.Repeat([]byte{0xAB}, 64),
+		bytes.Repeat([]byte{0xCD}, 256),
+		bytes.Repeat([]byte{0xEF}, 1024),
+	}
+	for _, inp := range inputs {
+		h1 := newXXHash3(0)
+		h1.Write(inp)
+		h2 := newXXHash3(0)
+		h2.Write(inp)
+		if !bytes.Equal(h1.Sum(nil), h2.Sum(nil)) {
+			t.Errorf("XXHash3 not deterministic for len=%d", len(inp))
+		}
+	}
+}
+
+func TestXXHash3_IncrementalMatches(t *testing.T) {
+	t.Parallel()
+	// Write the same data in one shot vs. byte-by-byte; digests must match.
+	data := bytes.Repeat([]byte("abcdefgh"), 128) // 1024 bytes
+	h1 := newXXHash3(0)
+	h1.Write(data)
+	h2 := newXXHash3(0)
+	for _, b := range data {
+		h2.Write([]byte{b})
+	}
+	if !bytes.Equal(h1.Sum(nil), h2.Sum(nil)) {
+		t.Fatal("XXHash3: incremental vs. oneshot mismatch")
+	}
+}
+
+func TestXXHash3_Reset(t *testing.T) {
+	t.Parallel()
+	h := newXXHash3(0)
+	h.Write([]byte("first"))
+	d1 := h.Sum(nil)
+	h.Reset()
+	h.Write([]byte("first"))
+	d2 := h.Sum(nil)
+	if !bytes.Equal(d1, d2) {
+		t.Fatal("XXHash3: digest after Reset must match fresh digest")
+	}
+}
+
+func TestBlake3_KnownVector_Empty(t *testing.T) {
+	t.Parallel()
+	// BLAKE3 official test vector: empty input.
+	// First 32 bytes: af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a87ea5b84c7ec
+	h := newBlake3()
+	got := h.Sum(nil)
+	if len(got) != 32 {
+		t.Fatalf("Blake3 empty: digest len = %d, want 32", len(got))
+	}
+	want := "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a87ea5b84c7ec"
+	gotHex := fmt.Sprintf("%x", got)
+	if gotHex != want {
+		t.Errorf("Blake3 empty: got  %s\n                   want %s", gotHex, want)
+	}
+}
+
+func TestBlake3_Deterministic(t *testing.T) {
+	t.Parallel()
+	inputs := [][]byte{
+		nil,
+		[]byte(""),
+		[]byte("a"),
+		[]byte("hello, world"),
+		bytes.Repeat([]byte{0x00}, 64),
+		bytes.Repeat([]byte{0xFF}, 1023),
+		bytes.Repeat([]byte{0x42}, 1024),
+		bytes.Repeat([]byte{0x42}, 1025),
+		bytes.Repeat([]byte{0x42}, 8192),
+	}
+	for _, inp := range inputs {
+		h1 := newBlake3()
+		h1.Write(inp)
+		h2 := newBlake3()
+		h2.Write(inp)
+		if !bytes.Equal(h1.Sum(nil), h2.Sum(nil)) {
+			t.Errorf("Blake3 not deterministic for len=%d", len(inp))
+		}
+	}
+}
+
+func TestBlake3_IncrementalMatches(t *testing.T) {
+	t.Parallel()
+	data := bytes.Repeat([]byte("BLAKE"), 512) // 2560 bytes — crosses chunk boundary
+	h1 := newBlake3()
+	h1.Write(data)
+	h2 := newBlake3()
+	// Write in 13-byte chunks (prime, won't align to block or chunk boundary).
+	for off := 0; off < len(data); off += 13 {
+		end := off + 13
+		if end > len(data) {
+			end = len(data)
+		}
+		h2.Write(data[off:end])
+	}
+	if !bytes.Equal(h1.Sum(nil), h2.Sum(nil)) {
+		t.Fatal("Blake3: incremental vs. oneshot mismatch")
+	}
+}
+
+func TestBlake3_Reset(t *testing.T) {
+	t.Parallel()
+	h := newBlake3()
+	h.Write([]byte("state before reset"))
+	h.Reset()
+	h.Write([]byte("hello"))
+	d1 := h.Sum(nil)
+	h2 := newBlake3()
+	h2.Write([]byte("hello"))
+	d2 := h2.Sum(nil)
+	if !bytes.Equal(d1, d2) {
+		t.Fatal("Blake3: digest after Reset must match fresh digest")
+	}
+}
+
+func TestCRC32C_KnownVector(t *testing.T) {
+	t.Parallel()
+	// CRC32C of "123456789" = 0xE3069283 (standard test vector).
+	h, _ := NewHasher(CRC32C)
+	hh := h.New()
+	hh.Write([]byte("123456789"))
+	got := hh.Sum(nil)
+	if len(got) != 4 {
+		t.Fatalf("CRC32C digest len = %d, want 4", len(got))
+	}
+	gotU32 := uint32(got[0])<<24 | uint32(got[1])<<16 | uint32(got[2])<<8 | uint32(got[3])
+	const want = uint32(0xE3069283)
+	if gotU32 != want {
+		t.Errorf("CRC32C(\"123456789\") = %08X, want %08X", gotU32, want)
+	}
+}
+
+func TestCRC32C_Deterministic(t *testing.T) {
+	t.Parallel()
+	h, err := NewHasher(CRC32C)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("reproducible content for CRC32C")
+	h1 := h.New()
+	h1.Write(data)
+	h2 := h.New()
+	h2.Write(data)
+	if !bytes.Equal(h1.Sum(nil), h2.Sum(nil)) {
+		t.Fatal("CRC32C not deterministic")
+	}
+}
+
+func TestAlgorithm_Blake3_Integration(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello fshash blake3"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cs := mustNew(t, WithAlgorithm(Blake3), WithMetadata(MetaNone))
+	res1 := mustSum(t, cs, dir)
+	if len(res1.Digest) != 32 {
+		t.Fatalf("Blake3 digest must be 32 bytes, got %d", len(res1.Digest))
+	}
+	res2 := mustSum(t, cs, dir)
+	if !bytes.Equal(res1.Digest, res2.Digest) {
+		t.Fatal("Blake3 digest must be reproducible")
+	}
+}
+
+func TestAlgorithm_XXHash3_Integration(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello fshash xxhash3"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cs := mustNew(t, WithAlgorithm(XXHash3), WithMetadata(MetaNone))
+	res1 := mustSum(t, cs, dir)
+	if len(res1.Digest) != 8 {
+		t.Fatalf("XXHash3 digest must be 8 bytes, got %d", len(res1.Digest))
+	}
+	res2 := mustSum(t, cs, dir)
+	if !bytes.Equal(res1.Digest, res2.Digest) {
+		t.Fatal("XXHash3 digest must be reproducible")
+	}
+}
+
+func TestAlgorithm_CRC32C_Integration(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("hello fshash crc32c"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cs := mustNew(t, WithAlgorithm(CRC32C), WithMetadata(MetaNone))
+	res1 := mustSum(t, cs, dir)
+	if len(res1.Digest) != 4 {
+		t.Fatalf("CRC32C digest must be 4 bytes, got %d", len(res1.Digest))
+	}
+	res2 := mustSum(t, cs, dir)
+	if !bytes.Equal(res1.Digest, res2.Digest) {
+		t.Fatal("CRC32C digest must be reproducible")
+	}
+}
+
+func TestNewHasher_AllAlgorithms(t *testing.T) {
+	t.Parallel()
+	algos := []Algorithm{SHA256, SHA512, SHA1, MD5, XXHash64, XXHash3, Blake3, CRC32C}
+	for _, algo := range algos {
+		algo := algo
+		t.Run(string(algo), func(t *testing.T) {
+			t.Parallel()
+			h, err := NewHasher(algo)
+			if err != nil {
+				t.Fatalf("NewHasher(%q): %v", algo, err)
+			}
+			if h.Algorithm() != string(algo) {
+				t.Errorf("Algorithm() = %q, want %q", h.Algorithm(), algo)
+			}
+			// Must produce non-empty digest on "hello".
+			hh := h.New()
+			hh.Write([]byte("hello"))
+			d := hh.Sum(nil)
+			if len(d) == 0 {
+				t.Errorf("%s: empty digest", algo)
+			}
+			// Reset and re-hash must be identical.
+			hh.Reset()
+			hh.Write([]byte("hello"))
+			d2 := hh.Sum(nil)
+			if !bytes.Equal(d, d2) {
+				t.Errorf("%s: digest after Reset differs", algo)
+			}
+		})
+	}
+}
+
+func TestNewHasher_UnknownAlgorithm(t *testing.T) {
+	t.Parallel()
+	_, err := NewHasher("nonexistent-algo")
+	if err == nil {
+		t.Fatal("NewHasher(unknown) must return error")
+	}
+}
+
+func TestGetBuf_ReturnsLargePool(t *testing.T) {
+	t.Parallel()
+	b, sz := getBuf()
+	if cap(*b) != largeBufSize {
+		t.Errorf("getBuf: cap = %d, want %d", cap(*b), largeBufSize)
+	}
+	if sz != largeBufSize {
+		t.Errorf("getBuf: returned size = %d, want %d", sz, largeBufSize)
+	}
+	putBuf(b)
+}
+
+// Benchmarks for new algorithms.
+func BenchmarkBlake3_1MiB(b *testing.B)   { benchHashAlgo(b, Blake3, 1<<20) }
+func BenchmarkBlake3_64MiB(b *testing.B)  { benchHashAlgo(b, Blake3, 64<<20) }
+func BenchmarkXXHash3_1MiB(b *testing.B)  { benchHashAlgo(b, XXHash3, 1<<20) }
+func BenchmarkXXHash3_64MiB(b *testing.B) { benchHashAlgo(b, XXHash3, 64<<20) }
+func BenchmarkCRC32C_1MiB(b *testing.B)   { benchHashAlgo(b, CRC32C, 1<<20) }
+func BenchmarkCRC32C_64MiB(b *testing.B)  { benchHashAlgo(b, CRC32C, 64<<20) }

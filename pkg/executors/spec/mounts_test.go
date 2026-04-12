@@ -70,12 +70,12 @@ func TestHasPrefix(t *testing.T) {
 		expected bool
 	}{
 		{"/foo/bar", "/foo", true},
-		{"/foo/bar", "/foo/", true},   // trailing slash on prefix is normalised
-		{"/foo/bar", "/", true},       // root contains everything
-		{"/foo", "/foo", true},        // exact match
-		{"/foo/bar", "/bar", false},   // sibling directory
-		{"/foo/bar", "foo", false},    // relative prefix is never a match
-		{"/foobar", "/foo", false},    // prefix must be followed by separator
+		{"/foo/bar", "/foo/", true}, // trailing slash on prefix is normalised
+		{"/foo/bar", "/", true},     // root contains everything
+		{"/foo", "/foo", true},      // exact match
+		{"/foo/bar", "/bar", false}, // sibling directory
+		{"/foo/bar", "foo", false},  // relative prefix is never a match
+		{"/foobar", "/foo", false},  // prefix must be followed by separator
 	}
 
 	if runtime.GOOS == "windows" {

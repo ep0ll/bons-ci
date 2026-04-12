@@ -200,7 +200,7 @@ func (m *multiContentStore) Walk(ctx context.Context, fn content.WalkFunc, filte
 		mu    sync.Mutex
 		infos sync.Map
 	)
-	
+
 	wg.Add(len(m.stores))
 	for _, cs := range m.stores {
 		go func(cs content.Store) {

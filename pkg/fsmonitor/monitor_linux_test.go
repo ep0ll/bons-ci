@@ -21,30 +21,30 @@ func TestEventProcessor_Lifecycle(t *testing.T) {
 
 	// 1. Initial Access
 	p.processTask(eventTask{
-		path:   path,
-		mask:   unix.FAN_ACCESS,
-		hasR:   true,
-		data:   data1,
+		path: path,
+		mask: unix.FAN_ACCESS,
+		hasR: true,
+		data: data1,
 	})
 
 	snap := p.snapshot()
 	require.Contains(t, snap.Files, path)
 	assert.Equal(t, uint64(1), snap.Files[path].Reads)
-	
+
 	h1 := sha256.Sum256(data1)
 	assert.Equal(t, hex.EncodeToString(h1[:]), snap.Files[path].AccessChecksum)
 
 	// 2. Continuous Access (Rolling)
 	p.processTask(eventTask{
-		path:   path,
-		mask:   FAN_PRE_ACCESS,
-		hasR:   true,
-		data:   data2,
+		path: path,
+		mask: FAN_PRE_ACCESS,
+		hasR: true,
+		data: data2,
 	})
 
 	snapSize2 := p.snapshot()
 	assert.Equal(t, uint64(2), snapSize2.Files[path].Reads)
-	
+
 	h2 := sha256.New()
 	h2.Write(data1)
 	h2.Write(data2)
@@ -69,7 +69,7 @@ func TestEventProcessor_Lifecycle(t *testing.T) {
 
 func TestEventProcessor_Overflow(t *testing.T) {
 	p := newEventProcessor()
-	
+
 	p.processTask(eventTask{mask: unix.FAN_Q_OVERFLOW}) // This is usually handled in the loop, but let's test the counter
 	// Note: engine.overflowCount is updated in monitor_linux.go directly in my current refactor.
 	// I should probably move that into processTask for consistency.

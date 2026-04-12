@@ -7,11 +7,12 @@
 // slowed their memory write rate.
 //
 // Mechanism:
-//   We use the kernel's soft-dirty PTE tracking:
-//   1. Reset soft-dirty bits:  echo 4 > /proc/<pid>/clear_refs
-//   2. After a sleep interval, count dirty pages by reading /proc/<pid>/pagemap
-//      and checking the soft-dirty bit (bit 55).
-//   This is exactly what CRIU's own pre-dump tracking uses internally.
+//
+//	We use the kernel's soft-dirty PTE tracking:
+//	1. Reset soft-dirty bits:  echo 4 > /proc/<pid>/clear_refs
+//	2. After a sleep interval, count dirty pages by reading /proc/<pid>/pagemap
+//	   and checking the soft-dirty bit (bit 55).
+//	This is exactly what CRIU's own pre-dump tracking uses internally.
 package dirty
 
 import (

@@ -113,8 +113,8 @@ func TestPrune_LowerExclusiveFilesDoNotAffectUpper(t *testing.T) {
 	lower, upper := t.TempDir(), t.TempDir()
 
 	fixture(t, lower, map[string]string{
-		"lower-only.txt":        "exclusive",
-		"lower-only-dir/a.txt":  "exclusive",
+		"lower-only.txt":       "exclusive",
+		"lower-only-dir/a.txt": "exclusive",
 	})
 	// Upper is empty.
 

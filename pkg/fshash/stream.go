@@ -30,7 +30,7 @@ func HashReader(ctx context.Context, r io.Reader, opts ...Option) ([]byte, error
 	}
 
 	h := cs.opts.Hasher.New()
-	buf := getBuf()
+	buf, _ := getBuf()
 	defer putBuf(buf)
 
 	for {

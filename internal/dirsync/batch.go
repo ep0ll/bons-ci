@@ -196,7 +196,7 @@ func executeBatch(ctx context.Context, view MergedView, ops []BatchOp, paralleli
 	var mu sync.Mutex
 	var errs []error
 
-	Loop:
+Loop:
 	for _, op := range ops {
 		if ctx.Err() != nil {
 			break Loop

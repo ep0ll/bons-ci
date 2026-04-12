@@ -30,7 +30,7 @@ type Monitor interface {
 	// dirs can be recursive depending on the implementation.
 	Add(path string) error
 
-	// Run begins monitoring. It blocks until the context is cancelled 
+	// Run begins monitoring. It blocks until the context is cancelled
 	// or a fatal error occurs.
 	Run(ctx context.Context) error
 

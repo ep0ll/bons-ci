@@ -6,10 +6,10 @@ import (
 	"net"
 	"syscall"
 
+	resourcestypes "github.com/bons/bons-ci/pkg/executors/resources/types"
 	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/moby/buildkit/solver/pb"
 	"github.com/moby/sys/user"
-	resourcestypes "github.com/bons/bons-ci/pkg/executors/resources/types"
 )
 
 type Meta struct {

@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/bons/bons-ci/pkg/executors"
 	"github.com/containerd/console"
 	runc "github.com/containerd/go-runc"
-	"github.com/bons/bons-ci/pkg/executors"
 	"github.com/moby/buildkit/util/bklog"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -232,9 +232,9 @@ func (f *forwardIO) Set(cmd *exec.Cmd) {
 // The Stdin/Stdout/Stderr accessors are part of the runc.IO interface but are
 // only needed when the caller wants to write/read from the other end.
 // For our use case (forwarding to pre-existing streams) these are unused.
-func (f *forwardIO) Stdin() io.WriteCloser  { return nil }
-func (f *forwardIO) Stdout() io.ReadCloser  { return nil }
-func (f *forwardIO) Stderr() io.ReadCloser  { return nil }
+func (f *forwardIO) Stdin() io.WriteCloser { return nil }
+func (f *forwardIO) Stdout() io.ReadCloser { return nil }
+func (f *forwardIO) Stderr() io.ReadCloser { return nil }
 
 // ─── executeWithIO ────────────────────────────────────────────────────────────
 

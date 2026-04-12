@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/containerd/containerd/v2/core/mount"
 	"github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/containerd/containerd/v2/core/mount"
 
 	"github.com/bons/bons-ci/plugins/sources/http/applier"
 )

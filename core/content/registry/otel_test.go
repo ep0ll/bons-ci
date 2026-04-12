@@ -254,4 +254,3 @@ func BenchmarkTracedStore_Info(b *testing.B) {
 		}
 	})
 }
-

@@ -16,9 +16,9 @@ type EventKind string
 
 const (
 	EventBlobCommitted EventKind = "blob.committed" // after a successful Writer.Commit
-	EventBlobDeleted   EventKind = "blob.deleted"    // after a successful Delete
-	EventBlobAccessed  EventKind = "blob.accessed"   // after a ReaderAt or Info call
-	EventBlobWalked    EventKind = "blob.walked"     // for each blob visited during Walk
+	EventBlobDeleted   EventKind = "blob.deleted"   // after a successful Delete
+	EventBlobAccessed  EventKind = "blob.accessed"  // after a ReaderAt or Info call
+	EventBlobWalked    EventKind = "blob.walked"    // for each blob visited during Walk
 )
 
 // Event represents a lifecycle event emitted by the Store.

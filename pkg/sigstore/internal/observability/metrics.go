@@ -38,8 +38,8 @@ type Metrics struct {
 	EventsDropped   *prometheus.CounterVec // labels: topic
 
 	// Resilience
-	RetryCount         *prometheus.CounterVec // labels: result (retry|exhausted)
-	CircuitBreakerState *prometheus.GaugeVec  // labels: name, state
+	RetryCount          *prometheus.CounterVec // labels: result (retry|exhausted)
+	CircuitBreakerState *prometheus.GaugeVec   // labels: name, state
 
 	// Idempotency
 	IdempotencyHits *prometheus.CounterVec // labels: result (claimed|duplicate|error)

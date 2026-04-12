@@ -47,7 +47,7 @@ var defaultStubPaths = []string{
 //   - dir      absolute path to the container root on the host.
 //   - mounts   the list of mounts configured for this container run.
 //   - recursive when true, parent directories created solely for a stub are also
-//               removed (bottom-up) if they are empty after the stub is deleted.
+//     removed (bottom-up) if they are empty after the stub is deleted.
 //
 // The returned function is safe to call from any goroutine and is idempotent.
 func MountStubsCleaner(ctx context.Context, dir string, mounts []Mount, recursive bool) func() {

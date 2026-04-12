@@ -3,8 +3,8 @@
 package netproviders
 
 import (
-	"github.com/moby/buildkit/util/bklog"
 	"github.com/bons/bons-ci/pkg/executors/network"
+	"github.com/moby/buildkit/util/bklog"
 )
 
 // getHostProvider returns the host-network provider on Unix platforms.
