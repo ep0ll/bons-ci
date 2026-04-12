@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/containerd/containerd/v2/core/content"
@@ -14,13 +15,16 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// mockBackend — in-memory RegistryBackend for tests
+// mockBackend — in-memory RegistryBackend for unit tests
 // ---------------------------------------------------------------------------
 
 type mockBackend struct {
-	mu    sync.Mutex
-	blobs map[digest.Digest][]byte        // committed blobs
-	descs map[digest.Digest]v1.Descriptor // descriptor metadata
+	mu         sync.Mutex
+	blobs      map[digest.Digest][]byte
+	descs      map[digest.Digest]v1.Descriptor
+	resolveErr error // inject error into Resolve
+	fetchErr   error // inject error into Fetch
+	pushErr    error // inject error into Push
 }
 
 func newMockBackend() *mockBackend {
@@ -33,8 +37,10 @@ func newMockBackend() *mockBackend {
 func (m *mockBackend) Resolve(_ context.Context, ref string) (string, v1.Descriptor, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for dgst, desc := range m.descs {
-		_ = dgst
+	if m.resolveErr != nil {
+		return "", v1.Descriptor{}, m.resolveErr
+	}
+	for _, desc := range m.descs {
 		return ref, desc, nil
 	}
 	return "", v1.Descriptor{}, fmt.Errorf("not found: %s", ref)
@@ -43,6 +49,9 @@ func (m *mockBackend) Resolve(_ context.Context, ref string) (string, v1.Descrip
 func (m *mockBackend) Fetch(_ context.Context, _ string, desc v1.Descriptor) (io.ReadCloser, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.fetchErr != nil {
+		return nil, m.fetchErr
+	}
 	data, ok := m.blobs[desc.Digest]
 	if !ok {
 		return nil, fmt.Errorf("not found: %s", desc.Digest)
@@ -53,10 +62,13 @@ func (m *mockBackend) Fetch(_ context.Context, _ string, desc v1.Descriptor) (io
 func (m *mockBackend) Push(_ context.Context, _ string, desc v1.Descriptor) (content.Writer, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.pushErr != nil {
+		return nil, m.pushErr
+	}
 	return &mockWriter{backend: m, desc: desc, buf: &bytes.Buffer{}}, nil
 }
 
-// seed adds a blob to the mock backend.
+// seed adds a blob directly to the mock backend, returning its digest.
 func (m *mockBackend) seed(data []byte) digest.Digest {
 	dgst := digest.FromBytes(data)
 	m.mu.Lock()
@@ -73,7 +85,7 @@ func (m *mockBackend) seed(data []byte) digest.Digest {
 var _ RegistryBackend = (*mockBackend)(nil)
 
 // ---------------------------------------------------------------------------
-// mockWriter — content.Writer for the mock backend
+// mockWriter — content.Writer backed by mockBackend
 // ---------------------------------------------------------------------------
 
 type mockWriter struct {
@@ -87,7 +99,7 @@ type mockWriter struct {
 
 func (w *mockWriter) Write(p []byte) (int, error) {
 	if w.committed || w.closed {
-		return 0, fmt.Errorf("writer already finalized")
+		return 0, fmt.Errorf("writer already finalised")
 	}
 	return w.buf.Write(p)
 }
@@ -113,25 +125,11 @@ func (w *mockWriter) Commit(_ context.Context, _ int64, expected digest.Digest, 
 	return nil
 }
 
-func (w *mockWriter) Close() error {
-	w.closed = true
-	return nil
-}
-
-func (w *mockWriter) Digest() digest.Digest {
-	return digest.FromBytes(w.buf.Bytes())
-}
-
+func (w *mockWriter) Close() error           { w.closed = true; return nil }
+func (w *mockWriter) Digest() digest.Digest  { return digest.FromBytes(w.buf.Bytes()) }
+func (w *mockWriter) Truncate(_ int64) error { w.buf.Reset(); return nil }
 func (w *mockWriter) Status() (content.Status, error) {
-	return content.Status{
-		Offset: int64(w.buf.Len()),
-		Total:  w.desc.Size,
-	}, nil
-}
-
-func (w *mockWriter) Truncate(_ int64) error {
-	w.buf.Reset()
-	return nil
+	return content.Status{Offset: int64(w.buf.Len()), Total: w.desc.Size}, nil
 }
 
 var _ content.Writer = (*mockWriter)(nil)
@@ -162,11 +160,7 @@ func (s *mockLocalStore) Info(_ context.Context, dgst digest.Digest) (content.In
 	if !ok {
 		return content.Info{}, fmt.Errorf("not found: %s", dgst)
 	}
-	return content.Info{
-		Digest: dgst,
-		Size:   int64(len(data)),
-		Labels: s.labels[dgst],
-	}, nil
+	return content.Info{Digest: dgst, Size: int64(len(data)), Labels: s.labels[dgst]}, nil
 }
 
 func (s *mockLocalStore) ReaderAt(_ context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
@@ -188,7 +182,6 @@ func (s *mockLocalStore) Writer(_ context.Context, opts ...content.WriterOpt) (c
 	if ref == "" {
 		ref = wOpts.Desc.Digest.String()
 	}
-
 	w := &mockLocalWriter{store: s, ref: ref, desc: wOpts.Desc, buf: &bytes.Buffer{}}
 	s.mu.Lock()
 	s.writers[ref] = w
@@ -261,7 +254,7 @@ func (s *mockLocalStore) Abort(_ context.Context, ref string) error {
 	return nil
 }
 
-// commit stores data committed by a local writer.
+// commit seeds a blob directly into the local store (used by test helpers).
 func (s *mockLocalStore) commit(dgst digest.Digest, data []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -285,25 +278,22 @@ func (w *mockLocalWriter) Write(p []byte) (int, error) { return w.buf.Write(p) }
 func (w *mockLocalWriter) Close() error                { return nil }
 func (w *mockLocalWriter) Digest() digest.Digest       { return digest.FromBytes(w.buf.Bytes()) }
 func (w *mockLocalWriter) Truncate(_ int64) error      { w.buf.Reset(); return nil }
-
-func (w *mockLocalWriter) Commit(_ context.Context, _ int64, expected digest.Digest, _ ...content.Opt) error {
-	data := w.buf.Bytes()
-	dgst := expected
-	if dgst == "" {
-		dgst = digest.FromBytes(data)
-	}
-	w.store.commit(dgst, data)
-	return nil
-}
-
 func (w *mockLocalWriter) Status() (content.Status, error) {
 	return content.Status{Ref: w.ref, Offset: int64(w.buf.Len())}, nil
+}
+func (w *mockLocalWriter) Commit(_ context.Context, _ int64, expected digest.Digest, _ ...content.Opt) error {
+	data := w.buf.Bytes()
+	if expected == "" {
+		expected = digest.FromBytes(data)
+	}
+	w.store.commit(expected, data)
+	return nil
 }
 
 var _ content.Writer = (*mockLocalWriter)(nil)
 
 // ---------------------------------------------------------------------------
-// mockReaderAt
+// mockReaderAt — implements content.ReaderAt over a bytes.Reader
 // ---------------------------------------------------------------------------
 
 type mockReaderAt struct {
@@ -315,3 +305,25 @@ func (r *mockReaderAt) Close() error { return nil }
 func (r *mockReaderAt) Size() int64  { return r.size }
 
 var _ content.ReaderAt = (*mockReaderAt)(nil)
+
+// ---------------------------------------------------------------------------
+// Shared test helpers (used from multiple _test.go files in same package)
+// ---------------------------------------------------------------------------
+
+// makeDigest creates a deterministic digest from a string — used in benchmarks.
+func makeDigest(s string) digest.Digest { return digest.FromBytes([]byte(s)) }
+
+// seedLocal commits data directly to the local store and returns its digest.
+// Works with *testing.T, *testing.B, or any testing.TB.
+func seedLocal(t testing.TB, l *mockLocalStore, data []byte) digest.Digest {
+	t.Helper()
+	dgst := digest.FromBytes(data)
+	l.commit(dgst, data)
+	return dgst
+}
+
+// seedRemote adds data to the mock backend and returns its digest.
+func seedRemote(t testing.TB, b *mockBackend, data []byte) digest.Digest {
+	t.Helper()
+	return b.seed(data)
+}

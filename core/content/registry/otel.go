@@ -14,17 +14,31 @@ import (
 
 const tracerName = "github.com/bons/bons-ci/core/content/registry"
 
-// TracedStore is an OpenTelemetry-instrumented decorator for content.Store.
-// Each method creates a span with relevant attributes (digest, size, ref).
+// Semantic span attribute keys — defined as package-level vars to avoid a
+// string allocation on every span creation (attribute.String interns the key).
+var (
+	attrDigest      = "registry.digest"
+	attrSizeBytes   = "registry.size_bytes"
+	attrRef         = "registry.ref"
+	attrFilters     = "registry.filters"
+	attrCount       = "registry.count"
+	attrWalkedCount = "registry.walked_count"
+)
+
+// TracedStore is an OpenTelemetry-instrumented decorator for any content.Store.
 //
-// This follows the Open/Closed Principle: tracing is added without
-// modifying the Store implementation.
+// Every method creates a span with standard registry attributes (digest, size,
+// ref) and records errors with span.RecordError / SetStatus(codes.Error).
+//
+// Follows the Open/Closed Principle: tracing behaviour is added without
+// modifying the underlying Store.
 type TracedStore struct {
 	inner  content.Store
 	tracer trace.Tracer
 }
 
-// NewTracedStore wraps a content.Store with OpenTelemetry tracing.
+// NewTracedStore wraps store with OpenTelemetry tracing spans.
+// If tp is nil the global tracer provider is used (otel.GetTracerProvider()).
 func NewTracedStore(store content.Store, tp trace.TracerProvider) *TracedStore {
 	if tp == nil {
 		tp = otel.GetTracerProvider()
@@ -40,64 +54,58 @@ var _ content.Store = (*TracedStore)(nil)
 
 func (t *TracedStore) Info(ctx context.Context, dgst digest.Digest) (content.Info, error) {
 	ctx, span := t.tracer.Start(ctx, "registry.Info",
-		trace.WithAttributes(attribute.String("digest", dgst.String())),
+		trace.WithAttributes(attribute.String(attrDigest, dgst.String())),
 	)
 	defer span.End()
 
 	info, err := t.inner.Info(ctx, dgst)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr(span, err)
 		return info, err
 	}
-	span.SetAttributes(attribute.Int64("size", info.Size))
+	span.SetAttributes(attribute.Int64(attrSizeBytes, info.Size))
 	return info, nil
 }
 
 func (t *TracedStore) Update(ctx context.Context, info content.Info, fieldpaths ...string) (content.Info, error) {
 	ctx, span := t.tracer.Start(ctx, "registry.Update",
-		trace.WithAttributes(attribute.String("digest", info.Digest.String())),
+		trace.WithAttributes(attribute.String(attrDigest, info.Digest.String())),
 	)
 	defer span.End()
 
 	result, err := t.inner.Update(ctx, info, fieldpaths...)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr(span, err)
 	}
 	return result, err
 }
 
 func (t *TracedStore) Walk(ctx context.Context, fn content.WalkFunc, fs ...string) error {
 	ctx, span := t.tracer.Start(ctx, "registry.Walk",
-		trace.WithAttributes(attribute.StringSlice("filters", fs)),
+		trace.WithAttributes(attribute.StringSlice(attrFilters, fs)),
 	)
 	defer span.End()
 
 	count := 0
-	wrapped := func(info content.Info) error {
+	err := t.inner.Walk(ctx, func(info content.Info) error {
 		count++
 		return fn(info)
-	}
-
-	err := t.inner.Walk(ctx, wrapped, fs...)
-	span.SetAttributes(attribute.Int("walked_count", count))
+	}, fs...)
+	span.SetAttributes(attribute.Int(attrWalkedCount, count))
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr(span, err)
 	}
 	return err
 }
 
 func (t *TracedStore) Delete(ctx context.Context, dgst digest.Digest) error {
 	ctx, span := t.tracer.Start(ctx, "registry.Delete",
-		trace.WithAttributes(attribute.String("digest", dgst.String())),
+		trace.WithAttributes(attribute.String(attrDigest, dgst.String())),
 	)
 	defer span.End()
 
 	if err := t.inner.Delete(ctx, dgst); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr(span, err)
 		return err
 	}
 	return nil
@@ -106,16 +114,15 @@ func (t *TracedStore) Delete(ctx context.Context, dgst digest.Digest) error {
 func (t *TracedStore) ReaderAt(ctx context.Context, desc v1.Descriptor) (content.ReaderAt, error) {
 	ctx, span := t.tracer.Start(ctx, "registry.ReaderAt",
 		trace.WithAttributes(
-			attribute.String("digest", desc.Digest.String()),
-			attribute.Int64("size", desc.Size),
+			attribute.String(attrDigest, desc.Digest.String()),
+			attribute.Int64(attrSizeBytes, desc.Size),
 		),
 	)
 	defer span.End()
 
 	ra, err := t.inner.ReaderAt(ctx, desc)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr(span, err)
 		return nil, err
 	}
 	return ra, nil
@@ -127,8 +134,7 @@ func (t *TracedStore) Writer(ctx context.Context, opts ...content.WriterOpt) (co
 
 	w, err := t.inner.Writer(ctx, opts...)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr(span, err)
 		return nil, err
 	}
 	return w, nil
@@ -136,13 +142,12 @@ func (t *TracedStore) Writer(ctx context.Context, opts ...content.WriterOpt) (co
 
 func (t *TracedStore) Abort(ctx context.Context, ref string) error {
 	ctx, span := t.tracer.Start(ctx, "registry.Abort",
-		trace.WithAttributes(attribute.String("ref", ref)),
+		trace.WithAttributes(attribute.String(attrRef, ref)),
 	)
 	defer span.End()
 
 	if err := t.inner.Abort(ctx, ref); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		spanErr(span, err)
 		return err
 	}
 	return nil
@@ -150,31 +155,34 @@ func (t *TracedStore) Abort(ctx context.Context, ref string) error {
 
 func (t *TracedStore) Status(ctx context.Context, ref string) (content.Status, error) {
 	ctx, span := t.tracer.Start(ctx, "registry.Status",
-		trace.WithAttributes(attribute.String("ref", ref)),
+		trace.WithAttributes(attribute.String(attrRef, ref)),
 	)
 	defer span.End()
 
 	st, err := t.inner.Status(ctx, ref)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return st, err
+		spanErr(span, err)
 	}
-	return st, nil
+	return st, err
 }
 
 func (t *TracedStore) ListStatuses(ctx context.Context, fs ...string) ([]content.Status, error) {
 	ctx, span := t.tracer.Start(ctx, "registry.ListStatuses",
-		trace.WithAttributes(attribute.StringSlice("filters", fs)),
+		trace.WithAttributes(attribute.StringSlice(attrFilters, fs)),
 	)
 	defer span.End()
 
-	statuses, err := t.inner.ListStatuses(ctx, fs...)
+	ss, err := t.inner.ListStatuses(ctx, fs...)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return statuses, err
+		spanErr(span, err)
+		return ss, err
 	}
-	span.SetAttributes(attribute.Int("count", len(statuses)))
-	return statuses, nil
+	span.SetAttributes(attribute.Int(attrCount, len(ss)))
+	return ss, nil
+}
+
+// spanErr records err on span and sets span status to Error.
+func spanErr(span trace.Span, err error) {
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }

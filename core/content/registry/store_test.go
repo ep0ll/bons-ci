@@ -2,38 +2,29 @@ package registry
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/containerd/containerd/v2/core/content"
-	"github.com/opencontainers/go-digest"
+	digest "github.com/opencontainers/go-digest"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
-// Test helpers
+// Test factory
 // ---------------------------------------------------------------------------
 
 func testStore(t *testing.T) (*Store, *mockBackend, *mockLocalStore) {
 	t.Helper()
-	backend := newMockBackend()
-	local := newMockLocalStore()
-	store, err := New(backend, local, "docker.io/library/test")
+	b := newMockBackend()
+	l := newMockLocalStore()
+	s, err := New(b, l, "docker.io/library/test", WithRetryMax(1))
 	require.NoError(t, err)
-	return store, backend, local
-}
-
-func seedRemote(t *testing.T, backend *mockBackend, data []byte) digest.Digest {
-	t.Helper()
-	return backend.seed(data)
-}
-
-func seedLocal(t *testing.T, local *mockLocalStore, data []byte) digest.Digest {
-	t.Helper()
-	dgst := digest.FromBytes(data)
-	local.commit(dgst, data)
-	return dgst
+	return s, b, l
 }
 
 // ---------------------------------------------------------------------------
@@ -41,13 +32,13 @@ func seedLocal(t *testing.T, local *mockLocalStore, data []byte) digest.Digest {
 // ---------------------------------------------------------------------------
 
 func TestNew_NilBackend(t *testing.T) {
-	_, err := New(nil, newMockLocalStore(), "docker.io/test")
+	_, err := New(nil, newMockLocalStore(), "docker.io/library/test")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "backend must not be nil")
 }
 
 func TestNew_NilLocalStore(t *testing.T) {
-	_, err := New(newMockBackend(), nil, "docker.io/test")
+	_, err := New(newMockBackend(), nil, "docker.io/library/test")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "local store must not be nil")
 }
@@ -64,14 +55,38 @@ func TestNew_InvalidRef(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid reference")
 }
 
+func TestNew_AllOptions(t *testing.T) {
+	hook := HookFunc(func(_ context.Context, _ Event) {})
+	s, err := New(newMockBackend(), newMockLocalStore(), "docker.io/library/test",
+		WithHooks(hook),
+		WithCacheTTL(10*time.Minute),
+		WithRetryMax(2),
+		WithWriterWorkerLimit(8),
+	)
+	require.NoError(t, err)
+	assert.Len(t, s.hooks, 1)
+	assert.Equal(t, 2, s.retryMax)
+	assert.Equal(t, 8, s.workerLimit)
+}
+
 // ---------------------------------------------------------------------------
 // Info
 // ---------------------------------------------------------------------------
 
+func TestStore_Info_EmptyDigest(t *testing.T) {
+	s, _, _ := testStore(t)
+	_, err := s.Info(context.Background(), "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty digest")
+	var se *StoreError
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, ErrKindInvalidArgument, se.Kind)
+}
+
 func TestStore_Info_LocalHit(t *testing.T) {
-	s, _, local := testStore(t)
-	data := []byte("local-data")
-	dgst := seedLocal(t, local, data)
+	s, _, l := testStore(t)
+	data := []byte("local-info")
+	dgst := seedLocal(t, l, data)
 
 	info, err := s.Info(context.Background(), dgst)
 	require.NoError(t, err)
@@ -80,9 +95,9 @@ func TestStore_Info_LocalHit(t *testing.T) {
 }
 
 func TestStore_Info_RemoteFallback(t *testing.T) {
-	s, backend, _ := testStore(t)
-	data := []byte("remote-data")
-	dgst := seedRemote(t, backend, data)
+	s, b, _ := testStore(t)
+	data := []byte("remote-info")
+	dgst := seedRemote(t, b, data)
 
 	info, err := s.Info(context.Background(), dgst)
 	require.NoError(t, err)
@@ -90,42 +105,72 @@ func TestStore_Info_RemoteFallback(t *testing.T) {
 	assert.Equal(t, int64(len(data)), info.Size)
 }
 
-func TestStore_Info_CacheHit(t *testing.T) {
-	s, backend, _ := testStore(t)
-	data := []byte("cached-data")
-	dgst := seedRemote(t, backend, data)
+func TestStore_Info_CacheHit_BypassesRemote(t *testing.T) {
+	s, b, _ := testStore(t)
+	data := []byte("cache-hit")
+	dgst := seedRemote(t, b, data)
 
-	// First call populates cache.
+	// Warm the cache.
 	_, err := s.Info(context.Background(), dgst)
 	require.NoError(t, err)
 
-	// Second call should hit cache.
+	// Remove from backend; second call must succeed from cache alone.
+	b.mu.Lock()
+	delete(b.blobs, dgst)
+	delete(b.descs, dgst)
+	b.mu.Unlock()
+
 	info, err := s.Info(context.Background(), dgst)
 	require.NoError(t, err)
 	assert.Equal(t, dgst, info.Digest)
 }
 
-func TestStore_Info_EmptyDigest(t *testing.T) {
-	s, _, _ := testStore(t)
-	_, err := s.Info(context.Background(), "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "empty digest")
-}
-
 func TestStore_Info_NotFound(t *testing.T) {
 	s, _, _ := testStore(t)
-	_, err := s.Info(context.Background(), digest.FromBytes([]byte("missing")))
+	_, err := s.Info(context.Background(), makeDigest("missing"))
 	require.Error(t, err)
+}
+
+func TestStore_Info_CacheTTLExpiry(t *testing.T) {
+	b := newMockBackend()
+	l := newMockLocalStore()
+	s, err := New(b, l, "docker.io/library/test",
+		WithCacheTTL(10*time.Millisecond),
+		WithRetryMax(1),
+	)
+	require.NoError(t, err)
+
+	dgst := seedRemote(t, b, []byte("ttl-data"))
+	_, err = s.Info(context.Background(), dgst)
+	require.NoError(t, err)
+
+	time.Sleep(25 * time.Millisecond)
+
+	// Remove from backend; cache expired so remote will be hit (and fail).
+	b.mu.Lock()
+	delete(b.blobs, dgst)
+	delete(b.descs, dgst)
+	b.mu.Unlock()
+
+	_, err = s.Info(context.Background(), dgst)
+	require.Error(t, err, "should fail after TTL expiry when backend is empty")
 }
 
 // ---------------------------------------------------------------------------
 // ReaderAt
 // ---------------------------------------------------------------------------
 
+func TestStore_ReaderAt_InvalidDigest(t *testing.T) {
+	s, _, _ := testStore(t)
+	_, err := s.ReaderAt(context.Background(), v1.Descriptor{Digest: "invalid"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid digest")
+}
+
 func TestStore_ReaderAt_LocalHit(t *testing.T) {
-	s, _, local := testStore(t)
+	s, _, l := testStore(t)
 	data := []byte("reader-local")
-	dgst := seedLocal(t, local, data)
+	dgst := seedLocal(t, l, data)
 
 	ra, err := s.ReaderAt(context.Background(), v1.Descriptor{Digest: dgst, Size: int64(len(data))})
 	require.NoError(t, err)
@@ -139,9 +184,9 @@ func TestStore_ReaderAt_LocalHit(t *testing.T) {
 }
 
 func TestStore_ReaderAt_RemoteFetch(t *testing.T) {
-	s, backend, _ := testStore(t)
+	s, b, _ := testStore(t)
 	data := []byte("reader-remote")
-	dgst := seedRemote(t, backend, data)
+	dgst := seedRemote(t, b, data)
 
 	ra, err := s.ReaderAt(context.Background(), v1.Descriptor{Digest: dgst, Size: int64(len(data))})
 	require.NoError(t, err)
@@ -153,18 +198,24 @@ func TestStore_ReaderAt_RemoteFetch(t *testing.T) {
 	assert.Equal(t, data, buf[:n])
 }
 
-func TestStore_ReaderAt_InvalidDigest(t *testing.T) {
-	s, _, _ := testStore(t)
-	_, err := s.ReaderAt(context.Background(), v1.Descriptor{Digest: "invalid"})
+func TestStore_ReaderAt_FetchError(t *testing.T) {
+	s, b, _ := testStore(t)
+	b.fetchErr = fmt.Errorf("network error")
+	dgst := makeDigest("fail")
+
+	_, err := s.ReaderAt(context.Background(), v1.Descriptor{Digest: dgst, Size: 4})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid digest")
+
+	var se *StoreError
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, ErrKindUnavailable, se.Kind)
 }
 
 // ---------------------------------------------------------------------------
 // Writer
 // ---------------------------------------------------------------------------
 
-func TestStore_WriterLifecycle(t *testing.T) {
+func TestStore_WriterLifecycle_WriteCommit(t *testing.T) {
 	s, _, _ := testStore(t)
 	ctx := context.Background()
 	data := []byte("writer-lifecycle")
@@ -177,72 +228,93 @@ func TestStore_WriterLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, len(data), n)
 
-	err = w.Commit(ctx, int64(len(data)), dgst)
-	require.NoError(t, err)
+	require.NoError(t, w.Commit(ctx, int64(len(data)), dgst))
 }
 
 func TestStore_Writer_DuplicateIngestion(t *testing.T) {
 	s, _, _ := testStore(t)
 	ctx := context.Background()
-	dgst := digest.FromBytes([]byte("dup"))
+	dgst := makeDigest("dup")
 
 	_, err := s.Writer(ctx, content.WithRef(dgst.String()))
 	require.NoError(t, err)
 
-	// Second writer with same ref should fail.
 	_, err = s.Writer(ctx, content.WithRef(dgst.String()))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already active")
+
+	var se *StoreError
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, ErrKindAlreadyExists, se.Kind)
 }
 
 func TestStore_Writer_NoRefOrDigest(t *testing.T) {
 	s, _, _ := testStore(t)
 	_, err := s.Writer(context.Background())
 	require.Error(t, err)
+	assert.Contains(t, err.Error(), "required")
 }
 
 func TestStore_Writer_DigestFromRef(t *testing.T) {
 	s, _, _ := testStore(t)
-	dgst := digest.FromBytes([]byte("ref-digest"))
-	ref := "test@" + dgst.String()
-
-	w, err := s.Writer(context.Background(), content.WithRef(ref))
+	dgst := makeDigest("ref-digest")
+	w, err := s.Writer(context.Background(), content.WithRef("test@"+dgst.String()))
 	require.NoError(t, err)
 	require.NotNil(t, w)
 	w.Close()
 }
 
-// ---------------------------------------------------------------------------
-// Abort
-// ---------------------------------------------------------------------------
-
-func TestStore_Abort(t *testing.T) {
+func TestStore_Writer_DoubleCommit(t *testing.T) {
 	s, _, _ := testStore(t)
 	ctx := context.Background()
-	dgst := digest.FromBytes([]byte("abort-test"))
+	data := []byte("double-commit")
+	dgst := digest.FromBytes(data)
 
-	_, err := s.Writer(ctx, content.WithRef(dgst.String()))
+	w, err := s.Writer(ctx, content.WithRef(dgst.String()))
 	require.NoError(t, err)
+	_, _ = w.Write(data)
+	require.NoError(t, w.Commit(ctx, int64(len(data)), dgst))
 
-	err = s.Abort(ctx, dgst.String())
+	err = w.Commit(ctx, int64(len(data)), dgst)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already committed")
+}
+
+func TestStore_Writer_CloseReleasesIngestion(t *testing.T) {
+	s, _, _ := testStore(t)
+	ctx := context.Background()
+	dgst := makeDigest("close-release")
+
+	w, err := s.Writer(ctx, content.WithRef(dgst.String()))
 	require.NoError(t, err)
+	require.NoError(t, w.Close())
 
-	// After abort, we should be able to create a new writer with the same ref
-	// (proving the ingestion was removed).
+	// After close the same ref must be available again.
 	w2, err := s.Writer(ctx, content.WithRef(dgst.String()))
 	require.NoError(t, err)
-	require.NotNil(t, w2)
 	w2.Close()
 }
 
-// ---------------------------------------------------------------------------
-// Status / ListStatuses
-// ---------------------------------------------------------------------------
+func TestStore_Writer_PushError(t *testing.T) {
+	b := newMockBackend()
+	b.pushErr = fmt.Errorf("push refused")
+	l := newMockLocalStore()
+	s, err := New(b, l, "docker.io/library/test", WithRetryMax(1))
+	require.NoError(t, err)
 
-func TestStore_Status_ActiveIngestion(t *testing.T) {
+	dgst := makeDigest("push-fail")
+	_, err = s.Writer(context.Background(), content.WithRef(dgst.String()))
+	require.Error(t, err)
+
+	var se *StoreError
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, ErrKindUnavailable, se.Kind)
+}
+
+func TestStore_Writer_StatusDuringIngestion(t *testing.T) {
 	s, _, _ := testStore(t)
 	ctx := context.Background()
-	dgst := digest.FromBytes([]byte("status-test"))
+	dgst := makeDigest("status")
 
 	_, err := s.Writer(ctx, content.WithRef(dgst.String()))
 	require.NoError(t, err)
@@ -250,58 +322,113 @@ func TestStore_Status_ActiveIngestion(t *testing.T) {
 	st, err := s.Status(ctx, dgst.String())
 	require.NoError(t, err)
 	assert.Equal(t, dgst.String(), st.Ref)
+	assert.False(t, st.StartedAt.IsZero())
 }
 
-func TestStore_ListStatuses_Empty(t *testing.T) {
-	s, _, _ := testStore(t)
-	statuses, err := s.ListStatuses(context.Background())
-	require.NoError(t, err)
-	assert.Empty(t, statuses)
-}
+// ---------------------------------------------------------------------------
+// Abort
+// ---------------------------------------------------------------------------
 
-func TestStore_ListStatuses_WithActive(t *testing.T) {
+func TestStore_Abort_ExistingIngestion(t *testing.T) {
 	s, _, _ := testStore(t)
 	ctx := context.Background()
-	dgst := digest.FromBytes([]byte("list-status"))
+	dgst := makeDigest("abort")
 
 	_, err := s.Writer(ctx, content.WithRef(dgst.String()))
 	require.NoError(t, err)
 
-	statuses, err := s.ListStatuses(ctx)
+	require.NoError(t, s.Abort(ctx, dgst.String()))
+
+	// After abort the ref must be available again.
+	w2, err := s.Writer(ctx, content.WithRef(dgst.String()))
 	require.NoError(t, err)
-	assert.NotEmpty(t, statuses)
+	w2.Close()
+}
+
+func TestStore_Abort_Unknown(t *testing.T) {
+	s, _, _ := testStore(t)
+	err := s.Abort(context.Background(), "nonexistent")
+	require.Error(t, err) // falls through to local store which also returns error
 }
 
 // ---------------------------------------------------------------------------
-// Delete
+// Status / ListStatuses
+// ---------------------------------------------------------------------------
+
+func TestStore_ListStatuses_Empty(t *testing.T) {
+	s, _, _ := testStore(t)
+	ss, err := s.ListStatuses(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, ss)
+}
+
+func TestStore_ListStatuses_WithActiveIngestion(t *testing.T) {
+	s, _, _ := testStore(t)
+	ctx := context.Background()
+	dgst := makeDigest("list-status")
+
+	_, err := s.Writer(ctx, content.WithRef(dgst.String()))
+	require.NoError(t, err)
+
+	ss, err := s.ListStatuses(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, ss)
+}
+
+func TestStore_ListStatuses_Filter(t *testing.T) {
+	s, _, _ := testStore(t)
+	ctx := context.Background()
+
+	for _, name := range []string{"alpha-1", "alpha-2", "beta-1"} {
+		dgst := makeDigest(name)
+		_, err := s.Writer(ctx, content.WithRef(name+"@"+dgst.String()))
+		require.NoError(t, err)
+	}
+
+	ss, err := s.ListStatuses(ctx, "alpha")
+	require.NoError(t, err)
+	assert.Len(t, ss, 2, "filter 'alpha' should match alpha-1 and alpha-2")
+}
+
+// ---------------------------------------------------------------------------
+// Delete / Update / Walk
 // ---------------------------------------------------------------------------
 
 func TestStore_Delete(t *testing.T) {
-	s, _, local := testStore(t)
-	data := []byte("delete-me")
-	dgst := seedLocal(t, local, data)
+	s, _, l := testStore(t)
+	dgst := seedLocal(t, l, []byte("delete-me"))
 
-	err := s.Delete(context.Background(), dgst)
+	require.NoError(t, s.Delete(context.Background(), dgst))
+	_, err := s.Info(context.Background(), dgst)
+	require.Error(t, err)
+}
+
+func TestStore_Delete_InvalidatesCacheEntry(t *testing.T) {
+	s, b, _ := testStore(t)
+	dgst := seedRemote(t, b, []byte("cache-invalidate"))
+
+	// Populate cache.
+	_, err := s.Info(context.Background(), dgst)
 	require.NoError(t, err)
 
-	_, err = s.Info(context.Background(), dgst)
-	require.Error(t, err)
+	// Seed local so Delete succeeds.
+	s.local.(*mockLocalStore).commit(dgst, []byte("cache-invalidate"))
+	require.NoError(t, s.Delete(context.Background(), dgst))
+
+	// Cache must be invalidated.
+	_, cacheHit := s.infoCache.Get(dgst)
+	assert.False(t, cacheHit)
 }
 
 func TestStore_Delete_NotFound(t *testing.T) {
 	s, _, _ := testStore(t)
-	err := s.Delete(context.Background(), digest.FromBytes([]byte("missing")))
+	err := s.Delete(context.Background(), makeDigest("missing"))
 	require.Error(t, err)
 }
 
-// ---------------------------------------------------------------------------
-// Update
-// ---------------------------------------------------------------------------
-
 func TestStore_Update(t *testing.T) {
-	s, _, local := testStore(t)
-	data := []byte("update-me")
-	dgst := seedLocal(t, local, data)
+	s, _, l := testStore(t)
+	dgst := seedLocal(t, l, []byte("update-me"))
 
 	updated, err := s.Update(context.Background(), content.Info{
 		Digest: dgst,
@@ -311,64 +438,213 @@ func TestStore_Update(t *testing.T) {
 	assert.Equal(t, "test", updated.Labels["env"])
 }
 
-// ---------------------------------------------------------------------------
-// Walk
-// ---------------------------------------------------------------------------
+func TestStore_Update_InvalidatesCacheEntry(t *testing.T) {
+	s, _, l := testStore(t)
+	dgst := seedLocal(t, l, []byte("upd-cache"))
 
-func TestStore_Walk(t *testing.T) {
-	s, _, local := testStore(t)
-	seedLocal(t, local, []byte("walk-a"))
-	seedLocal(t, local, []byte("walk-b"))
+	// Populate cache.
+	_, _ = s.Info(context.Background(), dgst)
+	_, wasCached := s.infoCache.Get(dgst)
+	assert.True(t, wasCached)
 
-	var walked []digest.Digest
-	err := s.Walk(context.Background(), func(info content.Info) error {
-		walked = append(walked, info.Digest)
+	_, _ = s.Update(context.Background(), content.Info{Digest: dgst})
+
+	_, stillCached := s.infoCache.Get(dgst)
+	assert.False(t, stillCached, "Update must invalidate the cache entry")
+}
+
+func TestStore_Walk_VisitsAllBlobs(t *testing.T) {
+	s, _, l := testStore(t)
+	for _, payload := range [][]byte{[]byte("walk-a"), []byte("walk-b"), []byte("walk-c")} {
+		seedLocal(t, l, payload)
+	}
+
+	var visited []digest.Digest
+	require.NoError(t, s.Walk(context.Background(), func(info content.Info) error {
+		visited = append(visited, info.Digest)
 		return nil
+	}))
+	assert.Len(t, visited, 3)
+}
+
+func TestStore_Walk_EarlyExit(t *testing.T) {
+	s, _, l := testStore(t)
+	seedLocal(t, l, []byte("ea"))
+	seedLocal(t, l, []byte("eb"))
+
+	count := 0
+	err := s.Walk(context.Background(), func(content.Info) error {
+		count++
+		return fmt.Errorf("stop")
 	})
-	require.NoError(t, err)
-	assert.Len(t, walked, 2)
+	require.Error(t, err)
+	assert.Equal(t, 1, count)
 }
 
 // ---------------------------------------------------------------------------
 // Close
 // ---------------------------------------------------------------------------
 
-func TestStore_Close(t *testing.T) {
+func TestStore_Close_CancelsActiveIngestions(t *testing.T) {
 	s, _, _ := testStore(t)
 	ctx := context.Background()
-	dgst := digest.FromBytes([]byte("close-test"))
 
-	_, err := s.Writer(ctx, content.WithRef(dgst.String()))
-	require.NoError(t, err)
+	for i := 0; i < 5; i++ {
+		dgst := makeDigest(fmt.Sprintf("close-%d", i))
+		_, err := s.Writer(ctx, content.WithRef(dgst.String()))
+		require.NoError(t, err)
+	}
 
-	err = s.Close()
-	require.NoError(t, err)
+	require.NoError(t, s.Close())
+}
+
+func TestStore_Close_FlushesInfoCache(t *testing.T) {
+	s, b, _ := testStore(t)
+	dgst := seedRemote(t, b, []byte("flush-on-close"))
+	_, _ = s.Info(context.Background(), dgst)
+
+	_, wasCached := s.infoCache.Get(dgst)
+	require.True(t, wasCached)
+
+	require.NoError(t, s.Close())
+
+	_, isCached := s.infoCache.Get(dgst)
+	assert.False(t, isCached, "Close must flush the info cache")
 }
 
 // ---------------------------------------------------------------------------
-// digestFromRef
+// digestFromRef (unit tests for the parsing helper)
 // ---------------------------------------------------------------------------
 
-func TestDigestFromRef(t *testing.T) {
-	tests := []struct {
+func TestDigestFromRef_Table(t *testing.T) {
+	validDigest := "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	cases := []struct {
 		name    string
 		ref     string
 		wantErr bool
 	}{
-		{"valid", "test@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", false},
+		{"bare_digest", validDigest, false},
+		{"name_at_digest", "test@" + validDigest, false},
 		{"empty", "", true},
-		{"no at", "test", true},
-		{"invalid digest", "test@notadigest", true},
+		{"no_at_no_digest", "justname", true},
+		{"bad_digest", "test@notadigest", true},
+		{"at_bad_digest", "name@sha256:tooshort", true},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := digestFromRef(tt.ref)
-			if tt.wantErr {
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := digestFromRef(tc.ref)
+			if tc.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// matchesFilters
+// ---------------------------------------------------------------------------
+
+func TestMatchesFilters_EmptyMatchesAll(t *testing.T) {
+	st := content.Status{Ref: "anything"}
+	assert.True(t, matchesFilters(st, nil))
+	assert.True(t, matchesFilters(st, []string{}))
+}
+
+func TestMatchesFilters_PrefixMatch(t *testing.T) {
+	st := content.Status{Ref: "docker.io/library/nginx"}
+	assert.True(t, matchesFilters(st, []string{"docker.io"}))
+	assert.True(t, matchesFilters(st, []string{"docker.io/library"}))
+	assert.False(t, matchesFilters(st, []string{"quay.io"}))
+}
+
+// ---------------------------------------------------------------------------
+// Concurrent stress tests (run with -race)
+// ---------------------------------------------------------------------------
+
+func TestStore_ConcurrentInfo_RaceFree(t *testing.T) {
+	s, b, _ := testStore(t)
+	dgst := seedRemote(t, b, []byte("concurrent-info"))
+
+	const goroutines = 200
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	errs := make([]error, goroutines)
+	for i := 0; i < goroutines; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			_, errs[i] = s.Info(context.Background(), dgst)
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		assert.NoError(t, err, "goroutine %d", i)
+	}
+}
+
+func TestStore_ConcurrentWriter_RaceFree(t *testing.T) {
+	s, _, _ := testStore(t)
+	ctx := context.Background()
+	const writers = 50
+
+	var wg sync.WaitGroup
+	wg.Add(writers)
+	for i := 0; i < writers; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			data := []byte(fmt.Sprintf("concurrent-writer-%d", i))
+			dgst := digest.FromBytes(data)
+			ref := fmt.Sprintf("ref-%d@", i) + dgst.String()
+			w, err := s.Writer(ctx, content.WithRef(ref))
+			if err != nil {
+				return
+			}
+			w.Write(data)
+			w.Commit(ctx, int64(len(data)), dgst)
+		}()
+	}
+	wg.Wait()
+}
+
+func TestStore_ConcurrentMixedOps_RaceFree(t *testing.T) {
+	s, b, l := testStore(t)
+	ctx := context.Background()
+
+	// Pre-seed some blobs.
+	digests := make([]digest.Digest, 20)
+	for i := range digests {
+		data := []byte(fmt.Sprintf("mixed-%d", i))
+		if i%2 == 0 {
+			digests[i] = seedLocal(t, l, data)
+		} else {
+			digests[i] = seedRemote(t, b, data)
+		}
+	}
+
+	var wg sync.WaitGroup
+	const goroutines = 100
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			dgst := digests[i%len(digests)]
+			switch i % 3 {
+			case 0:
+				s.Info(ctx, dgst)
+			case 1:
+				desc := v1.Descriptor{Digest: dgst, Size: int64(i % 64)}
+				ra, err := s.ReaderAt(ctx, desc)
+				if err == nil {
+					ra.Close()
+				}
+			case 2:
+				s.ListStatuses(ctx)
+			}
+		}()
+	}
+	wg.Wait()
 }

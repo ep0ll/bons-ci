@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/containerd/containerd/v2/core/content"
@@ -11,93 +12,142 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// contentWriter implements content.Writer by dual-writing to a remote
-// registry (primary) and a local cache store (best-effort).
+// contentWriter implements content.Writer with a concurrent dual-write strategy:
 //
-// On Commit, the writer removes itself from the Store's active ingestion
-// tracker and emits an EventBlobPushed event.
+//   - Remote (primary): synchronous — caller's Write blocks only until the remote
+//     registry has accepted the bytes.
+//   - Local (best-effort cache): asynchronous — bytes are copied into a pool
+//     buffer and enqueued to a single background goroutine, so the caller NEVER
+//     waits on local disk I/O.
+//
+// A single sequential goroutine drains the channel so the local writer receives
+// bytes in order (required for digest correctness).
+//
+// Commit uses atomic CAS on `committed` to prevent double-commit without a mutex.
+// Write offset is tracked with atomic.AddInt64 — no lock on the hot Write path.
 type contentWriter struct {
+	// Hot fields: touched on every Write call. First cache line.
+	offset    int64 // bytes accepted by remote; updated atomically
+	committed int32 // 0 or 1; guarded by CAS in Commit
+	_         [56]byte
+
+	// Cold fields: set at construction, then read-only.
 	store  *Store
 	ref    string
 	desc   v1.Descriptor
-	remote content.Writer // primary: remote registry push
-	local  content.Writer // best-effort: local cache
+	remote content.Writer
+	local  content.Writer // nil when no local cache is available
 
-	mu        sync.Mutex
-	offset    int64
-	committed bool
+	// Async local-write pipeline.
+	localCh   chan localChunk // bounded channel; deep enough to absorb bursts
+	localWg   sync.WaitGroup // tracks the single localWorker goroutine
+	localOnce sync.Once      // ensures localCh is closed exactly once
 }
 
+// localChunk is a pool-owned byte slice enqueued for async local writing.
+type localChunk struct {
+	buf *[]byte
+	n   int
+}
+
+const defaultLocalChanCap = 32
+
 func newContentWriter(
-	store *Store,
+	s *Store,
 	ref string,
 	desc v1.Descriptor,
 	remote content.Writer,
 	local content.Writer,
+	chanCap int,
 ) *contentWriter {
-	return &contentWriter{
-		store:  store,
+	if chanCap <= 0 {
+		chanCap = defaultLocalChanCap
+	}
+	cw := &contentWriter{
+		store:  s,
 		ref:    ref,
 		desc:   desc,
 		remote: remote,
 		local:  local,
 	}
+	if local != nil {
+		cw.localCh = make(chan localChunk, chanCap)
+		cw.localWg.Add(1)
+		go cw.localWorker()
+	}
+	return cw
 }
 
-// Write pushes data to the remote registry and best-effort mirrors it to
-// the local cache.
+// localWorker drains localCh and writes each chunk to the local cache writer
+// sequentially (ordering is mandatory for digest correctness). Exits when closed.
+func (w *contentWriter) localWorker() {
+	defer w.localWg.Done()
+	for chunk := range w.localCh {
+		_, _ = w.local.Write((*chunk.buf)[:chunk.n]) // best-effort; errors ignored
+		poolPut(chunk.buf)
+	}
+}
+
+// closeLocalCh closes the async channel exactly once (safe from Write/Close/Commit).
+func (w *contentWriter) closeLocalCh() {
+	if w.local != nil {
+		w.localOnce.Do(func() { close(w.localCh) })
+	}
+}
+
+// Write pushes p to the remote registry (synchronous) and enqueues a pool-copy
+// to the local cache goroutine (asynchronous, best-effort).
+//
+// If the local channel is full the local write is silently dropped — the caller
+// is never blocked on local I/O.
 func (w *contentWriter) Write(p []byte) (int, error) {
 	n, err := w.remote.Write(p)
 	if err != nil {
 		return n, err
 	}
 
-	// Best-effort write to local cache.
-	if w.local != nil {
-		w.local.Write(p[:n])
+	if w.local != nil && n > 0 {
+		buf := poolGet(n)
+		copy(*buf, p[:n]) // one copy so the goroutine owns its slice
+		select {
+		case w.localCh <- localChunk{buf: buf, n: n}:
+		default:
+			poolPut(buf) // channel full; drop (best-effort)
+		}
 	}
 
-	w.mu.Lock()
-	w.offset += int64(n)
-	w.mu.Unlock()
-
-	w.store.updateIngestion(w.ref)
+	atomic.AddInt64(&w.offset, int64(n))
+	w.store.ingestions.Touch(w.ref)
 	return n, nil
 }
 
-// Commit finalises the upload to the remote registry and best-effort commits
-// the local cache copy. Removes the active ingestion and emits EventBlobPushed.
+// Commit finalises the upload:
+//  1. CAS committed 0→1 (prevents double-commit without a mutex).
+//  2. Commits to remote (primary; resets CAS on failure to allow retry).
+//  3. Drains async local writes via localWg.Wait(), then commits local cache.
+//  4. Removes the ingestion, invalidates info cache, emits EventBlobPushed.
 func (w *contentWriter) Commit(ctx context.Context, size int64, expected digest.Digest, opts ...content.Opt) error {
-	w.mu.Lock()
-	if w.committed {
-		w.mu.Unlock()
+	if !atomic.CompareAndSwapInt32(&w.committed, 0, 1) {
 		return storeErr(ErrKindPrecondition, "Commit", "already committed", nil)
 	}
-	w.mu.Unlock()
 
-	// Commit to remote (primary).
+	// Primary commit — must succeed.
 	if err := w.remote.Commit(ctx, size, expected, opts...); err != nil {
+		atomic.StoreInt32(&w.committed, 0) // permit retry
 		return fmt.Errorf("registry: remote commit: %w", err)
 	}
 
-	// Best-effort commit to local cache.
+	// Drain async writes, then best-effort commit local cache.
 	if w.local != nil {
-		w.local.Commit(ctx, size, expected, opts...)
+		w.closeLocalCh()
+		w.localWg.Wait()
+		_ = w.local.Commit(ctx, size, expected, opts...)
 	}
 
-	w.mu.Lock()
-	w.committed = true
-	w.mu.Unlock()
-
-	// Remove from active ingestions.
-	w.store.removeIngestion(w.ref)
-
-	// Invalidate info cache.
+	w.store.ingestions.Remove(w.ref)
 	if expected != "" {
 		w.store.infoCache.Delete(expected)
 	}
-
-	// Emit event.
 	w.store.emit(ctx, Event{
 		Kind:      EventBlobPushed,
 		Digest:    expected,
@@ -105,45 +155,30 @@ func (w *contentWriter) Commit(ctx context.Context, size int64, expected digest.
 		Ref:       w.ref,
 		Timestamp: time.Now(),
 	})
-
 	return nil
 }
 
-// Close closes both writers and removes the active ingestion.
+// Close shuts down the local goroutine and closes both writers.
+// Removes the active ingestion record.
 func (w *contentWriter) Close() error {
-	var errs []error
-
-	if err := w.remote.Close(); err != nil {
-		errs = append(errs, fmt.Errorf("remote: %w", err))
-	}
+	w.closeLocalCh()
 	if w.local != nil {
-		if err := w.local.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("local: %w", err))
-		}
+		w.localWg.Wait()
+		_ = w.local.Close()
 	}
-
-	w.store.removeIngestion(w.ref)
-
-	if len(errs) > 0 {
-		return fmt.Errorf("registry/writer: close errors: %v", errs)
-	}
-	return nil
+	w.store.ingestions.Remove(w.ref)
+	return w.remote.Close()
 }
 
-// Digest returns the digest of all data written so far.
-func (w *contentWriter) Digest() digest.Digest {
-	return w.remote.Digest()
-}
+// Digest returns the digest of bytes written to the remote writer so far.
+func (w *contentWriter) Digest() digest.Digest { return w.remote.Digest() }
 
-// Status returns the current write status.
-func (w *contentWriter) Status() (content.Status, error) {
-	return w.remote.Status()
-}
+// Status returns the current ingestion status from the remote writer.
+func (w *contentWriter) Status() (content.Status, error) { return w.remote.Status() }
 
-// Truncate resets the writer to the given offset.
-func (w *contentWriter) Truncate(size int64) error {
-	return w.remote.Truncate(size)
-}
+// Truncate resets the remote writer to size. Local async goroutine is not
+// rewound; the local cache copy is abandoned on truncate.
+func (w *contentWriter) Truncate(size int64) error { return w.remote.Truncate(size) }
 
 // compile-time check
 var _ content.Writer = (*contentWriter)(nil)
