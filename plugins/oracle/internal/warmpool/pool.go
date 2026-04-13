@@ -1,22 +1,25 @@
-// Package warmpool maintains a pool of pre-launched OCI preemptible instances
-// in STOPPED state, ready to be instantly started when a migration is needed.
+// Package warmpool maintains a pool of pre-launched regular OCI instances in
+// STOPPED state, ready to be instantly started when a migration is needed.
 //
-// Impact on latency:
+// Why regular (non-preemptible) instances for the pool?
 //
-//	Without warm pool: successor boot = 30-50s (OCI provisioning + cloud-init)
-//	With warm pool:    successor ready = ~2-3s (just a StartInstance API call)
-//
-// How it works:
-//  1. On daemon startup, pool.Ensure() launches N instances in STOPPED state.
-//  2. Each warm instance has the migrator agent pre-installed (baked into the image).
-//  3. On preemption, pool.Acquire() picks a warm instance and calls StartInstance.
-//  4. StartInstance on a pre-provisioned VM completes in ~2-3 seconds.
-//  5. After the migration, pool.Replenish() launches a replacement in background.
+// OCI preemptible instances can only be Terminated — they do NOT support
+// Stop/Start via InstanceAction.  The warm pool needs instances that can be
+// stopped cheaply (storage-only billing) and started rapidly (~2–3s).
+// Regular instances support this lifecycle.  When acquired, the warm instance
+// is started (regular, so it won't be preempted mid-restore) and the build
+// continues on it as a stable VM.
 //
 // Cost:
 //
-//	STOPPED preemptible instances are billed at ~10% of running cost for storage.
-//	Keeping 1-2 warm instances costs pennies per hour.
+//	STOPPED regular instance = storage billing only (~$0.003/hour for 100GB boot vol).
+//	Keeping 1 warm instance: negligible cost, saves 30–35s per migration.
+//
+// How it works:
+//  1. On daemon startup, Ensure() launches N instances in STOPPED state.
+//  2. Each warm instance has the migrator agent pre-installed (baked image).
+//  3. On preemption, Acquire() calls StartInstance (~2–3s to RUNNING).
+//  4. After migration, Replenish() launches a replacement in background.
 package warmpool
 
 import (
@@ -27,7 +30,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/oracle/oci-go-sdk/v65/core"
 	"go.uber.org/zap"
 
@@ -35,7 +37,12 @@ import (
 	"github.com/bons/bons-ci/plugins/oracle/internal/oci"
 )
 
-// WarmInstance represents a pre-launched but stopped instance.
+const (
+	warmPoolStartTimeout = 60 * time.Second
+	warmPoolStopTimeout  = 90 * time.Second
+)
+
+// WarmInstance represents a pre-launched but stopped regular instance.
 type WarmInstance struct {
 	OCID      string    `json:"ocid"`
 	PrivateIP string    `json:"private_ip"`
@@ -44,27 +51,25 @@ type WarmInstance struct {
 	Shape     string    `json:"shape"`
 }
 
-// Pool manages warm preemptible instances.
+// Pool manages warm regular instances.
 type Pool struct {
 	mu         sync.Mutex
 	instances  []*WarmInstance
 	cfg        config.WarmPoolConfig
 	ociCfg     config.OCIConfig
 	session    *oci.Session
-	instances_ *oci.InstanceManager
+	instanceMgr *oci.InstanceManager
 	log        *zap.Logger
-	statePath  string
 }
 
 // New constructs a Pool and loads any persisted warm instance list.
 func New(cfg config.WarmPoolConfig, ociCfg config.OCIConfig, session *oci.Session, log *zap.Logger) *Pool {
 	p := &Pool{
-		cfg:        cfg,
-		ociCfg:     ociCfg,
-		session:    session,
-		instances_: oci.NewInstanceManager(session, log),
-		log:        log,
-		statePath:  cfg.StatePath,
+		cfg:         cfg,
+		ociCfg:      ociCfg,
+		session:     session,
+		instanceMgr: oci.NewInstanceManager(session, log),
+		log:         log,
 	}
 	p.load()
 	return p
@@ -114,9 +119,9 @@ func (p *Pool) Ensure(ctx context.Context) error {
 }
 
 // Acquire removes and returns the best available warm instance, starting it immediately.
-// The returned instance is in RUNNING state within ~2-3 seconds.
-// Returns nil if the pool is empty (caller falls back to full launch).
-func (p *Pool) Acquire(ctx context.Context, targetPrivateIP string) (*WarmInstance, error) {
+// The returned instance is in RUNNING state within ~2–3 seconds.
+// Returns nil, nil if the pool is empty (caller falls back to cold launch).
+func (p *Pool) Acquire(ctx context.Context) (*WarmInstance, error) {
 	p.mu.Lock()
 	if len(p.instances) == 0 {
 		p.mu.Unlock()
@@ -135,14 +140,15 @@ func (p *Pool) Acquire(ctx context.Context, targetPrivateIP string) (*WarmInstan
 		zap.Duration("age", time.Since(inst.CreatedAt)),
 	)
 
-	// Start the stopped instance — this completes in ~2-3s.
 	startTime := time.Now()
-	if err := p.startInstance(ctx, inst.OCID, targetPrivateIP); err != nil {
-		p.log.Error("failed to start warm instance — putting back and returning nil",
+	// StartInstance works only for regular instances — these pool instances
+	// are NOT preemptible, so Stop/Start is fully supported by OCI.
+	if err := p.instanceMgr.StartInstance(ctx, inst.OCID, warmPoolStartTimeout); err != nil {
+		p.log.Error("failed to start warm instance — returning to pool for cleanup",
 			zap.String("ocid", inst.OCID),
 			zap.Error(err),
 		)
-		// Return it to the pool for cleanup later.
+		// Return to pool tail for cleanup by Prune() later.
 		p.mu.Lock()
 		p.instances = append(p.instances, inst)
 		p.mu.Unlock()
@@ -154,7 +160,7 @@ func (p *Pool) Acquire(ctx context.Context, targetPrivateIP string) (*WarmInstan
 		zap.Duration("start_time", time.Since(startTime)),
 	)
 
-	// Replenish the pool in background.
+	// Replenish the pool asynchronously so the next migration is covered.
 	go func() {
 		replenishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
@@ -187,15 +193,17 @@ func (p *Pool) Prune(ctx context.Context) {
 			zap.Duration("age", time.Since(inst.CreatedAt)),
 		)
 		go func(ocid string) {
+			// Regular instances can be terminated normally.
+			preserveBoot := false
 			_, _ = p.session.Compute.TerminateInstance(ctx, core.TerminateInstanceRequest{
-				InstanceId: &ocid,
+				InstanceId:         &ocid,
+				PreserveBootVolume: &preserveBoot,
 			})
 		}(inst.OCID)
 	}
 
 	if len(stale) > 0 {
 		p.save()
-		// Replenish after pruning.
 		go func() {
 			repCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
@@ -209,10 +217,12 @@ func (p *Pool) StartBackground(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(p.cfg.MaintenanceInterval)
 		defer ticker.Stop()
-		// Initial ensure at startup.
+
+		// Initial ensure at startup — fill the pool before any migration.
 		if err := p.Ensure(ctx); err != nil {
 			p.log.Warn("initial pool ensure failed", zap.Error(err))
 		}
+
 		for {
 			select {
 			case <-ticker.C:
@@ -227,7 +237,7 @@ func (p *Pool) StartBackground(ctx context.Context) {
 	}()
 }
 
-// Size returns current pool depth.
+// Size returns current pool depth (thread-safe).
 func (p *Pool) Size() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -236,16 +246,22 @@ func (p *Pool) Size() int {
 
 // ────────────────────────────────────────────────────────────────────────────
 
+// launchWarm launches a regular (non-preemptible) instance and immediately
+// stops it so it enters STOPPED state for cheap storage-only billing.
+// Regular instances support Stop/Start; preemptible instances do not.
 func (p *Pool) launchWarm(ctx context.Context) (*WarmInstance, error) {
-	// Launch in STOPPED state via a stopped-instance shape.
-	// We use the same shape/image as the live build instances.
-	ocid, err := p.instances_.LaunchSuccessor(ctx, oci.LaunchSuccessorOptions{
+	ocid, err := p.instanceMgr.LaunchSuccessor(ctx, oci.LaunchSuccessorOptions{
 		DisplayName: fmt.Sprintf("cicd-warm-%s", time.Now().Format("150405")),
 		ImageOCID:   p.ociCfg.ImageOCID,
-		// No PrivateIP — pool instances get dynamic IPs; IP is reassigned on acquire.
+		// Preemptible: false — MUST be false for warm pool.
+		// Preemptible instances cannot be stopped and restarted.
+		Preemptible: false,
+		// No PrivateIP — pool instances get auto-assigned IPs.
+		// The IP will be different from the source; that's expected.
 		FreeformTags: map[string]string{
 			"oci-migrator-role": "warm-pool",
 			"oci-migrator-ts":   time.Now().UTC().Format(time.RFC3339),
+			"managed-by":        "oci-live-migrator",
 		},
 		Timeout: 2 * time.Minute,
 	})
@@ -253,13 +269,24 @@ func (p *Pool) launchWarm(ctx context.Context) (*WarmInstance, error) {
 		return nil, fmt.Errorf("launching warm instance: %w", err)
 	}
 
-	// Stop the instance immediately after it reaches RUNNING.
-	if err := p.stopInstance(ctx, ocid); err != nil {
+	// Fetch IP before stopping (it remains assigned even when stopped).
+	ip, _ := p.instanceMgr.GetInstancePrivateIPNoCache(ctx, ocid)
+
+	// Stop the instance — regular instances support this, preemptible don't.
+	if err := p.instanceMgr.StopInstance(ctx, ocid, warmPoolStopTimeout); err != nil {
+		// Terminate rather than leave running (we'd pay for idle compute).
+		preserveBoot := false
+		_, _ = p.session.Compute.TerminateInstance(ctx, core.TerminateInstanceRequest{
+			InstanceId:         &ocid,
+			PreserveBootVolume: &preserveBoot,
+		})
 		return nil, fmt.Errorf("stopping warm instance %s: %w", ocid, err)
 	}
 
-	// Fetch the assigned private IP (needed for migration).
-	ip, _ := p.instances_.GetInstancePrivateIP(ctx, ocid)
+	p.log.Info("warm instance ready (STOPPED)",
+		zap.String("ocid", ocid),
+		zap.String("ip", ip),
+	)
 
 	return &WarmInstance{
 		OCID:      ocid,
@@ -270,38 +297,8 @@ func (p *Pool) launchWarm(ctx context.Context) (*WarmInstance, error) {
 	}, nil
 }
 
-func (p *Pool) stopInstance(ctx context.Context, ocid string) error {
-	action := core.InstanceActionActionStop
-	_, err := p.session.Compute.InstanceAction(ctx, core.InstanceActionRequest{
-		InstanceId: &ocid,
-		Action:     action,
-	})
-	if err != nil {
-		return err
-	}
-	return p.instances_.WaitForState(ctx, ocid, core.InstanceLifecycleStateStopped, 90*time.Second)
-}
-
-func (p *Pool) startInstance(ctx context.Context, ocid, targetIP string) error {
-	bo := backoff.NewExponentialBackOff()
-	bo.MaxElapsedTime = 30 * time.Second
-	bo.InitialInterval = 500 * time.Millisecond
-
-	return backoff.Retry(func() error {
-		action := core.InstanceActionActionStart
-		_, err := p.session.Compute.InstanceAction(ctx, core.InstanceActionRequest{
-			InstanceId: &ocid,
-			Action:     action,
-		})
-		if err != nil {
-			return err
-		}
-		return nil
-	}, backoff.WithContext(bo, ctx))
-}
-
 func (p *Pool) save() {
-	if p.statePath == "" {
+	if p.cfg.StatePath == "" {
 		return
 	}
 	p.mu.Lock()
@@ -310,21 +307,22 @@ func (p *Pool) save() {
 	if err != nil {
 		return
 	}
-	tmp := p.statePath + ".tmp"
+	tmp := p.cfg.StatePath + ".tmp"
 	_ = os.WriteFile(tmp, data, 0o600)
-	_ = os.Rename(tmp, p.statePath)
+	_ = os.Rename(tmp, p.cfg.StatePath)
 }
 
 func (p *Pool) load() {
-	if p.statePath == "" {
+	if p.cfg.StatePath == "" {
 		return
 	}
-	data, err := os.ReadFile(p.statePath)
+	data, err := os.ReadFile(p.cfg.StatePath)
 	if err != nil {
-		return
+		return // first run, no state file
 	}
 	var insts []*WarmInstance
 	if err := json.Unmarshal(data, &insts); err != nil {
+		p.log.Warn("warm pool state file corrupted — starting fresh", zap.Error(err))
 		return
 	}
 	p.mu.Lock()

@@ -1,33 +1,42 @@
 // Package migration contains the Orchestrator v2, which achieves near-zero
 // downtime through full pipeline parallelism and a warm instance pool.
 //
+// OCI preemptible instance constraints handled in this orchestrator:
+//
+//  1. No Stop/Start on preemptible: the WARM POOL uses regular instances
+//     (non-preemptible) that can be stopped at storage-only cost and started
+//     in ~2–3s. Cold-launch successors are preemptible (cheaper compute).
+//
+//  2. No IP reuse while source is alive: OCI rejects duplicate private IPs
+//     in the same subnet. The successor receives an auto-assigned IP. CRIU
+//     restores all process memory; TCP connections are dropped (RST) and the
+//     application retries. For CI/CD builds this is acceptable — the build
+//     state (compiled objects, module cache, in-progress work) is preserved.
+//
+//  3. Block volume detach/reattach: fully supported by OCI. Sequence:
+//     unmount → detach API → wait for DETACHED → attach to successor → mount.
+//
 // Improved migration timeline (with warm pool):
 //
 //	T+0s   Preemption notice received
-//	T+0s   Acquire lock  ──┬──  Warm pool: StartInstance (~2s)
-//	T+0s   Network capture ┤
-//	T+0s   CRIU dirty reset┘
+//	T+0s   Acquire lock + Network capture + CRIU dirty reset  [3 parallel]
+//	T+0s   Warm pool: StartInstance (~2–3s on regular instance)
 //	T+1s   Pre-dump round 1 (adaptive)
-//	T+2s   Warm successor is RUNNING
-//	T+2s   Signal successor to start page server (via NATS or SSH)
+//	T+2s   Warm successor RUNNING
+//	T+2s   Signal successor → start CRIU page server
 //	T+3s   Pre-dump round 2 (page server ready)
-//	T+6s   Convergence check → dirty ratio < 4% → skip round 3
+//	T+6s   Dirty ratio < 4% → converged
 //	T+7s   Pre-freeze (50ms cgroup freeze to drain write pipeline)
-//	T+7s   Final dump: FREEZE ── memory pages stream TCP → successor
+//	T+7s   Final dump: FREEZE — memory pages stream TCP → successor
 //	T+7.2s UNFREEZE  (< 200ms freeze window with page server)
-//	T+8s   Verify images  ──┬──  Volume: flush + unmount (async)
+//	T+8s   Verify images ──┬── Volume: flush + unmount (async)
 //	T+9s   Volume detach   ─┘
 //	T+11s  Attach shared vol to successor
 //	T+12s  Signal successor to begin CRIU restore
 //	T+13s  ✓ Build resumes on successor
 //
 // Total effective downtime: ~200ms (CRIU freeze window)
-// Total wall-clock: ~13s (vs ~39s in v1)
-//
-// Without warm pool (cold launch fallback):
-//
-//	Pre-dump rounds overlap with cold instance launch (~35s).
-//	Final freeze still < 500ms. Total wall-clock: ~40s.
+// Total wall-clock: ~13s (warm) / ~40s (cold fallback)
 package migration
 
 import (
@@ -73,7 +82,7 @@ type Orchestrator struct {
 	log        *zap.Logger
 	tel        *telemetry.Provider
 
-	// Cached identity of this instance.
+	// Cached identity of this instance (immutable after first fetch).
 	mu              sync.Mutex
 	selfOCID        string
 	selfPrivateIP   string
@@ -99,7 +108,6 @@ func NewOrchestrator(c OrchestratorConfig) (*Orchestrator, error) {
 		tel:        c.Telemetry,
 	}
 
-	// Warm pool is optional — if not configured, falls back to cold launch.
 	if c.Config.WarmPool.Enabled {
 		o.warmPool = warmpool.New(c.Config.WarmPool, c.Config.OCI, c.OCI, c.Log)
 		o.log.Info("warm pool enabled",
@@ -143,8 +151,7 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 	}
 	defer release()
 
-	// ── Step 1: Parallel identity + volume lookup ──────────────────────────
-	// Run these concurrently — they're independent OCI API calls.
+	// ── Step 1: Self-identify ──────────────────────────────────────────────
 	identity, err := o.selfIdentify(ctx)
 	if err != nil {
 		return fmt.Errorf("self-identify: %w", err)
@@ -172,11 +179,9 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 
 	// ── Step 3: Launch 3 parallel streams ─────────────────────────────────
 	//
-	//   Stream A: Network capture (fast, ~200ms)
-	//   Stream B: Successor acquisition (warm: ~2s, cold: ~35s)
-	//   Stream C: CRIU pre-dump round 1 (overlaps with B)
-	//
-	// All three run concurrently from T+0.
+	//   Stream A: Network capture (~200ms, non-blocking)
+	//   Stream B: Successor acquisition (warm ~2s, cold ~35s)
+	//   Stream C: Shared volume lookup + pre-allocation
 
 	type successorResult struct {
 		ocid           string
@@ -187,13 +192,20 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 	successorCh := make(chan successorResult, 1)
 	successorErrCh := make(chan error, 1)
 
-	// Stream A: network capture
+	// Stream A: network capture (snapshot routes/iptables before anything changes).
 	go func() {
 		_, err := o.network.Capture(networkSnapshotPath)
 		networkDone <- err
 	}()
 
-	// Stream B: successor acquisition + page server setup
+	// Stream B: successor acquisition.
+	// On warm path: StartInstance on a stopped regular instance (~2–3s).
+	// On cold path: LaunchInstance of a preemptible instance (~35s).
+	//
+	// NOTE: We do NOT pass the source's private IP to the successor launch.
+	// The source is still alive; OCI will reject a duplicate IP request.
+	// The successor gets an auto-assigned IP. CRIU restores process memory;
+	// open TCP connections are reset and retried by the build toolchain.
 	go func() {
 		ocid, err := o.acquireSuccessor(ctx, ledger, identity)
 		if err != nil {
@@ -201,57 +213,56 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 			return
 		}
 
-		// Set up page server on the successor so memory pages can stream
-		// directly over TCP during the final dump, bypassing the shared volume.
+		// Set up CRIU page server on the successor so memory pages stream
+		// directly over TCP during the final dump (bypasses shared volume I/O).
 		pageServerAddr := ""
 		if o.cfg.CRIU.PageServerPort > 0 {
-			successorIP, ipErr := o.instances.GetInstancePrivateIP(ctx, ocid)
+			successorIP, ipErr := o.instances.GetInstancePrivateIPNoCache(ctx, ocid)
 			if ipErr == nil {
-				pageServerAddr = fmt.Sprintf("%s:%d", successorIP, o.cfg.CRIU.PageServerPort)
-				if psErr := o.startPageServerOnSuccessor(ctx, ocid, pageServerAddr); psErr != nil {
+				addr := fmt.Sprintf("%s:%d", successorIP, o.cfg.CRIU.PageServerPort)
+				if psErr := o.startPageServerOnSuccessor(ctx, ocid, successorIP); psErr != nil {
 					o.log.Warn("could not start page server — will use shared volume",
 						zap.Error(psErr),
 					)
-					pageServerAddr = ""
 				} else {
+					pageServerAddr = addr
 					o.log.Info("page server ready on successor",
 						zap.String("addr", pageServerAddr),
 					)
 				}
+			} else {
+				o.log.Warn("could not get successor IP for page server", zap.Error(ipErr))
 			}
 		}
 
 		successorCh <- successorResult{ocid: ocid, pageServerAddr: pageServerAddr}
 	}()
 
-	// Stream C: CRIU pre-dump round 1 (non-disruptive)
-	// We start the first pre-dump immediately without waiting for successor.
-	// Additional rounds happen AFTER we know the page server address.
+	// Stream C: shared volume lookup + pre-allocation.
 	sharedAttachID, sharedAttachInfo, err := o.volumes.GetCurrentAttachment(
 		ctx, identity.InstanceOCID, o.cfg.Migration.SharedVolumeOCID,
 	)
 	if err != nil {
 		return fmt.Errorf("locating shared volume: %w", err)
 	}
-
-	// Pre-allocate checkpoint space to avoid fragmentation.
-	_ = o.volumes.PreloadCheckpointDir(checkpointDir, 4*1024*1024*1024) // 4GB estimate
+	// Pre-allocate contiguous space to avoid fragmentation on final write.
+	_ = o.volumes.PreloadCheckpointDir(checkpointDir, 4*1024*1024*1024)
 
 	// ── Step 4: Wait for network capture ──────────────────────────────────
 	if err := <-networkDone; err != nil {
-		o.log.Warn("network capture failed — continuing without network restore", zap.Error(err))
+		o.log.Warn("network capture failed — continuing without network restore",
+			zap.Error(err))
 	}
 	o.state.RecordTiming(ledger, "network_capture", time.Since(migStart))
 
-	// ── Step 5: CRIU checkpoint (with adaptive pre-dump) ─────────────────
-	// Configure page server address if available.
+	// ── Step 5: CRIU checkpoint (adaptive pre-dump + page server) ─────────
 	criuCfg := o.cfg.CRIU
 
-	// The adaptive pre-dump and final dump happen here.
-	// If the page server is ready, the final dump streams pages directly to successor.
+	// Wait for successor (up to 5s before proceeding without page server).
+	// The checkpoint itself (adaptive pre-dump) will run concurrently with
+	// the warm boot — we may still get the page server before the final dump.
 	select {
 	case sr := <-successorCh:
-		// Great — we have the successor and possibly a page server.
 		ledger.SuccessorInstanceOCID = sr.ocid
 		if sr.pageServerAddr != "" {
 			criuCfg.PageServerAddr = sr.pageServerAddr
@@ -265,9 +276,8 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 	case <-ctx.Done():
 		return fmt.Errorf("context expired waiting for successor: %w", ctx.Err())
 	case <-time.After(5 * time.Second):
-		// Successor not ready in 5s — proceed with checkpoint anyway.
-		// The final dump will use the shared volume instead of page server.
-		o.log.Warn("successor not ready yet — proceeding with checkpoint (page server unavailable)")
+		// Not ready yet — proceed with checkpoint; pages go to shared volume.
+		o.log.Warn("successor not ready within 5s — proceeding with checkpoint (no page server)")
 	}
 
 	_ = o.state.Advance(ledger, state.PhaseCheckpointing, "criu adaptive checkpoint")
@@ -301,13 +311,8 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 		zap.Int64("compressed_bytes", ckResult.CompressedBytes),
 	)
 
-	// ── Step 6: Verify + wait for successor (if not yet acquired) ─────────
-	// Verify and volume ops run concurrently.
-	g, gCtx := errgroup.WithContext(ctx)
-
+	// ── Step 6: If successor wasn't ready earlier, wait now ───────────────
 	var successorOCID string
-
-	// If we didn't get the successor yet (warm pool was slow), wait now.
 	if ledger.SuccessorInstanceOCID == "" {
 		select {
 		case sr := <-successorCh:
@@ -316,35 +321,37 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 		case err := <-successorErrCh:
 			return fmt.Errorf("successor acquisition failed: %w", err)
 		case <-ctx.Done():
-			return fmt.Errorf("context cancelled: %w", ctx.Err())
+			return fmt.Errorf("context cancelled waiting for successor: %w", ctx.Err())
 		}
 	} else {
 		successorOCID = ledger.SuccessorInstanceOCID
 	}
 
-	// Verify images.
+	// ── Step 7: Parallel verify + async volume detach ─────────────────────
+	g, gCtx := errgroup.WithContext(ctx)
+
+	// Verify checkpoint images.
 	g.Go(func() error {
 		return o.criu.VerifyImages(ckResult.FinalDir)
 	})
 
-	// Detach shared volume from source (async — starts in background).
+	// Detach shared volume from source asynchronously.
 	detachCh := o.volumes.DetachVolumeAsync(gCtx, sharedAttachID, sharedAttachInfo, sharedVolumeMountPath)
 
-	// Wait for verify.
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("checkpoint verification: %w", err)
 	}
 	_ = o.state.Advance(ledger, state.PhaseCheckpointed, "images verified")
 
-	// ── Step 7: Concurrent volume handover ────────────────────────────────
-	// Wait for detach from source.
+	// ── Step 8: Volume handover ────────────────────────────────────────────
 	_ = o.state.Advance(ledger, state.PhaseVolumeDetaching, "detaching from source")
 	detachStart := time.Now()
 
 	if err := <-detachCh; err != nil {
-		o.log.Warn("volume detach error — attempting force detach", zap.Error(err))
-		// Force detach: the OCI API will eventually reclaim the volume.
-		// We continue — the successor attach will wait for the volume to be available.
+		// Non-fatal: the volume may already be available.  The attach will
+		// poll until detach completes.
+		o.log.Warn("volume detach returned error — will retry attach",
+			zap.Error(err))
 	}
 	o.state.RecordTiming(ledger, "volume_detach", time.Since(detachStart))
 	_ = o.state.Advance(ledger, state.PhaseVolumeDetached, "detached from source")
@@ -354,11 +361,11 @@ func (o *Orchestrator) Migrate(ctx context.Context, evt monitor.Event) error {
 	attachStart := time.Now()
 	_, err = o.volumes.AttachVolume(gCtx, successorOCID, o.cfg.Migration.SharedVolumeOCID, "migration-vol")
 	if err != nil {
-		return fmt.Errorf("attaching to successor: %w", err)
+		return fmt.Errorf("attaching shared volume to successor: %w", err)
 	}
 	o.state.RecordTiming(ledger, "volume_attach_successor", time.Since(attachStart))
 
-	// ── Step 8: Mark successor ready ──────────────────────────────────────
+	// ── Step 9: Mark successor ready ──────────────────────────────────────
 	wallTime := time.Since(migStart)
 	if err := o.state.Advance(ledger, state.PhaseSuccessorUp, fmt.Sprintf(
 		"successor %s ready in %s; freeze=%s",
@@ -391,12 +398,15 @@ func (o *Orchestrator) Restore(ctx context.Context) error {
 	}
 
 	if ledger.CurrentPhase != state.PhaseSuccessorUp {
-		return fmt.Errorf("unexpected phase %s — expected %s", ledger.CurrentPhase, state.PhaseSuccessorUp)
+		return fmt.Errorf("unexpected phase %s — expected %s",
+			ledger.CurrentPhase, state.PhaseSuccessorUp)
 	}
 
 	_ = o.state.Advance(ledger, state.PhaseRestoring, "restoring network state")
 
-	// Restore network before CRIU so TCP sockets find the right interfaces.
+	// Restore network before CRIU so TCP sockets find the correct interfaces.
+	// Note: the successor has a different private IP (OCI assigns a new one).
+	// Existing TCP connections will receive RSTs; the build toolchain retries.
 	if err := o.network.Restore(ledger.NetworkSnapshotPath); err != nil {
 		o.log.Warn("network restore failed — continuing", zap.Error(err))
 	}
@@ -426,9 +436,11 @@ func (o *Orchestrator) Restore(ctx context.Context) error {
 }
 
 // EmergencyCheckpoint performs a best-effort checkpoint when time runs out.
+// Writes to the shared volume so the successor can potentially restore it.
 func (o *Orchestrator) EmergencyCheckpoint(ctx context.Context) error {
 	o.log.Warn("emergency checkpoint initiated")
-	dir := filepath.Join(o.cfg.Migration.CheckpointDir, "emergency")
+	// Write to shared volume, not local disk — successor must be able to read it.
+	dir := filepath.Join(o.cfg.Migration.SharedVolumeMountPath, "emergency-checkpoint")
 	return o.criu.EmergencyCheckpoint(ctx, o.cfg.Migration.MigratedCgroup, dir)
 }
 
@@ -442,8 +454,7 @@ type instanceIdentity struct {
 	BootVolumeOCID string
 }
 
-// selfIdentify retrieves and caches the identity of this instance.
-// Cached after first call — safe for concurrent callers.
+// selfIdentify retrieves and caches this instance's OCI identity.
 func (o *Orchestrator) selfIdentify(ctx context.Context) (*instanceIdentity, error) {
 	o.mu.Lock()
 	if o.selfOCID != "" {
@@ -456,7 +467,6 @@ func (o *Orchestrator) selfIdentify(ctx context.Context) (*instanceIdentity, err
 	}
 	o.mu.Unlock()
 
-	// Fetch concurrently.
 	var (
 		ocid, ip, bootVol string
 		mu                sync.Mutex
@@ -481,7 +491,6 @@ func (o *Orchestrator) selfIdentify(ctx context.Context) (*instanceIdentity, err
 		return nil
 	})
 
-	// IP and boot volume require the OCID first — fetch after.
 	if err := g.Wait(); err != nil {
 		return nil, err
 	}
@@ -527,7 +536,9 @@ func (o *Orchestrator) selfIdentify(ctx context.Context) (*instanceIdentity, err
 // acquireSuccessor uses the warm pool when available, falling back to cold launch.
 func (o *Orchestrator) acquireSuccessor(ctx context.Context, ledger *state.Ledger, identity *instanceIdentity) (string, error) {
 	if o.warmPool != nil {
-		inst, err := o.warmPool.Acquire(ctx, identity.PrivateIP)
+		// Warm pool uses regular (non-preemptible) instances.
+		// No need to pass a target IP — successor gets its own IP from OCI.
+		inst, err := o.warmPool.Acquire(ctx)
 		if err == nil && inst != nil {
 			o.log.Info("acquired warm successor",
 				zap.String("ocid", inst.OCID),
@@ -535,13 +546,20 @@ func (o *Orchestrator) acquireSuccessor(ctx context.Context, ledger *state.Ledge
 			)
 			return inst.OCID, nil
 		}
-		o.log.Warn("warm pool acquire failed — falling back to cold launch", zap.Error(err))
+		if err != nil {
+			o.log.Warn("warm pool acquire failed — falling back to cold launch",
+				zap.Error(err))
+		} else {
+			o.log.Warn("warm pool empty — falling back to cold launch")
+		}
 	}
 
 	return o.coldLaunchSuccessor(ctx, ledger, identity)
 }
 
-// coldLaunchSuccessor does a full OCI instance launch.
+// coldLaunchSuccessor does a full OCI preemptible instance launch.
+// The successor gets an auto-assigned private IP — not the source's IP,
+// which is still in use while the source is alive.
 func (o *Orchestrator) coldLaunchSuccessor(ctx context.Context, ledger *state.Ledger, identity *instanceIdentity) (string, error) {
 	userData := buildCloudInit(o.cfg)
 	return o.instances.LaunchSuccessor(ctx, oci.LaunchSuccessorOptions{
@@ -549,34 +567,24 @@ func (o *Orchestrator) coldLaunchSuccessor(ctx context.Context, ledger *state.Le
 		UserData:       userData,
 		BootVolumeOCID: identity.BootVolumeOCID,
 		ImageOCID:      o.cfg.OCI.ImageOCID,
-		PrivateIP:      identity.PrivateIP,
+		// DO NOT set PrivateIP here: source is still running, same IP cannot
+		// be assigned to a second instance. OCI auto-assigns a new IP.
+		// PrivateIP: identity.PrivateIP  ← intentionally omitted
+		Preemptible: true, // cold-launch successors are preemptible (cheaper)
 		FreeformTags: map[string]string{
 			"migration-source": ledger.SourceInstanceOCID,
 			"migration-id":     filepath.Base(ledger.CheckpointDir),
+			"managed-by":       "oci-live-migrator",
 		},
 		Timeout: o.cfg.Migration.SuccessorLaunchTimeout,
 	})
 }
 
 // startPageServerOnSuccessor signals the successor to start a CRIU page server.
-// Communication is via a lightweight TCP command channel.
-func (o *Orchestrator) startPageServerOnSuccessor(ctx context.Context, successorOCID, pageServerAddr string) error {
-	// The successor's migrator agent listens on a control port for commands.
-	// We tell it to start the page server before the final dump.
-	//
-	// In production this uses the NATS subject or a simple TCP control socket.
-	// For simplicity, we send a signal over the migration control channel.
-	//
-	// The successor migrator, started by cloud-init, exposes a control endpoint
-	// at port 7077 that accepts simple JSON commands.
-	successorIP, err := o.instances.GetInstancePrivateIP(ctx, successorOCID)
-	if err != nil {
-		return fmt.Errorf("getting successor IP: %w", err)
-	}
-
+func (o *Orchestrator) startPageServerOnSuccessor(ctx context.Context, successorOCID, successorIP string) error {
 	controlAddr := fmt.Sprintf("%s:%d", successorIP, o.cfg.Migration.ControlPort)
 
-	// Wait for the successor's control server to be ready (it starts in cloud-init).
+	// Wait for the successor's control server (started by cloud-init).
 	if err := control.WaitForControlServer(ctx, controlAddr, 30*time.Second); err != nil {
 		return fmt.Errorf("waiting for successor control server: %w", err)
 	}
@@ -594,23 +602,17 @@ func buildCloudInit(cfg *config.Root) string {
 set -euo pipefail
 exec > /var/log/oci-migrator-init.log 2>&1
 
-# Wait for shared volume block device to appear.
+# Wait for shared volume block device to appear (up to 30s).
 for i in $(seq 1 60); do
-  if [ -b "%s" ]; then break; fi
+  [ -b "%s" ] && break
   sleep 0.5
 done
 
 mkdir -p "%s"
 mount -t ext4 -o noatime,nodiratime,data=writeback "%s" "%s" || true
 
-# Start CRIU page server if port is configured (catches streaming pages from source).
-if command -v criu &>/dev/null && [ "%d" -gt 0 ]; then
-  mkdir -p "%s"
-  criu page-server --images-dir "%s" --port %d &
-  sleep 0.2
-fi
-
-# Start migrator in successor/restore mode.
+# Start control server + page server if CRIU is available.
+# The source migrator will signal via the control port to start the page server.
 export OCI_MIGRATOR_MIGRATION_IS_SUCCESSOR=true
 export OCI_MIGRATOR_OCI_COMPARTMENT_OCID="%s"
 export OCI_MIGRATOR_OCI_SUBNET_OCID="%s"
@@ -623,8 +625,6 @@ exec /usr/local/bin/oci-migrator
 		cfg.Migration.SharedVolumeDevice,
 		cfg.Migration.SharedVolumeMountPath,
 		cfg.Migration.SharedVolumeDevice, cfg.Migration.SharedVolumeMountPath,
-		cfg.CRIU.PageServerPort,
-		cfg.Migration.CheckpointDir, cfg.Migration.CheckpointDir, cfg.CRIU.PageServerPort,
 		cfg.OCI.CompartmentOCID,
 		cfg.OCI.SubnetOCID,
 		cfg.OCI.Shape,
