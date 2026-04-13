@@ -412,6 +412,15 @@ func metaToContentInfo(dgst digest.Digest, meta ObjectMeta) content.Info {
 	if meta.Checksums.SHA256 != "" {
 		info.Digest = digest.Digest("sha256:" + meta.Checksums.SHA256)
 	}
+	if meta.Checksums.SHA1 != "" {
+		info.Digest = digest.Digest("sha1:" + meta.Checksums.SHA1)
+	}
+	if meta.Checksums.CRC32 != "" {
+		info.Digest = digest.Digest("crc32:" + meta.Checksums.CRC32)
+	}
+	if meta.Checksums.CRC32C != "" {
+		info.Digest = digest.Digest("crc32c:" + meta.Checksums.CRC32C)
+	}
 
 	return info
 }
