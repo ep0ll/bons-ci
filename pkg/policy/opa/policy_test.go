@@ -87,8 +87,17 @@ result := {
 	"updates": {"attrs": {"http.checksum": "sha256:abc123"}},
 } if { startswith(input.identifier, "https://") }`
 
-	// sourceLastRuleWins: tests last-rule-wins without shadowing data.
-	// Uses a local rule set so OPA's data-shadowing prohibition is avoided.
+	// sourceLastRuleWins tests last-rule-wins semantics using a local rule table.
+	//
+	// The rule table is [ALLOW, DENY, ALLOW] so the last matching rule (index 2)
+	// should win, producing an ALLOW result.
+	//
+	// Key change from the previous version: partial-set rules now use the
+	// explicit `contains` keyword (rego.v1 requirement).  The old `rule[i] if`
+	// syntax causes OPA's type-checker to infer the rule as
+	// object[number: boolean] rather than set[number], which makes the
+	// subsequent `max(allow_deny_indices)` call fail with a type error because
+	// max() requires a collection (array or set), not an object.
 	sourceLastRuleWins = `
 package buildkit.policy.source
 import rego.v1
@@ -101,24 +110,32 @@ test_rules := [
 	{"action": "ALLOW"},
 ]
 
-all_indices[i] if {
-	_ = test_rules[i]
+# all_indices is a *set* of array indices that match the current input.
+# Using the 'contains' keyword (rego.v1) ensures OPA infers the type as
+# set[number] rather than object[number: boolean].
+all_indices contains i if {
+	some i, _ in test_rules
 	input.identifier == "docker-image://docker.io/library/busybox:latest"
 }
 
-allow_deny_indices[i] if {
-	all_indices[i]
+# allow_deny_indices narrows to rules whose action is not CONVERT.
+allow_deny_indices contains i if {
+	i in all_indices
 	test_rules[i].action != "CONVERT"
 }
 
-last_idx := max(allow_deny_indices) if count(allow_deny_indices) > 0
+# last_idx is the index of the last matching ALLOW/DENY rule.
+last_idx := max(allow_deny_indices) if {
+	count(allow_deny_indices) > 0
+}
 
+# Emit the action of the winning rule when at least one rule matched.
 result := {
 	"action":   test_rules[last_idx].action,
 	"messages": [],
 	"updates":  {},
 } if {
-	last_idx >= 0
+	count(allow_deny_indices) > 0
 }
 
 default result := {"action": "ALLOW", "messages": [], "updates": {}}`

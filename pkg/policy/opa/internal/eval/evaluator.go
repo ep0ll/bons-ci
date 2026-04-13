@@ -296,11 +296,6 @@ type PreparedQuery struct {
 	prepared *rego.PreparedEvalQuery
 }
 
-// compilerGeneration is a monotonic counter incremented on every HotSwap.
-// We embed it into Compiler to detect staleness in PreparedQuery.
-// (Not strictly needed for correctness — stale prepared queries still work —
-// but re-preparing on change keeps performance optimal.)
-
 // PrepareQuery compiles and plans the query once, returning a PreparedQuery.
 func (e *Evaluator) PrepareQuery(ctx context.Context, query string) (*PreparedQuery, error) {
 	ctx, end := polOtel.StartSpan(ctx, e.tracer, "prepare_query",
@@ -349,14 +344,52 @@ func (pq *PreparedQuery) rebuild(ctx context.Context) error {
 
 // ─── internal conversion ─────────────────────────────────────────────────────
 
+// convertResultSet converts an OPA ResultSet into our ResultSet, normalising
+// all numeric values from json.Number (returned by OPA v0.60+) to float64 so
+// callers never need to handle both types.
 func convertResultSet(rs rego.ResultSet) ResultSet {
 	out := make(ResultSet, 0, len(rs))
 	for _, r := range rs {
 		var v interface{}
 		if len(r.Expressions) > 0 {
-			v = r.Expressions[0].Value
+			v = normalizeNumbers(r.Expressions[0].Value)
 		}
 		out = append(out, Result{Value: v, Bindings: r.Bindings})
 	}
 	return out
+}
+
+// normalizeNumbers recursively converts json.Number values to float64.
+//
+// OPA v0.60+ changed its internal JSON representation to use json.Number
+// instead of float64 for all numeric literals.  This causes subtle breakage
+// when callers compare results with float64 constants or attempt type
+// assertions.  We normalise eagerly on the way out of the OPA boundary so
+// the rest of the codebase can assume float64 for all numbers.
+//
+// The conversion is loss-free for integers up to 2^53 and for the floating-
+// point values that OPA policies typically produce.  If a json.Number cannot
+// be parsed as float64 (e.g. very large integers) we leave it as json.Number
+// so callers can still access the raw string via json.Number.String().
+func normalizeNumbers(v interface{}) interface{} {
+	switch n := v.(type) {
+	case json.Number:
+		if f, err := n.Float64(); err == nil {
+			return f
+		}
+		// Unparseable as float64: return original to preserve information.
+		return v
+	case map[string]interface{}:
+		for k, val := range n {
+			n[k] = normalizeNumbers(val)
+		}
+		return n
+	case []interface{}:
+		for i, val := range n {
+			n[i] = normalizeNumbers(val)
+		}
+		return n
+	default:
+		return v
+	}
 }
