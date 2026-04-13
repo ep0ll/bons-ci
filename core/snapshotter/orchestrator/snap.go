@@ -281,16 +281,26 @@ func RunSnapshotPipeline(
 					continue // drain without processing
 				}
 				res := processEvent(pipelineCtx, sn, chains, e)
-				// Forward to committer. If the context was cancelled while
-				// processEvent ran, keep draining rather than blocking.
+
+				// FIX (Bug 2): store the error BEFORE the select so it is
+				// always recorded regardless of which branch fires.  The
+				// original code placed storeErr/cancel AFTER the select, so
+				// when pipelineCtx was already cancelled (by a sibling worker)
+				// and the select non-deterministically took the Done() branch,
+				// this worker's error was silently dropped without ever being
+				// stored.  storeErr is a CAS (first-write-wins), so calling it
+				// here is safe even when another goroutine wins the race.
+				if res.err != nil {
+					storeErr(res.err)
+					cancel()
+				}
+
+				// Forward result to committer. If the context was cancelled
+				// while processEvent ran, keep draining rather than blocking.
 				select {
 				case resultCh <- res:
 				case <-pipelineCtx.Done():
 					continue
-				}
-				if res.err != nil {
-					storeErr(res.err)
-					cancel()
 				}
 			}
 		}()
@@ -334,10 +344,28 @@ func RunSnapshotPipeline(
 			case res, ok := <-resultCh:
 				if !ok {
 					// resultCh closed — all workers have exited.
+					//
+					// FIX (Bug 1): the original code returned nil whenever
+					// h.Len()==0, but that is only correct when next==total.
+					// If the caller closed the event channel early (sent fewer
+					// events than there are layers in rootFS), next < total and
+					// we must return an error instead of silently reporting
+					// success with a partially-committed image.
 					if h.Len() == 0 {
-						errCh <- nil // every seq was committed successfully
+						if next == total {
+							errCh <- nil // every layer committed successfully
+							return
+						}
+						// Caller closed the channel before delivering all layers.
+						errCh <- fmt.Errorf(
+							"early close: committed %d of %d layer(s) before the "+
+								"event channel was closed (missing seqs [%d, %d)); "+
+								"close the channel only after all layers are delivered",
+							next, total, next, total,
+						)
 						return
 					}
+
 					// Non-empty heap: seq gap detected. If a real pipeline
 					// error caused the gap, surface that instead of a
 					// confusing "seq gap" message.
@@ -439,6 +467,11 @@ func RunSnapshotPipeline(
 // Cleanup: if Action fails after a successful Prepare, the active snapshot is
 // removed via sn.Remove to prevent resource leaks. Removal errors are ignored
 // (the snapshot will be GC'd eventually); they do not replace the Action error.
+//
+// seq=-1 sentinel: parse/range errors return seq=-1 with a non-nil err.
+// The committer MUST check res.err before heap.Push — seq=-1 in the heap
+// would corrupt ordering because -1 < 0 would always sort to the front,
+// permanently blocking the committer on next==0.
 func processEvent(ctx context.Context, sn snapshots.Snapshotter, chains []chainInfo, e Event) workerResult {
 	rawSeq := e.Active.Labels[LabelSnapshotterEventIndex]
 	seq, err := strconv.Atoi(rawSeq)
