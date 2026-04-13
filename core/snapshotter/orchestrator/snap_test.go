@@ -301,6 +301,18 @@ func sendAll(ch chan<- Event, events []Event) {
 	close(ch)
 }
 
+// requireClosedSendOnly verifies that sends panic, which is the only
+// observable closed-state check available for a send-only channel.
+func requireClosedSendOnly(t *testing.T, ch chan<- Event) {
+	t.Helper()
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected panic when sending to closed channel")
+		}
+	}()
+	ch <- Event{}
+}
+
 // waitResult reads from errCh with a generous timeout.
 // Returns the error value (may be nil) or fails t on timeout.
 func waitResult(t *testing.T, errCh <-chan error) error {
@@ -480,15 +492,9 @@ func TestRunSnapshotPipeline_ZeroLayers(t *testing.T) {
 	sn := newMock()
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, ocispec.RootFS{}, 1)
 
-	// Channel must already be closed (fast path).
-	select {
-	case _, ok := <-eventCh:
-		if ok {
-			t.Error("expected closed channel but received a value")
-		}
-	default:
-		t.Error("fast-path channel must be closed immediately")
-	}
+	// API returns send-only chan; verify fast path by asserting sends panic
+	// immediately ("send on closed channel").
+	requireClosedSendOnly(t, eventCh)
 
 	requireNoErr(t, errCh)
 }

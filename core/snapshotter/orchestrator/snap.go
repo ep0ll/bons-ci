@@ -30,6 +30,7 @@ package pipeline
 import (
 	"container/heap"
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"slices"
@@ -356,6 +357,18 @@ func RunSnapshotPipeline(
 							errCh <- nil // every layer committed successfully
 							return
 						}
+						// If workers failed before producing a result (e.g.
+						// they observed cancellation on send), surface that
+						// real failure instead of reporting a misleading
+						// producer-side "early close".
+						if p := firstErr.Load(); p != nil {
+							errCh <- *p
+							return
+						}
+						if err := pipelineCtx.Err(); err != nil {
+							errCh <- err
+							return
+						}
 						// Caller closed the channel before delivering all layers.
 						errCh <- fmt.Errorf(
 							"early close: committed %d of %d layer(s) before the "+
@@ -431,6 +444,15 @@ func RunSnapshotPipeline(
 
 					err := sn.Commit(pipelineCtx, ci.chainID, ci.diffID, commitOpts...)
 					if err != nil && !errdefs.IsAlreadyExists(err) {
+						// If cancellation was triggered by an earlier worker
+						// error, prefer that original failure over a derived
+						// context cancellation from this commit call.
+						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+							if p := firstErr.Load(); p != nil {
+								errCh <- *p
+								return
+							}
+						}
 						// ErrAlreadyExists: this snapshot was committed in a
 						// previous (partial) run — treat it as success.
 						commitErr := fmt.Errorf("commit seq %d (chainID %s): %w", next, ci.chainID, err)
