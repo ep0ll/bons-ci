@@ -1,0 +1,162 @@
+syntax = "proto3";
+
+package registry.v1;
+
+option go_package = "github.com/bons/bons-ci/plugins/rbe/gen/proto/registry/v1;registryv1";
+
+import "google/protobuf/timestamp.proto";
+
+service RegistryService {
+  rpc StatBlob(StatBlobRequest) returns (StatBlobResponse);
+  rpc DeleteBlob(DeleteBlobRequest) returns (DeleteBlobResponse);
+  rpc ListBlobs(ListBlobsRequest) returns (ListBlobsResponse);
+  rpc CopyBlob(CopyBlobRequest) returns (CopyBlobResponse);
+  rpc GetManifest(GetManifestRequest) returns (GetManifestResponse);
+  rpc PutManifest(PutManifestRequest) returns (PutManifestResponse);
+  rpc DeleteManifest(DeleteManifestRequest) returns (DeleteManifestResponse);
+  rpc ListManifests(ListManifestsRequest) returns (ListManifestsResponse);
+  rpc GetReferrers(GetReferrersRequest) returns (GetReferrersResponse);
+  rpc ListRepositories(ListRepositoriesRequest) returns (ListRepositoriesResponse);
+  rpc GetRepositoryInfo(GetRepositoryInfoRequest) returns (GetRepositoryInfoResponse);
+  rpc RecordConversion(RecordConversionRequest) returns (RecordConversionResponse);
+  rpc GetConversion(GetConversionRequest) returns (GetConversionResponse);
+  rpc ListConversions(ListConversionsRequest) returns (ListConversionsResponse);
+  rpc CheckConversionExists(CheckConversionExistsRequest) returns (CheckConversionExistsResponse);
+  rpc GetConversionBlobDiff(GetConversionBlobDiffRequest) returns (GetConversionBlobDiffResponse);
+}
+
+service AttestationService {
+  rpc AttachAttestation(AttachAttestationRequest) returns (AttachAttestationResponse);
+  rpc GetAttestations(GetAttestationsRequest) returns (GetAttestationsResponse);
+  rpc ListAttestations(ListAttestationsRequest) returns (ListAttestationsResponse);
+  rpc SignArtifact(SignArtifactRequest) returns (SignArtifactResponse);
+  rpc VerifyArtifact(VerifyArtifactRequest) returns (VerifyArtifactResponse);
+  rpc AttachSBOM(AttachSBOMRequest) returns (AttachSBOMResponse);
+  rpc GetSBOM(GetSBOMRequest) returns (GetSBOMResponse);
+  rpc RecordSLSAProvenance(RecordSLSAProvenanceRequest) returns (RecordSLSAProvenanceResponse);
+  rpc GetSLSAProvenance(GetSLSAProvenanceRequest) returns (GetSLSAProvenanceResponse);
+}
+
+enum ImageFormat {
+  IMAGE_FORMAT_UNSPECIFIED = 0;
+  IMAGE_FORMAT_OCI         = 1;
+  IMAGE_FORMAT_DOCKER      = 2;
+  IMAGE_FORMAT_NYDUS       = 3;
+  IMAGE_FORMAT_ESTARGZ     = 4;
+  IMAGE_FORMAT_ZSTD        = 5;
+  IMAGE_FORMAT_OVERLAYBD   = 6;
+}
+
+message BlobDescriptor {
+  string digest      = 1;
+  string media_type  = 2;
+  int64  size        = 3;
+  map<string, string> annotations = 4;
+  string role        = 5;
+  ImageFormat format = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ManifestDescriptor {
+  string digest      = 1;
+  string media_type  = 2;
+  int64  size        = 3;
+  string repository  = 4;
+  string tag         = 5;
+  repeated BlobDescriptor blobs = 6;
+  BlobDescriptor config  = 7;
+  ImageFormat format     = 8;
+  string platform_os     = 9;
+  string platform_arch   = 10;
+  string platform_variant = 11;
+  map<string, string> annotations = 12;
+  google.protobuf.Timestamp created_at = 13;
+}
+
+message ConversionRecord {
+  string id              = 1;
+  string source_digest   = 2;
+  string source_repo     = 3;
+  ImageFormat source_format = 4;
+  repeated BlobDescriptor source_blobs = 5;
+  string target_digest   = 6;
+  string target_repo     = 7;
+  ImageFormat target_format = 8;
+  repeated BlobDescriptor target_blobs = 9;
+  repeated string source_only_digests = 10;
+  repeated string target_only_digests = 11;
+  repeated string shared_digests = 12;
+  google.protobuf.Timestamp converted_at = 13;
+  string converted_by    = 14;
+  map<string, string> metadata = 15;
+}
+
+message StatBlobRequest  { string repository = 1; string digest = 2; }
+message StatBlobResponse { BlobDescriptor descriptor = 1; bool exists = 2; }
+message DeleteBlobRequest  { string repository = 1; string digest = 2; }
+message DeleteBlobResponse {}
+message ListBlobsRequest  { string repository = 1; string manifest_digest = 2; string page_token = 3; int32 page_size = 4; ImageFormat format_filter = 5; }
+message ListBlobsResponse { repeated BlobDescriptor blobs = 1; string next_page_token = 2; int64 total_count = 3; int64 total_size_bytes = 4; }
+message CopyBlobRequest  { string src_repository = 1; string src_digest = 2; string dst_repository = 3; string dst_digest = 4; }
+message CopyBlobResponse { BlobDescriptor descriptor = 1; }
+message GetManifestRequest  { string repository = 1; string reference = 2; }
+message GetManifestResponse { ManifestDescriptor manifest = 1; bytes raw = 2; }
+message PutManifestRequest  { string repository = 1; string reference = 2; bytes raw = 3; string media_type = 4; }
+message PutManifestResponse { ManifestDescriptor manifest = 1; }
+message DeleteManifestRequest  { string repository = 1; string reference = 2; }
+message DeleteManifestResponse {}
+message ListManifestsRequest  { string repository = 1; string page_token = 2; int32 page_size = 3; ImageFormat format_filter = 4; }
+message ListManifestsResponse { repeated ManifestDescriptor manifests = 1; string next_page_token = 2; int64 total_count = 3; }
+message GetReferrersRequest  { string repository = 1; string digest = 2; string artifact_type = 3; }
+message GetReferrersResponse { repeated ManifestDescriptor referrers = 1; }
+message ListRepositoriesRequest  { string page_token = 1; int32 page_size = 2; string prefix = 3; }
+message ListRepositoriesResponse { repeated string repositories = 1; string next_page_token = 2; }
+message GetRepositoryInfoRequest  { string repository = 1; }
+message GetRepositoryInfoResponse { string repository = 1; int64 blob_count = 2; int64 manifest_count = 3; int64 total_size_bytes = 4; repeated string tags = 5; }
+message RecordConversionRequest  { ConversionRecord record = 1; }
+message RecordConversionResponse { ConversionRecord record = 1; }
+message GetConversionRequest  { string id = 1; }
+message GetConversionResponse { ConversionRecord record = 1; }
+message ListConversionsRequest  { string source_digest = 1; string source_repo = 2; ImageFormat target_format = 3; string page_token = 4; int32 page_size = 5; }
+message ListConversionsResponse { repeated ConversionRecord records = 1; string next_page_token = 2; }
+message CheckConversionExistsRequest  { string source_digest = 1; ImageFormat target_format = 2; bool verify_blobs = 3; }
+message CheckConversionExistsResponse { bool exists = 1; ConversionRecord record = 2; repeated string missing_blobs = 3; bool fully_available = 4; }
+message GetConversionBlobDiffRequest  { string source_digest = 1; string target_digest = 2; }
+message GetConversionBlobDiffResponse { repeated BlobDescriptor added = 1; repeated BlobDescriptor removed = 2; repeated BlobDescriptor shared = 3; int64 size_delta_bytes = 4; }
+
+enum AttestationType {
+  ATTESTATION_TYPE_UNSPECIFIED  = 0;
+  ATTESTATION_TYPE_SBOM_SPDX    = 1;
+  ATTESTATION_TYPE_SBOM_CYCLONEDX = 2;
+  ATTESTATION_TYPE_SLSA_PROVENANCE = 3;
+  ATTESTATION_TYPE_COSIGN       = 4;
+  ATTESTATION_TYPE_CUSTOM       = 5;
+}
+
+message Attestation {
+  string id = 1; string subject_digest = 2; string subject_repo = 3;
+  AttestationType type = 4; string predicate_type = 5; bytes payload = 6;
+  bytes signature = 7; bytes public_key = 8; string key_id = 9;
+  string signing_cert = 10; string transparency_log_id = 11;
+  google.protobuf.Timestamp signed_at = 12; map<string, string> metadata = 13;
+}
+
+message AttachAttestationRequest  { Attestation attestation = 1; }
+message AttachAttestationResponse { Attestation attestation = 1; }
+message GetAttestationsRequest  { string subject_digest = 1; AttestationType type = 2; }
+message GetAttestationsResponse { repeated Attestation attestations = 1; }
+message ListAttestationsRequest  { string subject_repo = 1; AttestationType type = 2; string page_token = 3; int32 page_size = 4; }
+message ListAttestationsResponse { repeated Attestation attestations = 1; string next_page_token = 2; }
+message SignArtifactRequest  { string artifact_digest = 1; string artifact_repo = 2; bytes signing_key = 3; bool keyless = 4; string oidc_token = 5; }
+message SignArtifactResponse { Attestation signature = 1; string rekor_log_id = 2; bytes certificate = 3; }
+message VerifyArtifactRequest  { string artifact_digest = 1; string artifact_repo = 2; bytes public_key = 3; bool check_rekor = 4; }
+message VerifyArtifactResponse { bool valid = 1; string signer_identity = 2; Attestation signature = 3; }
+message AttachSBOMRequest  { string subject_digest = 1; string subject_repo = 2; AttestationType format = 3; bytes sbom_data = 4; }
+message AttachSBOMResponse { Attestation attestation = 1; }
+message GetSBOMRequest  { string subject_digest = 1; AttestationType format = 2; }
+message GetSBOMResponse { bytes sbom_data = 1; AttestationType format = 2; Attestation attestation = 3; }
+message SLSAProvenance { string build_type = 1; string builder_id = 2; repeated string materials = 3; map<string, string> build_config = 4; google.protobuf.Timestamp started_at = 5; google.protobuf.Timestamp finished_at = 6; bool reproducible = 7; string dag_id = 8; }
+message RecordSLSAProvenanceRequest  { string subject_digest = 1; string subject_repo = 2; SLSAProvenance provenance = 3; bool sign = 4; bytes signing_key = 5; bool keyless = 6; string oidc_token = 7; }
+message RecordSLSAProvenanceResponse { Attestation attestation = 1; }
+message GetSLSAProvenanceRequest  { string subject_digest = 1; }
+message GetSLSAProvenanceResponse { SLSAProvenance provenance = 1; Attestation attestation = 2; }

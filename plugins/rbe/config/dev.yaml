@@ -1,0 +1,41 @@
+server:
+  http_addr: ":8080"
+  grpc_addr: ":9090"
+  shutdown_timeout: 30s
+  read_timeout: 60s
+  write_timeout: 3600s
+
+storage:
+  backend: local
+  local:
+    root: /tmp/rbed/blobs
+
+metadata:
+  backend: etcd
+  etcd:
+    endpoints:
+      - "localhost:2379"
+    dial_timeout: 5s
+
+auth:
+  jwt_signing_key: "dev-insecure-signing-key-change-in-prod"
+  api_key_header: "X-RBE-API-Key"
+  token_ttl: 24h
+  require_mtls: false
+
+registry:
+  upload_expiry: 1h
+  enable_referrers: true
+
+cache:
+  default_ttl: 720h   # 30 days
+
+logs:
+  retention_days: 90
+  max_chunk_bytes: 1048576
+
+observability:
+  log_level: debug
+  service_name: rbed
+  service_version: dev
+  prometheus_addr: ":8081"
