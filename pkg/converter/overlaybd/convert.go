@@ -73,6 +73,9 @@ func convertManifest(
 	if err != nil {
 		return nil, errors.Wrap(err, "read manifest JSON")
 	}
+	if manifestLabels == nil {
+		manifestLabels = make(map[string]string)
+	}
 
 	var config ocispec.Image
 	configLabels, err := converter.ReadJSON(ctx, cs, &config, manifest.Config)
