@@ -22,6 +22,7 @@ require (
 	github.com/containerd/stargz-snapshotter/estargz v0.18.2
 	github.com/containernetworking/plugins v1.9.0
 	github.com/gin-gonic/gin v1.12.0
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/gofrs/flock v0.13.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/klauspost/pgzip v1.2.6
