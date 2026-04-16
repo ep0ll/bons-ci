@@ -1,0 +1,40 @@
+---
+export interface Props {
+  variant?: 'success' | 'warning' | 'danger' | 'info' | 'accent' | 'neutral' | 'running';
+  dot?: boolean;
+  class?: string;
+  pulse?: boolean;
+}
+
+const {
+  variant = 'neutral',
+  dot = false,
+  class: className = '',
+  pulse = false,
+} = Astro.props;
+
+const variants: Record<string, string> = {
+  success: 'badge-success',
+  warning: 'badge-warning',
+  danger:  'badge-danger',
+  info:    'badge-info',
+  accent:  'badge-accent',
+  neutral: 'badge-neutral',
+  running: 'badge bg-forge-info-bg text-forge-cyan border border-forge-cyan/25',
+};
+
+const dotVariants: Record<string, string> = {
+  success: 'bg-forge-success' + (pulse ? ' animate-pulse' : ''),
+  warning: 'bg-forge-warning' + (pulse ? ' animate-pulse' : ''),
+  danger:  'bg-forge-danger' + (pulse ? ' animate-pulse' : ''),
+  info:    'bg-forge-info' + (pulse ? ' animate-pulse' : ''),
+  accent:  'bg-forge-accent' + (pulse ? ' animate-pulse' : ''),
+  neutral: 'bg-forge-text-3',
+  running: 'bg-forge-cyan animate-pulse',
+};
+---
+
+<span class={`${variants[variant]} ${className}`}>
+  {dot && <span class={`status-dot ${dotVariants[variant]}`}></span>}
+  <slot />
+</span>

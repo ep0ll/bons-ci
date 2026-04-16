@@ -1,0 +1,77 @@
+---
+export interface Props {
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline-accent';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  href?: string;
+  type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
+  class?: string;
+  full?: boolean;
+  loading?: boolean;
+  external?: boolean;
+}
+
+const {
+  variant = 'secondary',
+  size = 'md',
+  href,
+  type = 'button',
+  disabled = false,
+  class: className = '',
+  full = false,
+  loading = false,
+  external = false,
+} = Astro.props;
+
+const variants: Record<string, string> = {
+  primary:        'btn-primary',
+  secondary:      'btn-secondary',
+  ghost:          'btn-ghost',
+  danger:         'btn-danger',
+  'outline-accent': 'btn bg-transparent border border-forge-accent/40 text-forge-accent hover:border-forge-accent hover:bg-forge-accent-muted active:scale-[0.98]',
+};
+
+const sizes: Record<string, string> = {
+  sm: 'btn-sm',
+  md: 'btn-md',
+  lg: 'btn-lg',
+  xl: 'btn-xl',
+};
+
+const classes = [
+  variants[variant],
+  sizes[size],
+  full ? 'w-full' : '',
+  className,
+].filter(Boolean).join(' ');
+
+const attrs = {
+  class: classes,
+  disabled: disabled || loading,
+  ...(href ? {} : { type }),
+};
+
+const linkAttrs = external ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+---
+
+{href ? (
+  <a href={href} class={classes} {...linkAttrs}>
+    {loading && (
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+    )}
+    <slot />
+  </a>
+) : (
+  <button {...attrs}>
+    {loading && (
+      <svg class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+      </svg>
+    )}
+    <slot />
+  </button>
+)}

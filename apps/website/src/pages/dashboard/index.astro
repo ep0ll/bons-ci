@@ -1,0 +1,497 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+// Mock data — in production these come from the API
+const metrics = [
+  { label: 'Build minutes used', value: '62,450', sub: '/ 100,000 this month', change: '+12%', up: true, color: 'accent' },
+  { label: 'Builds today', value: '147', sub: '↑ 23 vs yesterday', change: '+18%', up: true, color: 'cyan' },
+  { label: 'Success rate', value: '97.3%', sub: '30-day rolling avg', change: '+0.8%', up: true, color: 'success' },
+  { label: 'Avg build time', value: '1m 38s', sub: '30-day p50', change: '-22%', up: true, color: 'accent' },
+  { label: 'Cache hit rate', value: '89.2%', sub: '7-day avg', change: '+3.1%', up: true, color: 'cyan' },
+  { label: 'Active runners', value: '12 / 50', sub: 'Team plan limit', change: null, up: null, color: 'neutral' },
+  { label: 'Egress this month', value: '248 GB', sub: '/ 500 GB limit', change: '+8%', up: false, color: 'warning' },
+  { label: 'Cache storage', value: '34.2 GB', sub: '/ 100 GB limit', change: '+2.1 GB', up: null, color: 'neutral' },
+];
+
+const recentBuilds = [
+  { id: '1847', project: 'api-service', branch: 'main', commit: 'a4f9c2b', msg: 'feat: add rate limiting to auth endpoints', status: 'success', duration: '1m 24s', ago: '2m', author: 'AL', trigger: 'push' },
+  { id: '1846', project: 'web-app', branch: 'feat/dashboard-v2', commit: '3d8e1a0', msg: 'refactor: migrate charts to recharts', status: 'running', duration: '0m 47s', ago: 'now', author: 'TR', trigger: 'push' },
+  { id: '1845', project: 'api-service', branch: 'fix/null-pointer', commit: 'c1b2f3d', msg: 'fix: handle null user object in session middleware', status: 'failed', duration: '2m 11s', ago: '14m', author: 'PN', trigger: 'pr' },
+  { id: '1844', project: 'infra', branch: 'main', commit: 'e5f6a7b', msg: 'chore: update terraform provider to 5.2.0', status: 'success', duration: '3m 44s', ago: '22m', author: 'OA', trigger: 'manual' },
+  { id: '1843', project: 'mobile', branch: 'release/2.4.0', commit: '9b0c1d2', msg: 'chore: bump version to 2.4.0', status: 'success', duration: '8m 12s', ago: '41m', author: 'SJ', trigger: 'push' },
+  { id: '1842', project: 'web-app', branch: 'main', commit: 'f2a3b4c', msg: 'feat: add Sherlock AI widget to build detail page', status: 'success', duration: '1m 18s', ago: '1h', author: 'AL', trigger: 'push' },
+];
+
+const statusConfig: Record<string, { dot: string; badge: string; label: string }> = {
+  success: { dot: 'bg-forge-success', badge: 'badge-success', label: 'Passed' },
+  running: { dot: 'bg-forge-cyan animate-pulse', badge: 'running', label: 'Running' },
+  failed:  { dot: 'bg-forge-danger', badge: 'badge-danger', label: 'Failed' },
+  queued:  { dot: 'bg-forge-text-3', badge: 'badge-neutral', label: 'Queued' },
+};
+
+const triggerIcon: Record<string, string> = {
+  push:   '⬆',
+  pr:     '⤵',
+  manual: '▶',
+  schedule: '⏰',
+};
+---
+
+<DashboardLayout title="Overview" activeNav="overview">
+  <div class="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
+
+    <!-- ── Page header ─────────────────────────── -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="font-display font-bold text-2xl text-forge-text">Good afternoon, Ada 👋</h1>
+        <p class="text-forge-text-3 text-sm mt-0.5">Here's what's happening across acme-corp today.</p>
+      </div>
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <select class="input !py-2 !text-xs w-40">
+          <option>Last 30 days</option>
+          <option>Last 7 days</option>
+          <option>Last 90 days</option>
+          <option>This month</option>
+        </select>
+        <button class="btn-primary btn-sm">
+          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          New build
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Metric cards ──────────────────────── -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+      {metrics.map((m) => (
+        <div class={`metric-card group hover:border-forge-border-2 transition-all duration-200 ${
+          m.color === 'accent'  ? 'hover:border-forge-accent/25' :
+          m.color === 'cyan'    ? 'hover:border-forge-cyan/25' :
+          m.color === 'success' ? 'hover:border-forge-success/25' :
+          m.color === 'warning' ? 'hover:border-forge-warning/25' : ''
+        }`}>
+          <div class="metric-label">{m.label}</div>
+          <div class={`metric-value text-2xl ${
+            m.color === 'accent'  ? 'text-forge-accent' :
+            m.color === 'cyan'    ? 'text-forge-cyan' :
+            m.color === 'success' ? 'text-forge-success' :
+            m.color === 'warning' ? 'text-forge-warning' : 'text-forge-text'
+          }`}>{m.value}</div>
+          <div class="text-2xs text-forge-text-3 mt-1">{m.sub}</div>
+          {m.change && (
+            <div class={`text-2xs font-mono mt-1.5 ${m.up ? 'text-forge-success' : 'text-forge-danger'}`}>
+              {m.up ? '↑' : '↓'} {m.change}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+
+    <!-- ── Charts row ────────────────────────── -->
+    <div class="grid lg:grid-cols-3 gap-4">
+
+      <!-- Build volume chart (sparkline simulation) -->
+      <div class="lg:col-span-2 card p-5">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h2 class="font-display font-bold text-base text-forge-text">Build volume</h2>
+            <p class="text-xs text-forge-text-3 mt-0.5">Builds per day over last 30 days</p>
+          </div>
+          <div class="flex gap-1.5">
+            {['builds', 'minutes', 'failures'].map((t, i) => (
+              <button class={`text-2xs font-mono px-2 py-1 rounded-md transition-all ${i===0 ? 'bg-forge-accent-muted text-forge-accent border border-forge-accent/25' : 'text-forge-text-3 hover:text-forge-text border border-transparent hover:border-forge-border'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <!-- SVG sparkline chart -->
+        <div class="relative h-40">
+          <svg class="w-full h-full" viewBox="0 0 600 160" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#C8FF00" stop-opacity="0.15"/>
+                <stop offset="100%" stop-color="#C8FF00" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Y-axis grid lines -->
+            {[0,40,80,120,160].map((y) => (
+              <line x1="0" y1={y} x2="600" y2={y} stroke="rgba(30,45,66,0.6)" stroke-width="0.5"/>
+            ))}
+            <!-- Area fill -->
+            <path
+              d="M0,120 L20,110 L40,105 L60,115 L80,100 L100,95 L120,85 L140,90 L160,80 L180,70 L200,75 L220,65 L240,60 L260,55 L280,50 L300,45 L320,55 L340,40 L360,35 L380,30 L400,38 L420,28 L440,32 L460,25 L480,20 L500,28 L520,22 L540,18 L560,24 L580,15 L600,12 L600,160 L0,160 Z"
+              fill="url(#chartGrad)"
+            />
+            <!-- Line -->
+            <path
+              d="M0,120 L20,110 L40,105 L60,115 L80,100 L100,95 L120,85 L140,90 L160,80 L180,70 L200,75 L220,65 L240,60 L260,55 L280,50 L300,45 L320,55 L340,40 L360,35 L380,30 L400,38 L420,28 L440,32 L460,25 L480,20 L500,28 L520,22 L540,18 L560,24 L580,15 L600,12"
+              fill="none" stroke="#C8FF00" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"
+            />
+            <!-- Today marker -->
+            <circle cx="600" cy="12" r="3" fill="#C8FF00"/>
+            <line x1="600" y1="0" x2="600" y2="160" stroke="#C8FF00" stroke-width="0.5" stroke-dasharray="3 3" opacity="0.4"/>
+          </svg>
+          <!-- Y labels -->
+          <div class="absolute top-0 left-0 h-full flex flex-col justify-between py-0.5 text-2xs font-mono text-forge-text-3">
+            <span>200</span>
+            <span>150</span>
+            <span>100</span>
+            <span>50</span>
+            <span>0</span>
+          </div>
+          <!-- X labels -->
+          <div class="absolute bottom-0 left-0 right-0 flex justify-between px-6 text-2xs font-mono text-forge-text-3 -mb-5">
+            <span>Mar 15</span>
+            <span>Mar 22</span>
+            <span>Mar 29</span>
+            <span>Apr 5</span>
+            <span>Apr 12</span>
+            <span>Today</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resource usage donut-style -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-5">
+          <h2 class="font-display font-bold text-base text-forge-text">Resource usage</h2>
+          <span class="text-2xs text-forge-text-3 font-mono">Live</span>
+        </div>
+
+        <div class="space-y-4">
+          {[
+            { label: 'CPU', value: 68, unit: '%', color: 'bg-forge-accent' },
+            { label: 'Memory', value: 54, unit: '%', color: 'bg-forge-cyan' },
+            { label: 'Network in', value: 34, unit: 'MB/s', color: 'bg-forge-info' },
+            { label: 'Network out', value: 18, unit: 'MB/s', color: 'bg-forge-warning' },
+            { label: 'Disk I/O', value: 42, unit: '%', color: 'bg-forge-success' },
+          ].map(({ label, value, unit, color }) => (
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs text-forge-text-2">{label}</span>
+                <span class="text-xs font-mono text-forge-text">{value}{unit === '%' ? '%' : ` ${unit}`}</span>
+              </div>
+              <div class="h-1.5 rounded-full bg-forge-surface2 overflow-hidden">
+                <div class={`h-full rounded-full ${color} transition-all duration-1000`} style={`width: ${value}%`}></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div class="mt-4 pt-4 border-t border-forge-border grid grid-cols-2 gap-3">
+          <div class="text-center">
+            <div class="font-mono font-bold text-lg text-forge-text">12</div>
+            <div class="text-2xs text-forge-text-3">Active runners</div>
+          </div>
+          <div class="text-center">
+            <div class="font-mono font-bold text-lg text-forge-text">3</div>
+            <div class="text-2xs text-forge-text-3">Queued jobs</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Secondary charts row ───────────────── -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[
+        {
+          label: 'Build duration trend',
+          value: '1m 38s',
+          sub: 'p50 this week',
+          spark: [90,85,95,80,75,88,72,78,65,70,60,62,58,55,50,48,52,44,48,38,40,35,40,32,38,30,32,28,35,25],
+          color: '#C8FF00',
+        },
+        {
+          label: 'Cache hit rate',
+          value: '89.2%',
+          sub: '7-day rolling',
+          spark: [70,72,75,73,78,80,79,82,81,84,83,85,86,85,87,86,88,87,89,88,90,89,91,89,90,88,89,90,89,89],
+          color: '#22D3EE',
+        },
+        {
+          label: 'Failed builds',
+          value: '4 today',
+          sub: 'vs 6 yesterday',
+          spark: [8,6,9,7,5,8,6,10,7,5,8,6,9,7,6,8,5,7,6,8,7,5,6,7,5,6,4,5,4,4],
+          color: '#EF4444',
+        },
+        {
+          label: 'Egress (GB/day)',
+          value: '8.3 GB',
+          sub: 'Today so far',
+          spark: [4,5,6,5,7,6,8,7,9,8,10,9,11,10,12,11,10,12,11,13,12,14,13,12,11,13,12,11,12,8],
+          color: '#F59E0B',
+        },
+      ].map(({ label, value, sub, spark, color }) => {
+        const max = Math.max(...spark);
+        const min = Math.min(...spark);
+        const range = max - min || 1;
+        const pts = spark.map((v, i) => `${(i / (spark.length - 1)) * 280},${40 - ((v - min) / range) * 36}`).join(' ');
+        const area = `M${pts.split(' ').join(' L')} L280,40 L0,40 Z`;
+        return (
+          <div class="card p-4">
+            <div class="text-xs text-forge-text-3 mb-1">{label}</div>
+            <div class="font-display font-bold text-xl text-forge-text">{value}</div>
+            <div class="text-2xs text-forge-text-3 mb-3">{sub}</div>
+            <!-- Mini sparkline -->
+            <svg class="w-full" height="44" viewBox="0 0 280 44" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id={`sg-${label.replace(/\s/g,'')}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color={color} stop-opacity="0.2"/>
+                  <stop offset="100%" stop-color={color} stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d={area} fill={`url(#sg-${label.replace(/\s/g,'')})`}/>
+              <polyline points={pts} fill="none" stroke={color} stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+            </svg>
+          </div>
+        );
+      })}
+    </div>
+
+    <!-- ── Recent builds + quick stats ──────── -->
+    <div class="grid lg:grid-cols-[1fr_320px] gap-4">
+
+      <!-- Builds table -->
+      <div class="card overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
+          <h2 class="font-display font-bold text-base text-forge-text">Recent builds</h2>
+          <a href="/dashboard/builds" class="text-xs text-forge-accent hover:text-forge-accent-dim transition-colors font-medium">
+            View all →
+          </a>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="table-forge">
+            <thead>
+              <tr>
+                <th>Build</th>
+                <th>Project / Branch</th>
+                <th>Commit</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentBuilds.map((b) => {
+                const s = statusConfig[b.status];
+                return (
+                  <tr class="cursor-pointer" onclick={`window.location='/dashboard/builds/${b.id}'`}>
+                    <td>
+                      <div class="flex items-center gap-2">
+                        <div class={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`}></div>
+                        <span class="font-mono text-xs text-forge-text-2">#{b.id}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="text-xs font-medium text-forge-text">{b.project}</div>
+                      <div class="text-2xs text-forge-text-3 font-mono">{b.branch}</div>
+                    </td>
+                    <td>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-xs text-forge-text-3 font-mono">{b.commit}</span>
+                        <span class="text-xs text-forge-text-3 hidden sm:inline">{triggerIcon[b.trigger]}</span>
+                      </div>
+                      <div class="text-2xs text-forge-text-3 truncate max-w-[180px]">{b.msg}</div>
+                    </td>
+                    <td>
+                      <span class={`badge border ${
+                        b.status === 'success' ? 'badge-success border-forge-success/20' :
+                        b.status === 'running' ? 'bg-forge-info-bg text-forge-cyan border-forge-cyan/20' :
+                        b.status === 'failed'  ? 'badge-danger border-forge-danger/20' :
+                        'badge-neutral border-forge-border'
+                      }`}>
+                        {b.status === 'running' && <span class="w-1 h-1 rounded-full bg-forge-cyan animate-pulse"></span>}
+                        {s.label}
+                      </span>
+                    </td>
+                    <td>
+                      <div class="text-xs font-mono text-forge-text-2">{b.duration}</div>
+                      <div class="text-2xs text-forge-text-3">{b.ago}</div>
+                    </td>
+                    <td>
+                      <div class="flex items-center gap-1">
+                        <div class="avatar-sm bg-forge-surface3 border border-forge-border text-forge-accent text-2xs font-display">{b.author}</div>
+                        {b.status === 'failed' && (
+                          <button
+                            class="ml-1 inline-flex items-center gap-1 text-2xs border border-forge-cyan/30 bg-forge-info-bg text-forge-cyan rounded-md px-1.5 py-0.5 hover:bg-forge-cyan hover:text-forge-bg transition-all"
+                            title="Ask Sherlock to diagnose this failure"
+                            onclick="event.stopPropagation()"
+                          >
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                            Sherlock
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right column: plan usage + quick actions -->
+      <div class="space-y-4">
+
+        <!-- Plan usage card -->
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display font-bold text-base text-forge-text">Plan usage</h2>
+            <span class="badge-accent text-xs">Team</span>
+          </div>
+
+          <div class="space-y-4">
+            {[
+              { label: 'Build minutes', used: 62450, limit: 100000, unit: 'min', pct: 62.4 },
+              { label: 'Cache storage', used: 34.2, limit: 100, unit: 'GB', pct: 34.2 },
+              { label: 'Egress', used: 248, limit: 500, unit: 'GB', pct: 49.6 },
+              { label: 'Image registry', used: 28.7, limit: 100, unit: 'GB', pct: 28.7 },
+            ].map(({ label, used, limit, unit, pct }) => (
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-xs text-forge-text-2">{label}</span>
+                  <span class="text-xs font-mono text-forge-text-2">
+                    {used.toLocaleString()} / {limit.toLocaleString()} {unit}
+                  </span>
+                </div>
+                <div class="progress">
+                  <div
+                    class={`progress-bar ${pct > 80 ? '!bg-forge-danger' : pct > 60 ? '!bg-forge-warning' : ''}`}
+                    style={`width: ${pct}%`}
+                  ></div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div class="mt-4 pt-4 border-t border-forge-border flex items-center justify-between">
+            <div>
+              <div class="text-2xs text-forge-text-3">Resets in</div>
+              <div class="text-sm font-mono font-bold text-forge-text">16 days</div>
+            </div>
+            <a href="/dashboard/settings" class="btn-secondary btn-sm text-xs">Upgrade →</a>
+          </div>
+        </div>
+
+        <!-- Active alerts -->
+        <div class="card p-5">
+          <h2 class="font-display font-bold text-base text-forge-text mb-4">Alerts</h2>
+          <div class="space-y-2">
+            {[
+              { type: 'warning', title: 'Egress at 50% of limit', desc: 'Pace puts you at 96% by month end', icon: '⚠' },
+              { type: 'info', title: 'Sherlock found a pattern', desc: 'api-service flaky test rate ↑ 3×', icon: '🔍' },
+              { type: 'success', title: 'Cache tuning improved', desc: 'Hit rate up 3.1% this week', icon: '✓' },
+            ].map(({ type, title, desc, icon }) => (
+              <div class={`flex items-start gap-2.5 p-3 rounded-lg border text-xs ${
+                type === 'warning' ? 'bg-forge-warning-bg border-forge-warning/20' :
+                type === 'info'    ? 'bg-forge-info-bg border-forge-info/20' :
+                'bg-forge-success-bg border-forge-success/20'
+              }`}>
+                <span class="flex-shrink-0 mt-0.5">{icon}</span>
+                <div>
+                  <div class={`font-medium ${
+                    type === 'warning' ? 'text-forge-warning' :
+                    type === 'info'    ? 'text-forge-cyan' :
+                    'text-forge-success'
+                  }`}>{title}</div>
+                  <div class="text-forge-text-3 mt-0.5">{desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="card p-5">
+          <h2 class="font-display font-bold text-base text-forge-text mb-3">Quick actions</h2>
+          <div class="space-y-1.5">
+            {[
+              { label: 'Trigger a build', href: '#', icon: '▶' },
+              { label: 'Invite a team member', href: '/dashboard/settings/members', icon: '👤' },
+              { label: 'Add a secret', href: '/dashboard/settings/secrets', icon: '🔒' },
+              { label: 'Browse marketplace', href: '/dashboard/marketplace', icon: '🔌' },
+              { label: 'View documentation', href: '/docs', icon: '📄' },
+            ].map(({ label, href, icon }) => (
+              <a href={href} class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-forge-text-2 hover:bg-forge-surface2 hover:text-forge-text transition-colors">
+                <span class="text-base w-5 text-center flex-shrink-0">{icon}</span>
+                {label}
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Per-project breakdown ──────────────── -->
+    <div class="card overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
+        <h2 class="font-display font-bold text-base text-forge-text">Project breakdown</h2>
+        <a href="/dashboard/projects" class="text-xs text-forge-accent hover:text-forge-accent-dim transition-colors font-medium">
+          Manage projects →
+        </a>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="table-forge">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Builds (30d)</th>
+              <th>Success rate</th>
+              <th>Avg duration</th>
+              <th>Minutes used</th>
+              <th>Last build</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { name: 'api-service', builds: 842, success: 97.4, avgDur: '1m 24s', mins: 19724, last: '2m ago', status: 'success' },
+              { name: 'web-app', builds: 634, success: 98.1, avgDur: '1m 18s', mins: 13782, last: 'now', status: 'running' },
+              { name: 'mobile', builds: 241, success: 95.8, avgDur: '8m 12s', mins: 19722, last: '41m ago', status: 'success' },
+              { name: 'infra', builds: 88, success: 99.9, avgDur: '3m 44s', mins: 5502, last: '22m ago', status: 'success' },
+              { name: 'docs', builds: 112, success: 100, avgDur: '0m 44s', mins: 1386, last: '3h ago', status: 'success' },
+            ].map((p) => {
+              const s = statusConfig[p.status];
+              return (
+                <tr onclick={`window.location='/dashboard/projects/${p.name}'`} class="cursor-pointer">
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="w-6 h-6 rounded-md bg-forge-surface3 border border-forge-border flex items-center justify-center text-2xs font-mono font-bold text-forge-text-2">
+                        {p.name[0].toUpperCase()}
+                      </div>
+                      <span class="text-sm font-medium text-forge-text">{p.name}</span>
+                    </div>
+                  </td>
+                  <td><span class="font-mono text-xs">{p.builds.toLocaleString()}</span></td>
+                  <td>
+                    <div class="flex items-center gap-2">
+                      <div class="w-20 h-1.5 rounded-full bg-forge-surface2 overflow-hidden">
+                        <div class="h-full rounded-full bg-forge-success" style={`width: ${p.success}%`}></div>
+                      </div>
+                      <span class="font-mono text-xs text-forge-success">{p.success}%</span>
+                    </div>
+                  </td>
+                  <td><span class="font-mono text-xs">{p.avgDur}</span></td>
+                  <td><span class="font-mono text-xs">{p.mins.toLocaleString()}</span></td>
+                  <td><span class="text-xs text-forge-text-3">{p.last}</span></td>
+                  <td>
+                    <div class={`w-2 h-2 rounded-full ${s.dot}`}></div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</DashboardLayout>

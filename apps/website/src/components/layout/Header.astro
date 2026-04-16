@@ -1,0 +1,245 @@
+---
+export interface Props {
+  transparent?: boolean;
+}
+const { transparent = false } = Astro.props;
+
+const pathname = Astro.url.pathname;
+
+const nav = [
+  {
+    label: 'Product',
+    children: [
+      { label: 'Features', href: '/features', icon: '⚡', description: 'Everything your CI/CD pipeline needs' },
+      { label: 'Pricing', href: '/pricing', icon: '💎', description: 'Simple, transparent plans' },
+      { label: 'Integrations', href: '/integrations', icon: '🔌', description: 'Works with your entire stack' },
+      { label: 'Security', href: '/security', icon: '🔒', description: 'SOC 2 Type II certified' },
+      { label: 'Changelog', href: '/changelog', icon: '📋', description: "What's new in Forge CI" },
+      { label: 'Roadmap', href: '/roadmap', icon: '🗺️', description: "See what's coming next" },
+    ],
+  },
+  {
+    label: 'Solutions',
+    children: [
+      { label: 'Enterprise', href: '/enterprise', icon: '🏢', description: 'SAML, SSO, audit logs & more' },
+      { label: 'Startups', href: '/startups', icon: '🚀', description: 'Free plan + startup credits' },
+      { label: 'Open Source', href: '/open-source', icon: '💚', description: 'Free for OSS projects' },
+      { label: 'BYOC', href: '/byoc', icon: '☁️', description: 'Bring your own cloud runners' },
+    ],
+  },
+  { label: 'Docs',     href: '/docs' },
+  { label: 'Blog',     href: '/blog' },
+  { label: 'Status',   href: '/status' },
+];
+---
+
+<header
+  id="site-header"
+  class={[
+    'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
+    transparent
+      ? 'bg-transparent'
+      : 'glass border-b border-forge-border/50',
+  ].join(' ')}
+>
+  <div class="container-forge">
+    <div class="flex items-center justify-between h-16">
+
+      <!-- Logo -->
+      <a href="/" class="flex items-center gap-2.5 group flex-shrink-0">
+        <div class="relative">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" class="transition-transform duration-300 group-hover:scale-105">
+            <rect width="32" height="32" rx="8" fill="#C8FF00"/>
+            <path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#07090E" stroke="none"/>
+            <circle cx="24" cy="8" r="2.5" fill="#07090E"/>
+          </svg>
+          <div class="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+               style="box-shadow: 0 0 16px rgba(200,255,0,0.5);"></div>
+        </div>
+        <span class="font-display font-bold text-xl text-forge-text">
+          Forge<span class="text-forge-accent">CI</span>
+        </span>
+      </a>
+
+      <!-- Desktop Nav -->
+      <nav class="hidden lg:flex items-center gap-1" role="navigation" aria-label="Main navigation">
+        {nav.map((item) => (
+          item.children ? (
+            <div class="relative group">
+              <button
+                class="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-forge-text-2 hover:text-forge-text hover:bg-forge-surface transition-all duration-150"
+                aria-expanded="false"
+                aria-haspopup="true"
+              >
+                {item.label}
+                <svg class="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+
+              <!-- Mega dropdown -->
+              <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 translate-y-1 group-hover:translate-y-0">
+                <div class="glass border border-forge-border rounded-xl shadow-modal p-2 min-w-[340px]">
+                  <div class="grid grid-cols-2 gap-1">
+                    {item.children.map((child) => (
+                      <a
+                        href={child.href}
+                        class="flex items-start gap-3 p-3 rounded-lg hover:bg-forge-surface2 transition-colors duration-150 group/item"
+                      >
+                        <span class="text-base mt-0.5 flex-shrink-0" aria-hidden="true">{child.icon}</span>
+                        <div>
+                          <div class="text-sm font-medium text-forge-text group-hover/item:text-forge-accent transition-colors">
+                            {child.label}
+                          </div>
+                          <div class="text-xs text-forge-text-3 mt-0.5 leading-snug">
+                            {child.description}
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <a
+              href={item.href}
+              class={[
+                'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
+                pathname === item.href
+                  ? 'text-forge-accent bg-forge-accent-muted'
+                  : 'text-forge-text-2 hover:text-forge-text hover:bg-forge-surface',
+              ].join(' ')}
+            >
+              {item.label}
+            </a>
+          )
+        ))}
+      </nav>
+
+      <!-- Right CTA -->
+      <div class="hidden lg:flex items-center gap-3">
+        <!-- Status indicator -->
+        <a
+          href="/status"
+          class="flex items-center gap-1.5 text-xs text-forge-success hover:text-forge-success/80 transition-colors"
+          title="All systems operational"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-forge-success animate-pulse"></span>
+          <span class="hidden xl:inline">All systems operational</span>
+        </a>
+
+        <div class="w-px h-4 bg-forge-border"></div>
+
+        <a href="/auth/login" class="text-sm font-medium text-forge-text-2 hover:text-forge-text transition-colors px-3 py-2">
+          Sign in
+        </a>
+        <a
+          href="/auth/signup"
+          class="btn-primary btn-md"
+        >
+          Start for free
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+          </svg>
+        </a>
+      </div>
+
+      <!-- Mobile hamburger -->
+      <button
+        id="mobile-menu-btn"
+        class="lg:hidden p-2 rounded-lg text-forge-text-2 hover:text-forge-text hover:bg-forge-surface transition-colors"
+        aria-label="Toggle menu"
+        aria-expanded="false"
+      >
+        <svg id="hamburger-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        <svg id="close-icon" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Mobile menu -->
+  <div
+    id="mobile-menu"
+    class="lg:hidden hidden border-t border-forge-border glass"
+    aria-hidden="true"
+  >
+    <div class="container-forge py-4 space-y-1">
+      {nav.map((item) => (
+        item.children ? (
+          <div>
+            <p class="px-3 py-2 text-2xs font-mono font-medium uppercase tracking-widest text-forge-text-3">
+              {item.label}
+            </p>
+            {item.children.map((child) => (
+              <a
+                href={child.href}
+                class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-forge-text-2 hover:text-forge-text hover:bg-forge-surface2 transition-colors"
+              >
+                <span class="text-base" aria-hidden="true">{child.icon}</span>
+                {child.label}
+              </a>
+            ))}
+          </div>
+        ) : (
+          <a
+            href={item.href}
+            class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-forge-text-2 hover:text-forge-text hover:bg-forge-surface2 transition-colors"
+          >
+            {item.label}
+          </a>
+        )
+      ))}
+
+      <div class="pt-3 pb-2 border-t border-forge-border flex flex-col gap-2">
+        <a href="/auth/login" class="btn-secondary btn-md w-full justify-center">Sign in</a>
+        <a href="/auth/signup" class="btn-primary btn-md w-full justify-center">Start for free →</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Header scroll effect -->
+<script>
+  const header = document.getElementById('site-header');
+  const mobileBtn = document.getElementById('mobile-menu-btn');
+  const mobileMenu = document.getElementById('mobile-menu');
+  const hamburgerIcon = document.getElementById('hamburger-icon');
+  const closeIcon = document.getElementById('close-icon');
+
+  // Scroll effect
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 20) {
+      header?.classList.add('glass', 'border-b', 'border-forge-border/50');
+      header?.classList.remove('bg-transparent');
+    } else if (header?.getAttribute('data-transparent') === 'true') {
+      header?.classList.remove('glass', 'border-b', 'border-forge-border/50');
+      header?.classList.add('bg-transparent');
+    }
+  }, { passive: true });
+
+  // Mobile menu toggle
+  let isOpen = false;
+  mobileBtn?.addEventListener('click', () => {
+    isOpen = !isOpen;
+    mobileMenu?.classList.toggle('hidden', !isOpen);
+    mobileBtn.setAttribute('aria-expanded', String(isOpen));
+    mobileMenu?.setAttribute('aria-hidden', String(!isOpen));
+    hamburgerIcon?.classList.toggle('hidden', isOpen);
+    closeIcon?.classList.toggle('hidden', !isOpen);
+  });
+
+  // Close on resize
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 1024 && isOpen) {
+      isOpen = false;
+      mobileMenu?.classList.add('hidden');
+      hamburgerIcon?.classList.remove('hidden');
+      closeIcon?.classList.add('hidden');
+    }
+  });
+</script>

@@ -1,0 +1,148 @@
+---
+const testimonials = [
+  {
+    quote: "Forge CI cut our test suite from 22 minutes to under 90 seconds. Sherlock diagnosed a flaky test issue in 8 seconds that we'd been chasing for two weeks.",
+    author: "Mia Chen",
+    title: "VP Engineering",
+    company: "Lineara",
+    avatar: "MC",
+    metric: "15× faster",
+  },
+  {
+    quote: "We migrated from Jenkins on a Friday afternoon. By Monday every team was running. The BYOC runner support meant we didn't have to touch our compliance setup.",
+    author: "Tomás Reyes",
+    title: "Platform Lead",
+    company: "Stackline",
+    avatar: "TR",
+    metric: "2-day migration",
+  },
+  {
+    quote: "The cache hit rate alone paid for the plan. 94% of our builds skip the install step entirely. Our engineers stopped dreading the CI queue.",
+    author: "Priya Nair",
+    title: "Staff SRE",
+    company: "Monobase",
+    avatar: "PN",
+    metric: "94% cache hits",
+  },
+  {
+    quote: "Sherlock is the best on-call engineer who never sleeps. It catches broken deploys, explains the exact line of config that caused it, and opens the PR to fix it.",
+    author: "Olu Adeyemi",
+    title: "CTO",
+    company: "Crux Systems",
+    avatar: "OA",
+    metric: "74% less MTTR",
+  },
+  {
+    quote: "We run 50,000 builds a month across 8 repos. Forge's audit logs and SSO provisioning made our SOC 2 audit trivial. The compliance team actually smiled.",
+    author: "Sara Johansson",
+    title: "Head of Security",
+    company: "Meridian Cloud",
+    avatar: "SJ",
+    metric: "SOC 2 in 30 days",
+  },
+  {
+    quote: "The matrix build support is extraordinary. We test across 4 Node versions × 3 OS × 2 arch targets in parallel. What used to take 45 min takes 3.",
+    author: "Daniel Park",
+    title: "Senior Engineer",
+    company: "Radiant Labs",
+    avatar: "DP",
+    metric: "45 min → 3 min",
+  },
+];
+
+const logos = [
+  'Vercel', 'Stripe', 'Linear', 'Notion', 'Figma', 'Supabase',
+  'PlanetScale', 'Railway', 'Liveblocks', 'Raycast', 'Cal.com', 'Dub.co',
+];
+---
+
+<section class="section overflow-hidden">
+  <div class="container-forge">
+
+    <div class="text-center mb-16 appear">
+      <div class="section-label mb-5">Customer Stories</div>
+      <h2 class="section-title">
+        Engineering teams
+        <span class="text-gradient"> ship faster.</span>
+      </h2>
+      <p class="section-subtitle mt-5 mx-auto text-center">
+        From solo devs to 2,000-person orgs — here's what teams say
+        after switching to Forge CI.
+      </p>
+    </div>
+
+    <!-- Testimonial grid -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-20">
+      {testimonials.map((t, i) => (
+        <div
+          class="card p-6 flex flex-col gap-4 appear hover:border-forge-border-2 transition-colors duration-300"
+          style={`animation-delay: ${i * 80}ms`}
+        >
+          <!-- Stars -->
+          <div class="flex gap-0.5" aria-label="5 stars">
+            {Array.from({length:5}).map(() => (
+              <svg class="w-4 h-4 text-forge-warning" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+              </svg>
+            ))}
+          </div>
+
+          <!-- Quote -->
+          <blockquote class="text-sm text-forge-text-2 leading-relaxed flex-1">
+            "{t.quote}"
+          </blockquote>
+
+          <!-- Metric highlight -->
+          <div class="inline-flex items-center gap-2 self-start">
+            <span class="badge-accent text-xs">{t.metric}</span>
+          </div>
+
+          <!-- Author -->
+          <div class="flex items-center gap-3 pt-2 border-t border-forge-border">
+            <div class="avatar-md bg-forge-surface3 border border-forge-border-2 text-forge-accent font-display font-bold">
+              {t.avatar}
+            </div>
+            <div>
+              <div class="text-sm font-medium text-forge-text">{t.author}</div>
+              <div class="text-xs text-forge-text-3">{t.title} · {t.company}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Logo strip -->
+    <div class="appear">
+      <p class="text-center text-xs font-mono uppercase tracking-widest text-forge-text-3 mb-8">
+        50,000+ teams trust Forge CI
+      </p>
+
+      <!-- Marquee wrapper -->
+      <div class="relative overflow-hidden">
+        <!-- Fade edges -->
+        <div class="absolute left-0 top-0 bottom-0 w-32 z-10 pointer-events-none"
+             style="background: linear-gradient(to right, var(--bg), transparent)"></div>
+        <div class="absolute right-0 top-0 bottom-0 w-32 z-10 pointer-events-none"
+             style="background: linear-gradient(to left, var(--bg), transparent)"></div>
+
+        <div class="flex gap-12 items-center" id="logo-track"
+             style="animation: marquee 28s linear infinite; width: max-content;">
+          {[...logos, ...logos].map((logo) => (
+            <div class="text-forge-text-3 font-display font-semibold text-xl opacity-40 hover:opacity-70 transition-opacity whitespace-nowrap">
+              {logo}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<style>
+  @keyframes marquee {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  #logo-track:hover { animation-play-state: paused; }
+</style>

@@ -1,0 +1,227 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+
+const posts = [
+  {
+    slug: 'sherlock-ga',
+    title: 'Sherlock AI is now generally available',
+    excerpt: 'After 6 months of beta with 2,000+ teams, Sherlock — our AI build intelligence agent — is GA on all Team and Enterprise plans. Here\'s what we learned.',
+    category: 'Product',
+    author: { name: 'Ada Chen', initials: 'AC', role: 'Product' },
+    date: 'Apr 10, 2025',
+    readTime: '6 min',
+    featured: true,
+    image: '🤖',
+  },
+  {
+    slug: 'byoc-arm64',
+    title: 'BYOC now supports ARM64 — including AWS Graviton and Apple Silicon',
+    excerpt: 'You can now register ARM64 hosts as Forge CI BYOC runners. Graviton3 gives you 40% better price-performance for most CI workloads.',
+    category: 'Engineering',
+    author: { name: 'Marcus Webb', initials: 'MW', role: 'Engineering' },
+    date: 'Mar 28, 2025',
+    readTime: '8 min',
+    featured: false,
+    image: '💪',
+  },
+  {
+    slug: 'cache-deep-dive',
+    title: 'How Forge CI achieves 89% cache hit rates',
+    excerpt: 'A deep dive into our content-addressed caching layer, how we handle cache invalidation without the false misses, and what you can do to push hit rates even higher.',
+    category: 'Engineering',
+    author: { name: 'Priya Nair', initials: 'PN', role: 'Infrastructure' },
+    date: 'Mar 14, 2025',
+    readTime: '12 min',
+    featured: false,
+    image: '⚡',
+  },
+  {
+    slug: 'migrating-from-github-actions',
+    title: 'We migrated 3,000 GitHub Actions workflows to Forge CI in a weekend',
+    excerpt: 'A step-by-step account of migrating a large monorepo\'s CI from GitHub Actions to Forge CI — pitfalls, wins, and the migration tool we built along the way.',
+    category: 'Tutorial',
+    author: { name: 'Sam Rodriguez', initials: 'SR', role: 'DevRel' },
+    date: 'Feb 28, 2025',
+    readTime: '15 min',
+    featured: false,
+    image: '🚀',
+  },
+  {
+    slug: 'security-oidc',
+    title: 'Why you should stop using long-lived CI credentials today',
+    excerpt: 'Long-lived AWS keys in your CI are a liability. Here\'s how Forge CI\'s OIDC token exchange eliminates them entirely — and how to migrate in 30 minutes.',
+    category: 'Security',
+    author: { name: 'Alice Park', initials: 'AP', role: 'Security' },
+    date: 'Feb 12, 2025',
+    readTime: '10 min',
+    featured: false,
+    image: '🔒',
+  },
+  {
+    slug: 'monorepo-nx',
+    title: 'Turbocharged Nx monorepos: only build what changed',
+    excerpt: 'Forge CI\'s change-graph detection integrates directly with Nx affected. Here\'s how one team cut their CI runtime from 45 minutes to under 2 minutes.',
+    category: 'Tutorial',
+    author: { name: 'Sam Rodriguez', initials: 'SR', role: 'DevRel' },
+    date: 'Jan 30, 2025',
+    readTime: '9 min',
+    featured: false,
+    image: '🏛',
+  },
+];
+
+const categories = ['All', ...new Set(posts.map(p => p.category))];
+const featured = posts.find(p => p.featured)!;
+const rest = posts.filter(p => !p.featured);
+
+const catColors: Record<string, string> = {
+  Product:     'badge-accent border border-forge-accent/20',
+  Engineering: 'badge-info border border-forge-info/20',
+  Tutorial:    'badge-success border border-forge-success/20',
+  Security:    'badge-warning border border-forge-warning/20',
+  Company:     'badge-neutral border border-forge-border',
+};
+---
+
+<MarketingLayout
+  title="Blog — Forge CI"
+  description="Engineering deep-dives, product updates, tutorials, and company news from the Forge CI team."
+>
+  <!-- Header -->
+  <section class="relative pt-32 pb-16 overflow-hidden">
+    <div class="absolute inset-0 bg-grid opacity-25 pointer-events-none" aria-hidden="true"></div>
+    <div class="container-forge relative z-10">
+      <div class="section-label mb-5">Blog</div>
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+        <h1 class="section-title max-w-xl">
+          From the
+          <span class="text-gradient"> Forge CI team.</span>
+        </h1>
+        <a href="/rss/blog.xml" class="btn-ghost btn-md text-forge-text-2 flex-shrink-0 flex items-center gap-2">
+          <svg class="w-4 h-4 text-forge-warning" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3zm.001 5.924a1 1 0 10-.002 2 5.076 5.076 0 015.077 5.077 1 1 0 102 0 7.077 7.077 0 00-7.075-7.077zM4 15a2 2 0 114 0 2 2 0 01-4 0z"/>
+          </svg>
+          RSS feed
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Category filter -->
+  <div class="border-b border-forge-border sticky top-16 z-30 glass">
+    <div class="container-forge py-3 flex gap-1.5 overflow-x-auto no-scrollbar">
+      {categories.map((cat, i) => (
+        <button
+          class={`cat-pill text-xs font-medium px-3.5 py-1.5 rounded-full border whitespace-nowrap transition-all ${i===0 ? 'border-forge-accent/40 bg-forge-accent-muted text-forge-accent' : 'border-forge-border text-forge-text-3 hover:border-forge-border-2 hover:text-forge-text'}`}
+          data-cat={cat}
+          onclick="filterBlog(this)"
+        >
+          {cat}
+        </button>
+      ))}
+    </div>
+  </div>
+
+  <div class="container-forge py-12 space-y-10">
+
+    <!-- Featured post -->
+    <div class="blog-post" data-cat={featured.category}>
+      <a href={`/blog/${featured.slug}`} class="card-hover block p-0 overflow-hidden group">
+        <div class="grid md:grid-cols-[1fr_340px] gap-0">
+          <div class="p-8 sm:p-10">
+            <div class="flex items-center gap-2 mb-5">
+              <span class={`badge text-xs ${catColors[featured.category]}`}>{featured.category}</span>
+              <span class="badge-accent border border-forge-accent/20 text-xs">Featured</span>
+            </div>
+            <h2 class="font-display font-bold text-3xl text-forge-text group-hover:text-forge-accent transition-colors mb-4 leading-tight">
+              {featured.title}
+            </h2>
+            <p class="text-forge-text-2 leading-relaxed mb-6">{featured.excerpt}</p>
+            <div class="flex items-center gap-4">
+              <div class="avatar-sm bg-forge-surface3 border border-forge-border text-forge-accent font-display font-bold">
+                {featured.author.initials}
+              </div>
+              <div class="text-sm text-forge-text-2">{featured.author.name}</div>
+              <span class="text-forge-border">·</span>
+              <div class="text-sm text-forge-text-3">{featured.date}</div>
+              <span class="text-forge-border">·</span>
+              <div class="text-sm text-forge-text-3">{featured.readTime} read</div>
+            </div>
+          </div>
+          <div class="bg-forge-surface2 flex items-center justify-center text-8xl border-l border-forge-border/50 min-h-[200px] md:min-h-0">
+            {featured.image}
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <!-- Post grid -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5" id="blog-grid">
+      {rest.map(post => (
+        <a
+          href={`/blog/${post.slug}`}
+          class="card-hover flex flex-col group blog-post"
+          data-cat={post.category}
+        >
+          <div class="bg-forge-surface2 p-8 text-5xl flex items-center justify-center border-b border-forge-border/50 rounded-t-xl">
+            {post.image}
+          </div>
+          <div class="p-5 flex flex-col flex-1">
+            <div class="flex items-center gap-2 mb-3">
+              <span class={`badge text-2xs ${catColors[post.category]}`}>{post.category}</span>
+              <span class="text-2xs text-forge-text-3">{post.readTime} read</span>
+            </div>
+            <h2 class="font-display font-bold text-base text-forge-text group-hover:text-forge-accent transition-colors mb-2 leading-snug flex-1">
+              {post.title}
+            </h2>
+            <p class="text-xs text-forge-text-3 leading-relaxed mb-4 line-clamp-2">{post.excerpt}</p>
+            <div class="flex items-center gap-2 pt-4 border-t border-forge-border/50">
+              <div class="avatar-sm bg-forge-surface3 border border-forge-border text-forge-accent font-display font-bold text-2xs">
+                {post.author.initials}
+              </div>
+              <div>
+                <div class="text-xs font-medium text-forge-text-2">{post.author.name}</div>
+                <div class="text-2xs text-forge-text-3">{post.date}</div>
+              </div>
+            </div>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div id="blog-empty" class="hidden text-center py-12 text-forge-text-3">No posts in this category yet.</div>
+
+    <!-- Newsletter CTA -->
+    <div class="card p-8 text-center max-w-xl mx-auto">
+      <div class="text-3xl mb-4">📬</div>
+      <h3 class="font-display font-bold text-xl text-forge-text mb-2">Never miss a post</h3>
+      <p class="text-sm text-forge-text-2 mb-5">Engineering deep-dives, product updates, and tutorials. Roughly twice a month.</p>
+      <div class="flex gap-2">
+        <input type="email" placeholder="you@company.com" class="input flex-1"/>
+        <button class="btn-primary btn-md flex-shrink-0">Subscribe</button>
+      </div>
+    </div>
+  </div>
+</MarketingLayout>
+
+<script>
+  const posts = document.querySelectorAll<HTMLElement>('.blog-post');
+  const emptyEl = document.getElementById('blog-empty')!;
+
+  function filterBlog(btn: HTMLButtonElement) {
+    document.querySelectorAll('.cat-pill').forEach(b => {
+      b.className = 'cat-pill text-xs font-medium px-3.5 py-1.5 rounded-full border whitespace-nowrap transition-all border-forge-border text-forge-text-3 hover:border-forge-border-2 hover:text-forge-text';
+    });
+    btn.className = 'cat-pill text-xs font-medium px-3.5 py-1.5 rounded-full border whitespace-nowrap transition-all border-forge-accent/40 bg-forge-accent-muted text-forge-accent';
+
+    const cat = btn.dataset.cat!;
+    let visible = 0;
+    posts.forEach(p => {
+      const show = cat === 'All' || p.dataset.cat === cat;
+      p.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    emptyEl.classList.toggle('hidden', visible > 0);
+  }
+  (window as any).filterBlog = filterBlog;
+</script>

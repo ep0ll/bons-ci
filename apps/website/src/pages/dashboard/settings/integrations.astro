@@ -1,0 +1,227 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+const connectedIntegrations = [
+  {
+    id: 'github',
+    name: 'GitHub',
+    category: 'Version Control',
+    icon: '🐙',
+    status: 'connected',
+    connectedAs: 'acme-corp',
+    connectedAt: 'Jan 12, 2024',
+    permissions: ['repo', 'read:org', 'write:statuses', 'admin:repo_hook'],
+    repos: 5,
+    description: 'Triggers builds on push, PR events, and writes commit status checks.',
+  },
+  {
+    id: 'slack',
+    name: 'Slack',
+    category: 'Notifications',
+    icon: '💬',
+    status: 'connected',
+    connectedAs: 'Acme Corp workspace',
+    connectedAt: 'Jan 14, 2024',
+    permissions: ['incoming-webhook', 'chat:write', 'channels:read'],
+    repos: null,
+    description: 'Posts build notifications to #eng-deploys and #ci-alerts channels.',
+  },
+  {
+    id: 'datadog',
+    name: 'Datadog',
+    category: 'Observability',
+    icon: '🐶',
+    status: 'connected',
+    connectedAs: 'acme-corp.datadoghq.com',
+    connectedAt: 'Feb 3, 2024',
+    permissions: ['metrics:write', 'events:write'],
+    repos: null,
+    description: 'Streams build metrics and traces. Pre-built ForgeCI dashboard enabled.',
+  },
+  {
+    id: 'linear',
+    name: 'Linear',
+    category: 'Project Management',
+    icon: '📐',
+    status: 'connected',
+    connectedAs: 'Acme Corp (linear.app)',
+    connectedAt: 'Mar 1, 2024',
+    permissions: ['issues:write', 'comments:write'],
+    repos: null,
+    description: 'Auto-closes Linear issues on successful merge via smart commit syntax.',
+  },
+  {
+    id: 'sentry',
+    name: 'Sentry',
+    category: 'Observability',
+    icon: '🛡',
+    status: 'connected',
+    connectedAs: 'acme-corp (sentry.io)',
+    connectedAt: 'Mar 14, 2024',
+    permissions: ['project:releases'],
+    repos: null,
+    description: 'Creates Sentry releases on every deploy and associates commits.',
+  },
+];
+
+const availableIntegrations = [
+  { id: 'gitlab',      name: 'GitLab',       category: 'Version Control', icon: '🦊', official: true,  desc: 'Connect GitLab SaaS or self-hosted.' },
+  { id: 'bitbucket',   name: 'Bitbucket',    category: 'Version Control', icon: '🪣', official: true,  desc: 'Bitbucket Cloud and Server.' },
+  { id: 'jira',        name: 'Jira',         category: 'Project Mgmt',    icon: '📋', official: true,  desc: 'Transition issues on deploy.' },
+  { id: 'pagerduty',   name: 'PagerDuty',    category: 'Notifications',   icon: '🚨', official: true,  desc: 'Incident creation on failures.' },
+  { id: 'grafana',     name: 'Grafana Cloud', category: 'Observability',  icon: '📈', official: true,  desc: 'OpenTelemetry metric export.' },
+  { id: 'teams',       name: 'Microsoft Teams', category: 'Notifications',icon: '💼', official: true,  desc: 'Build cards in Teams channels.' },
+  { id: 'vault',       name: 'HashiCorp Vault', category: 'Security',     icon: '🔑', official: true,  desc: 'Dynamic secrets injection.' },
+  { id: 'snyk',        name: 'Snyk',         category: 'Security',        icon: '🔐', official: true,  desc: 'Dependency vulnerability scan.' },
+  { id: 'opsgenie',    name: 'OpsGenie',     category: 'Notifications',   icon: '📟', official: false, desc: 'Alert routing for failures.' },
+  { id: 'codecov',     name: 'Codecov',      category: 'Testing',         icon: '📊', official: false, desc: 'Coverage report upload.' },
+  { id: 'chromatic',   name: 'Chromatic',    category: 'Testing',         icon: '🎨', official: false, desc: 'Visual regression testing.' },
+  { id: 'newrelic',    name: 'New Relic',    category: 'Observability',   icon: '🔭', official: false, desc: 'Pipeline telemetry export.' },
+];
+
+const cats = ['All', ...new Set(availableIntegrations.map(i => i.category))];
+---
+
+<DashboardLayout
+  title="Integrations"
+  activeNav="integrations"
+  breadcrumbs={[{ label: 'Settings', href: '/dashboard/settings' }, { label: 'Integrations' }]}
+>
+  <div class="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto space-y-6">
+
+    <div>
+      <h1 class="font-display font-bold text-2xl text-forge-text">Integrations</h1>
+      <p class="text-forge-text-3 text-sm mt-0.5">
+        {connectedIntegrations.length} connected · manage your connected services and install new ones.
+      </p>
+    </div>
+
+    <!-- Connected integrations -->
+    <div class="space-y-3">
+      <h2 class="font-display font-bold text-base text-forge-text">Connected ({connectedIntegrations.length})</h2>
+      {connectedIntegrations.map((intg) => (
+        <div class="card p-5">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-xl bg-forge-surface3 border border-forge-border flex items-center justify-center text-xl flex-shrink-0">
+              {intg.icon}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2.5 flex-wrap mb-1">
+                <span class="text-sm font-medium text-forge-text">{intg.name}</span>
+                <span class="badge-success border border-forge-success/20 text-2xs">Connected</span>
+                <span class="badge-neutral border border-forge-border text-2xs">{intg.category}</span>
+              </div>
+              <div class="text-xs text-forge-text-3 mb-2">
+                <span class="font-mono">{intg.connectedAs}</span> · Connected {intg.connectedAt}
+                {intg.repos && <span> · {intg.repos} repos</span>}
+              </div>
+              <p class="text-xs text-forge-text-2 mb-3">{intg.description}</p>
+              <!-- Permission scopes -->
+              <div class="flex flex-wrap gap-1.5">
+                {intg.permissions.map(perm => (
+                  <code class="text-2xs font-mono bg-forge-surface2 border border-forge-border rounded px-1.5 py-0.5 text-forge-text-3">
+                    {perm}
+                  </code>
+                ))}
+              </div>
+            </div>
+            <div class="flex flex-col gap-2 flex-shrink-0">
+              <button class="btn-secondary btn-sm text-xs">Configure</button>
+              <button class="btn-ghost btn-sm text-xs text-forge-danger hover:bg-forge-danger-bg">Disconnect</button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Available integrations -->
+    <div class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h2 class="font-display font-bold text-base text-forge-text">Available integrations</h2>
+        <div class="flex gap-2">
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            <input type="search" id="intg-search" placeholder="Search…" class="input !pl-9 !py-1.5 !text-xs w-44"/>
+          </div>
+          <select class="input !py-1.5 !text-xs w-36" id="intg-cat">
+            {cats.map(c => <option value={c}>{c}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="intg-grid">
+        {availableIntegrations.map((intg) => (
+          <div
+            class="card p-4 flex items-start gap-3 hover:border-forge-border-2 transition-colors group available-intg"
+            data-name={intg.name.toLowerCase()}
+            data-cat={intg.category}
+          >
+            <div class="w-9 h-9 rounded-lg bg-forge-surface3 border border-forge-border flex items-center justify-center text-base flex-shrink-0">
+              {intg.icon}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                <span class="text-xs font-medium text-forge-text">{intg.name}</span>
+                {intg.official && <span class="badge-success border border-forge-success/15 text-2xs">Official</span>}
+              </div>
+              <p class="text-2xs text-forge-text-3 leading-relaxed mb-2">{intg.desc}</p>
+              <button
+                class="text-2xs border border-forge-accent/30 bg-forge-accent-muted text-forge-accent rounded-md px-2.5 py-1 hover:bg-forge-accent hover:text-forge-bg transition-all"
+                onclick={`installIntg('${intg.id}', this)`}
+              >
+                Install
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div id="intg-empty" class="hidden text-center py-10 text-forge-text-3 text-sm">No integrations match your search.</div>
+
+      <div class="card p-5 text-center">
+        <p class="text-sm text-forge-text-2 mb-3">
+          Don't see what you need?
+        </p>
+        <div class="flex flex-col sm:flex-row gap-2 justify-center">
+          <a href="/dashboard/marketplace" class="btn-secondary btn-sm">Browse marketplace</a>
+          <a href="/docs/plugins/sdk" class="btn-ghost btn-sm text-forge-text-3">Build your own →</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</DashboardLayout>
+
+<script>
+  const cards = document.querySelectorAll<HTMLElement>('.available-intg');
+  const emptyEl = document.getElementById('intg-empty')!;
+  const grid = document.getElementById('intg-grid')!;
+
+  function applyFilter() {
+    const q = (document.getElementById('intg-search') as HTMLInputElement).value.toLowerCase();
+    const cat = (document.getElementById('intg-cat') as HTMLSelectElement).value;
+    let visible = 0;
+    cards.forEach(c => {
+      const show = (!q || c.dataset.name!.includes(q)) && (cat === 'All' || c.dataset.cat === cat);
+      c.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    emptyEl.classList.toggle('hidden', visible > 0);
+    grid.classList.toggle('hidden', visible === 0);
+  }
+
+  document.getElementById('intg-search')?.addEventListener('input', applyFilter);
+  document.getElementById('intg-cat')?.addEventListener('change', applyFilter);
+
+  function installIntg(id: string, btn: HTMLButtonElement) {
+    btn.textContent = 'Installing…';
+    btn.setAttribute('disabled', 'true');
+    setTimeout(() => {
+      btn.textContent = '✓ Installed';
+      btn.className = 'text-2xs border border-forge-success/30 bg-forge-success-bg text-forge-success rounded-md px-2.5 py-1';
+    }, 1200);
+  }
+  (window as any).installIntg = installIntg;
+</script>

@@ -1,0 +1,390 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Get started — Forge CI" noindex={true}>
+  <div class="min-h-screen bg-forge-bg flex flex-col">
+
+    <!-- Onboarding header -->
+    <header class="border-b border-forge-border glass">
+      <div class="container-forge h-14 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-2">
+          <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="#C8FF00"/>
+            <path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#07090E"/>
+            <circle cx="24" cy="8" r="2.5" fill="#07090E"/>
+          </svg>
+          <span class="font-display font-bold text-base text-forge-text">ForgeCI</span>
+        </a>
+        <div class="flex items-center gap-4">
+          <span class="text-sm text-forge-text-3" id="onboard-progress-label">Step 1 of 4</span>
+          <a href="/dashboard" class="text-xs text-forge-text-3 hover:text-forge-text transition-colors">Skip for now →</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- Progress bar -->
+    <div class="h-0.5 bg-forge-surface2">
+      <div id="progress-bar" class="h-full bg-forge-accent transition-all duration-700 ease-spring" style="width: 25%"></div>
+    </div>
+
+    <!-- Onboarding content -->
+    <div class="flex-1 flex items-start justify-center py-12 px-4">
+      <div class="w-full max-w-2xl">
+
+        <!-- ─── Step 1: Connect VCS ─────────────────── -->
+        <div id="ob-step-1" class="animate-slide-up">
+          <div class="mb-8">
+            <div class="section-label mb-4">Step 1 of 4</div>
+            <h1 class="font-display font-bold text-3xl text-forge-text mb-3">Connect your repository</h1>
+            <p class="text-forge-text-2">Choose where your code lives. You can add more later.</p>
+          </div>
+
+          <div class="grid sm:grid-cols-3 gap-4 mb-8">
+            {[
+              { id: 'github', name: 'GitHub', icon: `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>`, desc: 'Connect your GitHub account and select repositories' },
+              { id: 'gitlab', name: 'GitLab', icon: `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M4.845.904c-.435 0-.82.28-.955.692C2.639 5.449 1.246 9.728.07 13.335a1.437 1.437 0 00.522 1.607l11.071 8.045c.2.145.472.144.67-.004L23.408 14.94a1.44 1.44 0 00.522-1.61c-1.176-3.606-2.57-7.885-3.82-11.738a1.003 1.003 0 00-.955-.69h-1.013l.979 3.01L12 9.656 4.878 4.913l.98-3.01zm-.575 2.146L3.35 6.523l3.797 2.76zm14.886 0l.918 2.38 3.796-2.76zm-4.208.89 1.392 4.283-4.34 3.153zm-5.897 0 2.948 7.436-4.34-3.153zm2.95.493 3.14 7.748H9.864zm0 8.581l-3.505 1.844-2.58-.986 6.085-4.422 6.085 4.421-2.58.986z"/></svg>`, desc: 'Connect GitLab SaaS or self-hosted instance' },
+              { id: 'bitbucket', name: 'Bitbucket', icon: `<svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M.778 1.213a.768.768 0 00-.768.892l3.263 19.81c.084.5.515.868 1.022.873H19.95a.772.772 0 00.77-.646l3.27-20.03a.768.768 0 00-.768-.891zM14.52 15.53H9.522L8.17 8.466h7.561z"/></svg>`, desc: 'Connect Bitbucket Cloud or Server' },
+            ].map(({ id, name, icon, desc }) => (
+              <button
+                type="button"
+                onclick={`connectVCS('${id}', this)`}
+                class="vcs-card card p-5 flex flex-col items-center gap-3 text-center hover:border-forge-accent/40 hover:bg-forge-accent-muted/10 transition-all duration-200 cursor-pointer group"
+              >
+                <div class="text-forge-text-2 group-hover:text-forge-accent transition-colors">
+                  <Fragment set:html={icon} />
+                </div>
+                <div>
+                  <div class="font-medium text-forge-text text-sm mb-0.5">{name}</div>
+                  <div class="text-xs text-forge-text-3">{desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <!-- Repo selector (shown after connect) -->
+          <div id="repo-selector" class="hidden card p-5 mb-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-medium text-forge-text text-sm">Select a repository</h3>
+              <div class="relative">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <input type="text" placeholder="Search repos…" class="input !py-1.5 !pl-8 !text-xs w-48" />
+              </div>
+            </div>
+            <div class="space-y-1.5 max-h-52 overflow-y-auto no-scrollbar">
+              {[
+                { name: 'acme/api-service', lang: 'TypeScript', stars: 12 },
+                { name: 'acme/web-app', lang: 'Next.js', stars: 8 },
+                { name: 'acme/mobile', lang: 'Swift', stars: 4 },
+                { name: 'acme/infra', lang: 'Terraform', stars: 3 },
+                { name: 'acme/docs', lang: 'MDX', stars: 2 },
+              ].map(({ name, lang, stars }) => (
+                <div
+                  onclick="selectRepo(this)"
+                  class="repo-item flex items-center justify-between p-3 rounded-lg hover:bg-forge-surface2 cursor-pointer transition-colors"
+                >
+                  <div class="flex items-center gap-3">
+                    <svg class="w-4 h-4 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                    </svg>
+                    <div>
+                      <div class="text-sm font-mono text-forge-text">{name}</div>
+                      <div class="text-xs text-forge-text-3">{lang}</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1 text-xs text-forge-text-3">⭐ {stars}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button onclick="obNext(2)" class="btn-primary btn-lg w-full justify-center" id="ob-next-1" disabled>
+            Continue →
+          </button>
+        </div>
+
+        <!-- ─── Step 2: Pipeline config ─────────────── -->
+        <div id="ob-step-2" class="hidden animate-slide-up">
+          <div class="mb-8">
+            <div class="section-label mb-4">Step 2 of 4</div>
+            <h1 class="font-display font-bold text-3xl text-forge-text mb-3">Configure your pipeline</h1>
+            <p class="text-forge-text-2">Forge CI detected your stack. Review or customize the generated config.</p>
+          </div>
+
+          <!-- Detected stack -->
+          <div class="card p-4 mb-6 flex items-center gap-3 border-forge-success/30 bg-forge-success-bg/30">
+            <svg class="w-5 h-5 text-forge-success flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+            </svg>
+            <div class="text-sm text-forge-text-2">
+              Detected: <strong class="text-forge-text">Node.js 20 · TypeScript · Jest · Docker</strong>
+            </div>
+          </div>
+
+          <!-- Pipeline YAML preview -->
+          <div class="terminal mb-6">
+            <div class="terminal-header">
+              <div class="terminal-dot bg-[#FF5F57]"></div>
+              <div class="terminal-dot bg-[#FFBD2E]"></div>
+              <div class="terminal-dot bg-[#28C840]"></div>
+              <span class="text-xs text-forge-text-3 ml-2 font-mono">.forge/pipeline.yml</span>
+              <div class="ml-auto flex gap-2">
+                <button class="text-xs text-forge-accent hover:text-forge-accent-dim transition-colors">Edit</button>
+                <button class="text-xs text-forge-text-3 hover:text-forge-text transition-colors">Copy</button>
+              </div>
+            </div>
+            <pre class="p-5 text-xs font-mono text-forge-text-2 overflow-x-auto leading-relaxed"><code><span class="text-forge-text-3"># Generated by Forge CI · Edit anytime</span>
+<span class="text-forge-cyan">version</span>: <span class="text-forge-accent">'2'</span>
+
+<span class="text-forge-cyan">pipelines</span>:
+  <span class="text-forge-cyan">default</span>:
+    - <span class="text-forge-cyan">step</span>:
+        <span class="text-forge-cyan">name</span>: <span class="text-forge-accent">Install dependencies</span>
+        <span class="text-forge-cyan">caches</span>: [<span class="text-forge-accent">node</span>]
+        <span class="text-forge-cyan">script</span>:
+          - npm ci
+
+    - <span class="text-forge-cyan">parallel</span>:
+        <span class="text-forge-text-3">## Run tests & lint in parallel</span>
+        - <span class="text-forge-cyan">step</span>:
+            <span class="text-forge-cyan">name</span>: <span class="text-forge-accent">Test</span>
+            <span class="text-forge-cyan">script</span>:
+              - npm test -- --coverage
+
+        - <span class="text-forge-cyan">step</span>:
+            <span class="text-forge-cyan">name</span>: <span class="text-forge-accent">Lint</span>
+            <span class="text-forge-cyan">script</span>:
+              - npm run lint
+
+    - <span class="text-forge-cyan">step</span>:
+        <span class="text-forge-cyan">name</span>: <span class="text-forge-accent">Build & push image</span>
+        <span class="text-forge-cyan">services</span>: [<span class="text-forge-accent">docker</span>]
+        <span class="text-forge-cyan">script</span>:
+          - docker build -t $IMAGE_TAG .
+          - docker push $IMAGE_TAG</code></pre>
+          </div>
+
+          <!-- Runner selection -->
+          <div class="mb-6">
+            <label class="input-label">Default runner size</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                { id: 'small', label: 'Small', spec: '2 vCPU · 4 GB', price: '1×' },
+                { id: 'medium', label: 'Medium', spec: '4 vCPU · 8 GB', price: '2×', selected: true },
+                { id: 'large', label: 'Large', spec: '8 vCPU · 16 GB', price: '4×' },
+                { id: 'xlarge', label: 'XLarge', spec: '16 vCPU · 32 GB', price: '8×' },
+              ].map(({ id, label, spec, price, selected }) => (
+                <label class="flex flex-col p-3 rounded-lg border cursor-pointer transition-all duration-150 hover:border-forge-border-2 has-[:checked]:border-forge-accent/40 has-[:checked]:bg-forge-accent-muted/20">
+                  <input type="radio" name="runner-size" value={id} checked={selected} class="sr-only" />
+                  <span class="text-sm font-medium text-forge-text">{label}</span>
+                  <span class="text-xs text-forge-text-3 mt-0.5">{spec}</span>
+                  <span class="text-xs font-mono text-forge-accent mt-1">{price} credits</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div class="flex gap-3">
+            <button onclick="obNext(1)" class="btn-secondary btn-md flex-shrink-0 px-5">← Back</button>
+            <button onclick="obNext(3)" class="btn-primary btn-md flex-1 justify-center">Use this config →</button>
+          </div>
+        </div>
+
+        <!-- ─── Step 3: Environment secrets ───────────── -->
+        <div id="ob-step-3" class="hidden animate-slide-up">
+          <div class="mb-8">
+            <div class="section-label mb-4">Step 3 of 4</div>
+            <h1 class="font-display font-bold text-3xl text-forge-text mb-3">Add environment secrets</h1>
+            <p class="text-forge-text-2">Securely store credentials your pipeline needs. These are encrypted at rest and never exposed in logs.</p>
+          </div>
+
+          <div class="card p-5 mb-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-medium text-forge-text text-sm">Environment variables & secrets</h3>
+              <button onclick="addSecret()" class="btn-secondary btn-sm text-xs">+ Add secret</button>
+            </div>
+
+            <div id="secrets-list" class="space-y-2">
+              {[
+                { key: 'NPM_TOKEN', value: '••••••••••••••••', type: 'secret' },
+                { key: 'DOCKER_PASSWORD', value: '••••••••••••••••', type: 'secret' },
+              ].map(({ key, value, type }) => (
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-forge-surface2/50 border border-forge-border/50">
+                  <svg class="w-3.5 h-3.5 text-forge-warning flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+                  </svg>
+                  <code class="text-xs font-mono text-forge-accent flex-shrink-0">{key}</code>
+                  <div class="flex-1 text-xs font-mono text-forge-text-3">{value}</div>
+                  <button class="text-forge-text-3 hover:text-forge-danger transition-colors">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <!-- Add secret inline form -->
+            <div id="add-secret-form" class="hidden mt-3 flex gap-2">
+              <input type="text" placeholder="SECRET_NAME" class="input flex-1 font-mono !text-xs uppercase" />
+              <input type="password" placeholder="value" class="input flex-1 !text-xs" />
+              <button class="btn-primary btn-sm text-xs">Add</button>
+            </div>
+          </div>
+
+          <p class="text-xs text-forge-text-3 mb-6">
+            You can skip this and add secrets later from <strong class="text-forge-text">Settings → Secrets</strong>.
+          </p>
+
+          <div class="flex gap-3">
+            <button onclick="obNext(2)" class="btn-secondary btn-md flex-shrink-0 px-5">← Back</button>
+            <button onclick="obNext(4)" class="btn-primary btn-md flex-1 justify-center">Continue →</button>
+          </div>
+        </div>
+
+        <!-- ─── Step 4: First build ─────────────────── -->
+        <div id="ob-step-4" class="hidden animate-slide-up">
+          <div class="mb-8">
+            <div class="section-label mb-4">Step 4 of 4</div>
+            <h1 class="font-display font-bold text-3xl text-forge-text mb-3">
+              <span id="build-state-title">Trigger your first build</span>
+            </h1>
+            <p class="text-forge-text-2" id="build-state-desc">Everything is configured. Run your first build to confirm everything works.</p>
+          </div>
+
+          <!-- Pre-run state -->
+          <div id="pre-run" class="card p-6 text-center mb-6">
+            <div class="w-16 h-16 rounded-2xl bg-forge-surface3 border border-forge-border flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-forge-text-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <p class="text-sm text-forge-text-2 mb-1">Ready to build</p>
+            <p class="text-xs text-forge-text-3">acme/api-service · main branch</p>
+          </div>
+
+          <!-- Running state (hidden) -->
+          <div id="running" class="hidden card p-6 mb-6">
+            <div class="space-y-3 font-mono text-xs">
+              <div class="flex items-center gap-2 text-forge-cyan">
+                <div class="w-3 h-3 border-2 border-forge-cyan/30 border-t-forge-cyan rounded-full animate-spin flex-shrink-0"></div>
+                Running build #1 on linux-x64-medium
+              </div>
+              <div id="build-log" class="space-y-1 text-forge-text-2"></div>
+            </div>
+          </div>
+
+          <!-- Success state (hidden) -->
+          <div id="build-success" class="hidden card p-6 text-center mb-6 border-forge-success/30 bg-forge-success-bg/20">
+            <div class="w-16 h-16 rounded-full bg-forge-success/10 border border-forge-success/30 flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-forge-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <h3 class="font-display font-bold text-xl text-forge-success mb-2">Build passed! 🎉</h3>
+            <p class="text-sm text-forge-text-2 mb-1">Completed in 1m 24s · 4 steps passed</p>
+            <p class="text-xs text-forge-text-3">89% cache hit rate · 12 build credits used</p>
+          </div>
+
+          <div id="run-btn-wrap" class="flex gap-3">
+            <button onclick="obNext(3)" class="btn-secondary btn-md flex-shrink-0 px-5">← Back</button>
+            <button onclick="triggerBuild()" class="btn-primary btn-md flex-1 justify-center" id="run-btn">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              Run first build
+            </button>
+          </div>
+
+          <div id="dashboard-btn" class="hidden">
+            <a href="/dashboard" class="btn-primary btn-lg w-full justify-center">
+              Go to your dashboard →
+            </a>
+            <p class="text-xs text-forge-text-3 text-center mt-3">
+              Your pipeline is live. Push a commit to trigger future builds automatically.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</BaseLayout>
+
+<script>
+  const stepProgress: Record<number, number> = { 1: 25, 2: 50, 3: 75, 4: 100 };
+  const stepLabels: Record<number, string> = { 1: 'Step 1 of 4', 2: 'Step 2 of 4', 3: 'Step 3 of 4', 4: 'Step 4 of 4' };
+
+  function obNext(n: number) {
+    [1,2,3,4].forEach(i => document.getElementById(`ob-step-${i}`)?.classList.add('hidden'));
+    document.getElementById(`ob-step-${n}`)?.classList.remove('hidden');
+    document.getElementById('progress-bar')!.style.width = stepProgress[n] + '%';
+    document.getElementById('onboard-progress-label')!.textContent = stepLabels[n];
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function connectVCS(provider: string, btn: HTMLButtonElement) {
+    document.querySelectorAll('.vcs-card').forEach(b => {
+      b.className = 'vcs-card card p-5 flex flex-col items-center gap-3 text-center hover:border-forge-accent/40 hover:bg-forge-accent-muted/10 transition-all duration-200 cursor-pointer group';
+    });
+    btn.className = 'vcs-card card p-5 flex flex-col items-center gap-3 text-center border-forge-accent/40 bg-forge-accent-muted/20 transition-all duration-200 cursor-pointer group';
+
+    // Show repo selector after short delay (simulating OAuth)
+    setTimeout(() => {
+      document.getElementById('repo-selector')?.classList.remove('hidden');
+    }, 600);
+  }
+
+  function selectRepo(el: HTMLElement) {
+    document.querySelectorAll('.repo-item').forEach(r => r.classList.remove('bg-forge-accent-muted/30', 'border', 'border-forge-accent/30'));
+    el.classList.add('bg-forge-accent-muted/30');
+    const nextBtn = document.getElementById('ob-next-1') as HTMLButtonElement;
+    nextBtn.removeAttribute('disabled');
+  }
+
+  function addSecret() {
+    document.getElementById('add-secret-form')?.classList.toggle('hidden');
+  }
+
+  const buildLogLines = [
+    '→ Fetching pipeline config...',
+    '→ Cache hit! node_modules restored (1.2 GB in 0.8s)',
+    '→ Installing dependencies... [0.02s]',
+    '→ Running tests (24 workers)...',
+    '  ✓ 1,847 tests passed [12.4s]',
+    '→ Building Docker image...',
+    '  ✓ Image built: acme/api-service:a4f9c2b [8.1s]',
+    '→ Pushing to registry...',
+    '  ✓ Pushed successfully [4.2s]',
+  ];
+
+  async function triggerBuild() {
+    document.getElementById('run-btn-wrap')!.style.display = 'none';
+    document.getElementById('pre-run')?.classList.add('hidden');
+    document.getElementById('running')?.classList.remove('hidden');
+
+    const logEl = document.getElementById('build-log')!;
+    for (let i = 0; i < buildLogLines.length; i++) {
+      await new Promise(r => setTimeout(r, 600));
+      const line = document.createElement('div');
+      line.className = buildLogLines[i].startsWith('  ✓') ? 'text-forge-success' : '';
+      line.textContent = buildLogLines[i];
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    await new Promise(r => setTimeout(r, 800));
+    document.getElementById('running')?.classList.add('hidden');
+    document.getElementById('build-success')?.classList.remove('hidden');
+    document.getElementById('dashboard-btn')?.classList.remove('hidden');
+    document.getElementById('build-state-title')!.textContent = 'Your first build passed!';
+    document.getElementById('build-state-desc')!.textContent = 'You\'re all set. Push code to trigger builds automatically.';
+  }
+
+  (window as any).obNext = obNext;
+  (window as any).connectVCS = connectVCS;
+  (window as any).selectRepo = selectRepo;
+  (window as any).addSecret = addSecret;
+  (window as any).triggerBuild = triggerBuild;
+</script>

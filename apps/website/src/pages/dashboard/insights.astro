@@ -1,0 +1,361 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+// Spark data helpers (server-side)
+function spark(base: number, variance: number, length = 30): number[] {
+  let v = base;
+  return Array.from({ length }, () => {
+    v = Math.max(0, v + (Math.random() - 0.5) * variance);
+    return Math.round(v);
+  });
+}
+
+const successSpark  = spark(97, 4, 30);
+const durationSpark = spark(98, 20, 30);   // seconds
+const minutesSpark  = spark(2100, 400, 30);
+const cacheSpark    = spark(89, 6, 30);
+
+function sparkPath(data: number[], w = 260, h = 40): string {
+  const max = Math.max(...data), min = Math.min(...data);
+  const range = max - min || 1;
+  return data.map((v, i) =>
+    `${i === 0 ? 'M' : 'L'}${(i / (data.length - 1)) * w},${h - ((v - min) / range) * (h - 4) - 2}`
+  ).join(' ');
+}
+
+const projects = [
+  { name:'api-service', builds:842, successRate:97.4, avgDur:84,  p95Dur:148, mins:19724, costPct:31.5, cacheHit:98.6 },
+  { name:'web-app',     builds:634, successRate:98.1, avgDur:78,  p95Dur:120, mins:13782, costPct:22.0, cacheHit:97.2 },
+  { name:'mobile',      builds:241, successRate:95.8, avgDur:492, p95Dur:680, mins:19722, costPct:31.5, cacheHit:93.1 },
+  { name:'infra',       builds:88,  successRate:99.9, avgDur:224, p95Dur:310, mins:5502,  costPct:8.8,  cacheHit:0    },
+  { name:'docs',        builds:112, successRate:100,  avgDur:44,  p95Dur:55,  mins:1386,  costPct:2.2,  cacheHit:92.4 },
+];
+
+const teamActivity = [
+  { initials:'AL', name:'Ada Lovelace',    builds:312, successRate:98.7, avgDur:88  },
+  { initials:'TR', name:'Tomás Reyes',     builds:248, successRate:97.2, avgDur:92  },
+  { initials:'PN', name:'Priya Nair',      builds:196, successRate:94.9, avgDur:104 },
+  { initials:'OA', name:'Olu Adeyemi',     builds:88,  successRate:99.9, avgDur:221 },
+  { initials:'SJ', name:'Sara Johansson', builds:241, successRate:95.8, avgDur:492 },
+];
+
+function fmtDur(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+---
+
+<DashboardLayout
+  title="Insights"
+  activeNav="insights"
+  breadcrumbs={[{ label: 'Insights' }]}
+>
+  <div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="font-display font-bold text-2xl text-forge-text">Insights</h1>
+        <p class="text-forge-text-3 text-sm mt-0.5">Deep analytics across builds, teams, and costs.</p>
+      </div>
+      <div class="flex gap-2 items-center">
+        <select class="input !py-2 !text-xs w-36">
+          <option>Last 30 days</option>
+          <option>Last 7 days</option>
+          <option>Last 90 days</option>
+          <option>Custom range…</option>
+        </select>
+        <button class="btn-secondary btn-sm">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Export
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI trend cards -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[
+        { label:'Success rate',    value:'97.3%',  delta:'+0.8%', up:true,  data:successSpark,  color:'#10B981' },
+        { label:'Avg build time',  value:'1m 38s', delta:'-22%',  up:true,  data:durationSpark, color:'#C8FF00' },
+        { label:'Build mins/day',  value:'2,082',  delta:'+12%',  up:null,  data:minutesSpark,  color:'#22D3EE' },
+        { label:'Cache hit rate',  value:'89.2%',  delta:'+3.1%', up:true,  data:cacheSpark,    color:'#3B82F6' },
+      ].map(({ label, value, delta, up, data, color }) => {
+        const path = sparkPath(data);
+        const area = `${path} L260,40 L0,40 Z`;
+        return (
+          <div class="card p-5">
+            <div class="text-xs text-forge-text-3 mb-1">{label}</div>
+            <div class="font-display font-bold text-2xl text-forge-text">{value}</div>
+            <div class={`text-xs font-mono mt-1 ${up === true ? 'text-forge-success' : up === false ? 'text-forge-danger' : 'text-forge-text-3'}`}>
+              {up === true ? '↑' : up === false ? '↓' : ''} {delta} vs prev period
+            </div>
+            <svg class="w-full mt-3" height="44" viewBox="0 0 260 44" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id={`grad-${label.replace(/\s/g,'')}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color={color} stop-opacity="0.2"/>
+                  <stop offset="100%" stop-color={color} stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d={area} fill={`url(#grad-${label.replace(/\s/g,'')})`}/>
+              <path d={path} fill="none" stroke={color} stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+            </svg>
+          </div>
+        );
+      })}
+    </div>
+
+    <!-- Build volume + heatmap -->
+    <div class="grid lg:grid-cols-[1fr_auto] gap-4">
+
+      <!-- Build volume over time -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-5">
+          <div>
+            <h2 class="font-display font-bold text-base text-forge-text">Build volume</h2>
+            <p class="text-xs text-forge-text-3">Stacked by status over 30 days</p>
+          </div>
+          <div class="flex gap-3 text-xs text-forge-text-3">
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-forge-success"></div>Passed</div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-forge-danger"></div>Failed</div>
+            <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-forge-text-3"></div>Other</div>
+          </div>
+        </div>
+
+        <!-- Stacked bar chart (SVG) -->
+        <div class="relative h-36">
+          <svg class="w-full h-full" viewBox="0 0 600 144" preserveAspectRatio="none">
+            <!-- Y grid -->
+            {[0, 36, 72, 108, 144].map(y => (
+              <line x1="0" y1={y} x2="600" y2={y} stroke="rgba(30,45,66,0.5)" stroke-width="0.5"/>
+            ))}
+            <!-- Bars: 30 days -->
+            {Array.from({ length: 30 }, (_, i) => {
+              const total = 40 + Math.round(Math.random() * 60 + i * 2.5);
+              const failed = Math.round(total * (0.01 + Math.random() * 0.04));
+              const other  = Math.round(total * 0.02);
+              const passed = total - failed - other;
+              const x = (i / 30) * 580 + 10;
+              const w = 14;
+              const scale = 140 / 160;
+              const fh = Math.round(failed * scale);
+              const oh = Math.round(other  * scale);
+              const ph = Math.round(passed * scale);
+              return (
+                <g>
+                  <rect x={x} y={144 - ph - fh - oh} width={w} height={ph} fill="#10B981" opacity="0.8" rx="1"/>
+                  <rect x={x} y={144 - fh - oh} width={w} height={fh} fill="#EF4444" opacity="0.8" rx="1"/>
+                  <rect x={x} y={144 - oh} width={w} height={oh} fill="#4B5E7A" opacity="0.8" rx="1"/>
+                </g>
+              );
+            })}
+          </svg>
+          <!-- X labels -->
+          <div class="absolute bottom-0 left-0 right-0 flex justify-between -mb-5 text-2xs font-mono text-forge-text-3 px-2">
+            <span>Mar 15</span><span>Mar 22</span><span>Mar 29</span><span>Apr 5</span><span>Apr 12</span><span>Today</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Day/hour heatmap -->
+      <div class="card p-5 flex-shrink-0">
+        <h2 class="font-display font-bold text-base text-forge-text mb-1">Build heatmap</h2>
+        <p class="text-xs text-forge-text-3 mb-4">Builds by hour of day × day of week</p>
+        <div class="space-y-1.5">
+          {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((day) => (
+            <div class="flex items-center gap-1.5">
+              <span class="text-2xs text-forge-text-3 w-7 flex-shrink-0">{day}</span>
+              <div class="flex gap-1">
+                {Array.from({ length: 24 }, (_, h) => {
+                  const isWeekend = day === 'Sat' || day === 'Sun';
+                  const isPeak = h >= 9 && h <= 17 && !isWeekend;
+                  const intensity = isWeekend ? Math.random() * 0.2 : isPeak ? 0.4 + Math.random() * 0.6 : Math.random() * 0.25;
+                  const opacity = Math.round(intensity * 100) / 100;
+                  return (
+                    <div
+                      class="w-2.5 h-2.5 rounded-sm"
+                      style={`background: rgba(200,255,0,${opacity})`}
+                      title={`${day} ${h}:00 — ~${Math.round(intensity * 30)} builds`}
+                    ></div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-forge-border/50">
+            <span class="text-2xs text-forge-text-3 w-7">UTC</span>
+            <div class="flex gap-1">
+              {[0,6,12,18,23].map(h => (
+                <span class="text-2xs text-forge-text-3" style="width: calc((10px + 4px) * 4)">{h}h</span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 mt-3 text-2xs text-forge-text-3">
+          <span>Less</span>
+          {[0.1, 0.3, 0.5, 0.7, 0.9].map(o => (
+            <div class="w-2.5 h-2.5 rounded-sm" style={`background: rgba(200,255,0,${o})`}></div>
+          ))}
+          <span>More</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project breakdown table -->
+    <div class="card overflow-hidden">
+      <div class="px-5 py-4 border-b border-forge-border flex items-center justify-between">
+        <h2 class="font-display font-bold text-base text-forge-text">Project performance</h2>
+        <a href="/dashboard/projects" class="text-xs text-forge-accent hover:text-forge-accent-dim transition-colors">Manage →</a>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="table-forge">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Builds</th>
+              <th>Success rate</th>
+              <th>Avg duration</th>
+              <th>p95 duration</th>
+              <th>Build minutes</th>
+              <th>Cache hit</th>
+              <th>Cost share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {projects.map((p) => (
+              <tr>
+                <td>
+                  <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 rounded-md bg-forge-surface3 border border-forge-border flex items-center justify-center text-2xs font-bold text-forge-accent font-display">
+                      {p.name[0].toUpperCase()}
+                    </div>
+                    <span class="text-sm font-medium text-forge-text">{p.name}</span>
+                  </div>
+                </td>
+                <td><span class="text-xs font-mono">{p.builds.toLocaleString()}</span></td>
+                <td>
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 h-1.5 rounded-full bg-forge-surface2 overflow-hidden">
+                      <div class={`h-full rounded-full ${p.successRate >= 98 ? 'bg-forge-success' : p.successRate >= 95 ? 'bg-forge-warning' : 'bg-forge-danger'}`} style={`width:${p.successRate}%`}></div>
+                    </div>
+                    <span class={`text-xs font-mono ${p.successRate >= 98 ? 'text-forge-success' : p.successRate >= 95 ? 'text-forge-warning' : 'text-forge-danger'}`}>{p.successRate}%</span>
+                  </div>
+                </td>
+                <td><span class="text-xs font-mono text-forge-text-2">{fmtDur(p.avgDur)}</span></td>
+                <td><span class="text-xs font-mono text-forge-text-2">{fmtDur(p.p95Dur)}</span></td>
+                <td><span class="text-xs font-mono text-forge-text-2">{p.mins.toLocaleString()}</span></td>
+                <td>
+                  {p.cacheHit > 0 ? (
+                    <span class={`text-xs font-mono ${p.cacheHit >= 96 ? 'text-forge-success' : p.cacheHit >= 90 ? 'text-forge-warning' : 'text-forge-danger'}`}>
+                      {p.cacheHit}%
+                    </span>
+                  ) : (
+                    <span class="text-xs text-forge-text-3">N/A</span>
+                  )}
+                </td>
+                <td>
+                  <div class="flex items-center gap-2">
+                    <div class="w-16 h-1.5 rounded-full bg-forge-surface2 overflow-hidden">
+                      <div class="h-full rounded-full bg-forge-accent" style={`width:${p.costPct}%`}></div>
+                    </div>
+                    <span class="text-xs font-mono text-forge-text-2">{p.costPct}%</span>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Team activity + anomalies -->
+    <div class="grid lg:grid-cols-2 gap-4">
+
+      <!-- Team activity -->
+      <div class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-forge-border">
+          <h2 class="font-display font-bold text-base text-forge-text">Team activity</h2>
+          <p class="text-xs text-forge-text-3 mt-0.5">Builds triggered by each member</p>
+        </div>
+        <div class="divide-y divide-forge-border/50">
+          {teamActivity.map((m) => (
+            <div class="flex items-center gap-3 px-5 py-3.5">
+              <div class="avatar-md bg-forge-surface3 border border-forge-border text-forge-accent font-display font-bold flex-shrink-0">
+                {m.initials}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-forge-text">{m.name}</div>
+                <div class="flex items-center gap-3 mt-1">
+                  <div class="flex-1 h-1 rounded-full bg-forge-surface2 overflow-hidden max-w-[100px]">
+                    <div class="h-full bg-forge-accent rounded-full" style={`width:${(m.builds/312)*100}%`}></div>
+                  </div>
+                  <span class="text-xs font-mono text-forge-text-2">{m.builds} builds</span>
+                </div>
+              </div>
+              <div class="text-right flex-shrink-0">
+                <div class={`text-xs font-mono ${m.successRate >= 98 ? 'text-forge-success' : m.successRate >= 95 ? 'text-forge-warning' : 'text-forge-danger'}`}>
+                  {m.successRate}%
+                </div>
+                <div class="text-2xs text-forge-text-3">{fmtDur(m.avgDur)} avg</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- Anomaly feed -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-display font-bold text-base text-forge-text">Anomaly detection</h2>
+          <span class="badge-warning border border-forge-warning/20 text-2xs">ML-powered</span>
+        </div>
+        <div class="space-y-3">
+          {[
+            {
+              type: 'warning',
+              title: 'Build duration spike — api-service',
+              body: 'Avg duration increased 2.3× vs 7-day baseline on Apr 12. Likely cause: new ESLint rule added in package.json.',
+              time: '2 days ago',
+            },
+            {
+              type: 'danger',
+              title: 'Failure rate spike — mobile branch release/2.4.0',
+              body: 'Success rate dropped to 72% for 3 hours before recovering. Correlated with Xcode 15.4 agent update.',
+              time: '3 days ago',
+            },
+            {
+              type: 'info',
+              title: 'Cache efficiency improved — web-app',
+              body: 'Cache hit rate increased from 91% to 97% after adding node_modules to the restore-keys pattern.',
+              time: '5 days ago',
+            },
+            {
+              type: 'warning',
+              title: 'Unusual off-hours builds — infra',
+              body: '14 builds triggered between 02:00–04:00 UTC. Likely a misconfigured cron schedule (check pipeline.yml line 12).',
+              time: '6 days ago',
+            },
+          ].map(({ type, title, body, time }) => (
+            <div class={`p-3.5 rounded-xl border text-xs ${
+              type === 'danger'  ? 'border-forge-danger/25 bg-forge-danger-bg/40' :
+              type === 'warning' ? 'border-forge-warning/25 bg-forge-warning-bg/40' :
+              'border-forge-border bg-forge-surface2/30'
+            }`}>
+              <div class="flex items-start justify-between gap-2 mb-1.5">
+                <span class={`font-medium text-sm ${
+                  type === 'danger'  ? 'text-forge-danger' :
+                  type === 'warning' ? 'text-forge-warning' : 'text-forge-cyan'
+                }`}>{title}</span>
+                <span class="text-forge-text-3 flex-shrink-0">{time}</span>
+              </div>
+              <p class="text-forge-text-2 leading-relaxed">{body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+  </div>
+</DashboardLayout>

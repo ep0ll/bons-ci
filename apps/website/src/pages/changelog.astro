@@ -1,0 +1,196 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+
+const releases = [
+  {
+    version: '2.4.0',
+    date: '2025-04-10',
+    tag: 'Major',
+    tagColor: 'accent',
+    title: 'Sherlock GA + BYOC ARM64 runners',
+    summary: 'Sherlock AI agent is now generally available to all Team and Enterprise plans. BYOC support expanded to include ARM64 architectures.',
+    changes: [
+      { type: 'new', text: 'Sherlock AI agent is now GA on all Team and Enterprise plans' },
+      { type: 'new', text: 'BYOC runners now support Linux ARM64 (Graviton, Apple Silicon VMs)' },
+      { type: 'new', text: 'Pipeline YAML autocomplete in VS Code extension v2.0' },
+      { type: 'new', text: 'Sandbox environments: ephemeral dev envs linked to builds' },
+      { type: 'improved', text: 'Cache invalidation is now 40% faster due to content-addressed index rebuild' },
+      { type: 'improved', text: 'Dashboard load time reduced from 1.8s to 340ms' },
+      { type: 'improved', text: 'Sherlock now surfaces flaky test patterns from the last 30 builds' },
+      { type: 'fixed', text: 'Fixed rare race condition in parallel job fan-in when >100 workers used' },
+      { type: 'fixed', text: 'Matrix build labels now correctly display in the build timeline view' },
+    ],
+  },
+  {
+    version: '2.3.0',
+    date: '2025-03-05',
+    tag: 'Major',
+    tagColor: 'info',
+    title: 'Image Registry + Tailnet integration',
+    summary: 'Built-in OCI-compatible image registry. Private networking via Tailscale Tailnet for BYOC runners and sandboxes.',
+    changes: [
+      { type: 'new', text: 'Built-in OCI-compatible image registry (100 GB on Team, custom on Enterprise)' },
+      { type: 'new', text: 'Tailnet integration: private networking for BYOC runners without VPN' },
+      { type: 'new', text: 'Webhook delivery v2: retries, signature verification, replay from dashboard' },
+      { type: 'new', text: 'Anyscale integration for distributed Ray workloads' },
+      { type: 'improved', text: 'Build log search now supports regex patterns' },
+      { type: 'improved', text: 'macOS runner startup time reduced by 60% with new runner pool' },
+      { type: 'fixed', text: 'GitHub App installation now correctly scopes permissions for org-level repos' },
+    ],
+  },
+  {
+    version: '2.2.0',
+    date: '2025-02-12',
+    tag: 'Minor',
+    tagColor: 'neutral',
+    title: 'Monorepo intelligence + cost attribution',
+    summary: 'Forge CI now automatically detects affected packages in monorepos and skips unaffected pipelines. New cost attribution dashboard.',
+    changes: [
+      { type: 'new', text: 'Monorepo change detection: skip unchanged packages automatically (Nx, Turborepo, Bazel)' },
+      { type: 'new', text: 'Cost attribution dashboard: break down build minutes by team, project, branch' },
+      { type: 'new', text: 'SCIM 2.0 provisioning for Okta and Azure AD (Enterprise)' },
+      { type: 'new', text: 'Pipeline component library: reusable YAML fragments across repos' },
+      { type: 'improved', text: 'OpenTelemetry trace export now supports gRPC and HTTP/JSON' },
+      { type: 'improved', text: 'API rate limits increased 3× for Enterprise plans' },
+      { type: 'fixed', text: 'Scheduled pipelines no longer miss triggers during daylight saving transitions' },
+      { type: 'fixed', text: 'Secret names with dots and hyphens now correctly parsed in step env blocks' },
+    ],
+  },
+  {
+    version: '2.1.0',
+    date: '2025-01-20',
+    tag: 'Minor',
+    tagColor: 'neutral',
+    title: 'Windows runners + Sherlock beta',
+    summary: 'Windows Server 2022 runners now available on Team and Enterprise plans. Sherlock AI agent enters closed beta.',
+    changes: [
+      { type: 'new', text: 'Windows Server 2022 runners on Team and Enterprise plans' },
+      { type: 'new', text: 'Sherlock AI agent: closed beta available (request access)' },
+      { type: 'new', text: 'Network egress firewall rules: allowlist/blocklist per project' },
+      { type: 'improved', text: 'CLI `forge logs --follow` now streams at <100ms latency' },
+      { type: 'fixed', text: 'Artifact download links now correctly expire after 24 hours' },
+    ],
+  },
+  {
+    version: '2.0.0',
+    date: '2024-12-01',
+    tag: 'Breaking',
+    tagColor: 'danger',
+    title: 'Forge CI 2.0 — rebuilt from the ground up',
+    summary: 'Major version with new pipeline YAML schema, redesigned dashboard, and the new execution engine. Migration guide available.',
+    changes: [
+      { type: 'breaking', text: 'Pipeline YAML schema v2: steps now use `run` instead of `command`. Migration script provided.' },
+      { type: 'breaking', text: 'API v1 deprecated — please migrate to v2 before April 2025' },
+      { type: 'new', text: 'New execution engine: 3× faster job dispatch, 60% lower latency' },
+      { type: 'new', text: 'Completely redesigned dashboard with real-time build timeline' },
+      { type: 'new', text: 'Granular RBAC: 12 predefined roles + custom role builder' },
+      { type: 'new', text: 'First-class Docker BuildKit support with inline cache' },
+      { type: 'improved', text: 'Cache storage is now content-addressed — massive deduplication savings' },
+    ],
+  },
+];
+
+const changeTypes: Record<string, { color: string; label: string }> = {
+  new:      { color: 'text-forge-success bg-forge-success-bg border-forge-success/20', label: 'New' },
+  improved: { color: 'text-forge-info bg-forge-info-bg border-forge-info/20', label: 'Improved' },
+  fixed:    { color: 'text-forge-warning bg-forge-warning-bg border-forge-warning/20', label: 'Fixed' },
+  breaking: { color: 'text-forge-danger bg-forge-danger-bg border-forge-danger/20', label: 'Breaking' },
+};
+
+const tagStyles: Record<string, string> = {
+  accent:  'badge-accent',
+  info:    'badge-info',
+  neutral: 'badge-neutral',
+  danger:  'badge-danger',
+};
+---
+
+<MarketingLayout
+  title="Changelog — Forge CI"
+  description="What's new in Forge CI. Release notes, new features, improvements, and bug fixes."
+>
+  <!-- Header -->
+  <section class="relative pt-32 pb-16 overflow-hidden">
+    <div class="absolute inset-0 bg-grid opacity-25 pointer-events-none" aria-hidden="true"></div>
+    <div class="container-forge relative z-10">
+      <div class="section-label mb-6">Changelog</div>
+      <div class="grid lg:grid-cols-[1fr_auto] gap-8 items-end">
+        <div>
+          <h1 class="section-title">
+            What's new in
+            <span class="text-gradient"> Forge CI.</span>
+          </h1>
+          <p class="section-subtitle mt-5">
+            New releases, feature improvements, and bug fixes. Subscribe to stay up to date.
+          </p>
+        </div>
+        <div class="flex flex-col gap-3">
+          <div class="flex gap-2">
+            <input type="email" placeholder="your@email.com" class="input" />
+            <button class="btn-primary btn-md flex-shrink-0">Subscribe</button>
+          </div>
+          <div class="flex gap-2">
+            <a href="/rss/changelog.xml" class="btn-secondary btn-sm flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-forge-warning" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3zm.001 5.924a1 1 0 10-.002 2 5.076 5.076 0 015.077 5.077 1 1 0 102 0 7.077 7.077 0 00-7.075-7.077zM4 15a2 2 0 114 0 2 2 0 01-4 0z"/>
+              </svg>
+              RSS feed
+            </a>
+            <a href="https://twitter.com/forgeci" class="btn-ghost btn-sm">@forgeci</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Releases -->
+  <section class="pb-24">
+    <div class="container-forge">
+      <div class="max-w-3xl space-y-12">
+        {releases.map((release) => (
+          <article class="relative pl-8 border-l border-forge-border appear">
+            <!-- Timeline dot -->
+            <div class="absolute -left-2 top-1 w-4 h-4 rounded-full border-2 border-forge-border bg-forge-bg flex items-center justify-center">
+              <div class={`w-1.5 h-1.5 rounded-full ${
+                release.tagColor === 'accent' ? 'bg-forge-accent' :
+                release.tagColor === 'danger' ? 'bg-forge-danger' :
+                release.tagColor === 'info'   ? 'bg-forge-info' : 'bg-forge-text-3'
+              }`}></div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3 mb-4">
+              <span class={tagStyles[release.tagColor]}>{release.tag}</span>
+              <span class="font-mono font-bold text-lg text-forge-text">v{release.version}</span>
+              <time class="text-sm text-forge-text-3" datetime={release.date}>
+                {new Date(release.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </time>
+            </div>
+
+            <h2 class="font-display font-bold text-2xl text-forge-text mb-3">
+              {release.title}
+            </h2>
+
+            <p class="text-forge-text-2 mb-6 leading-relaxed">{release.summary}</p>
+
+            <ul class="space-y-2">
+              {release.changes.map((change) => {
+                const style = changeTypes[change.type];
+                return (
+                  <li class="flex items-start gap-3">
+                    <span class={`badge border ${style.color} flex-shrink-0 mt-0.5`}>{style.label}</span>
+                    <span class="text-sm text-forge-text-2">{change.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </article>
+        ))}
+
+        <!-- Older releases link -->
+        <div class="pl-8 border-l border-forge-border">
+          <a href="/changelog/archive" class="btn-ghost btn-md">View all older releases →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>

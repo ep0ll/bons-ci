@@ -1,0 +1,156 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Pricing from '../components/marketing/Pricing.astro';
+import CTA from '../components/marketing/CTA.astro';
+
+const comparisonRows = [
+  { category: 'Build Resources', feature: 'Build minutes / month', hobby: '2,000', pro: '20,000', team: '100,000', enterprise: 'Unlimited' },
+  { category: 'Build Resources', feature: 'Concurrent jobs', hobby: '1', pro: '10', team: '50', enterprise: 'Unlimited' },
+  { category: 'Build Resources', feature: 'Max job duration', hobby: '30 min', pro: '60 min', team: '120 min', enterprise: 'Custom' },
+  { category: 'Build Resources', feature: 'Cache storage', hobby: '500 MB', pro: '10 GB', team: '100 GB', enterprise: 'Custom' },
+  { category: 'Runners', feature: 'Linux x64', hobby: true, pro: true, team: true, enterprise: true },
+  { category: 'Runners', feature: 'Linux ARM64', hobby: false, pro: true, team: true, enterprise: true },
+  { category: 'Runners', feature: 'macOS (Apple Silicon)', hobby: false, pro: true, team: true, enterprise: true },
+  { category: 'Runners', feature: 'Windows', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Runners', feature: 'Dedicated runner fleet', hobby: false, pro: false, team: false, enterprise: true },
+  { category: 'Runners', feature: 'BYOC (Bring Your Own Cloud)', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Security', feature: 'OIDC secrets injection', hobby: true, pro: true, team: true, enterprise: true },
+  { category: 'Security', feature: 'SSO (Google, GitHub)', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Security', feature: 'SAML 2.0', hobby: false, pro: false, team: false, enterprise: true },
+  { category: 'Security', feature: 'SCIM provisioning', hobby: false, pro: false, team: false, enterprise: true },
+  { category: 'Security', feature: 'Audit logs', hobby: false, pro: false, team: '90 days', enterprise: 'Unlimited' },
+  { category: 'Security', feature: 'Network egress controls', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Security', feature: 'VPC / Tailnet peering', hobby: false, pro: false, team: false, enterprise: true },
+  { category: 'AI & Intelligence', feature: 'Sherlock AI agent', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'AI & Intelligence', feature: 'AI pipeline suggestions', hobby: false, pro: true, team: true, enterprise: true },
+  { category: 'AI & Intelligence', feature: 'Flaky test detection', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Integrations', feature: 'GitHub / GitLab / Bitbucket', hobby: true, pro: true, team: true, enterprise: true },
+  { category: 'Integrations', feature: 'Slack notifications', hobby: true, pro: true, team: true, enterprise: true },
+  { category: 'Integrations', feature: 'Jira / Linear', hobby: false, pro: true, team: true, enterprise: true },
+  { category: 'Integrations', feature: 'Datadog / Grafana', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Integrations', feature: 'PagerDuty / OpsGenie', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Support', feature: 'Community forum', hobby: true, pro: true, team: true, enterprise: true },
+  { category: 'Support', feature: 'Email support', hobby: false, pro: true, team: true, enterprise: true },
+  { category: 'Support', feature: 'Dedicated Slack channel', hobby: false, pro: false, team: true, enterprise: true },
+  { category: 'Support', feature: 'Dedicated CSM', hobby: false, pro: false, team: false, enterprise: true },
+  { category: 'Support', feature: 'SLA', hobby: 'None', pro: 'None', team: '99.9%', enterprise: '99.99%' },
+];
+
+// Group rows by category
+const grouped = comparisonRows.reduce((acc, row) => {
+  if (!acc[row.category]) acc[row.category] = [];
+  acc[row.category].push(row);
+  return acc;
+}, {} as Record<string, typeof comparisonRows>);
+---
+
+<MarketingLayout
+  title="Pricing — Forge CI"
+  description="Simple, transparent pricing. Start free, scale as you grow. No hidden fees. Compare Hobby, Pro, Team, and Enterprise plans."
+>
+  <!-- Header -->
+  <section class="relative pt-32 pb-10 text-center overflow-hidden">
+    <div class="absolute inset-0 bg-grid opacity-30 pointer-events-none" aria-hidden="true"></div>
+    <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 800px 400px at 50% 0, rgba(200,255,0,0.07), transparent 60%)" aria-hidden="true"></div>
+
+    <div class="container-forge relative z-10">
+      <div class="section-label mb-6">Pricing</div>
+      <h1 class="section-title max-w-3xl mx-auto">
+        Pricing that scales
+        <span class="text-gradient"> with your team.</span>
+      </h1>
+      <p class="section-subtitle mt-5 mx-auto text-center">
+        Start free. No credit card. Upgrade when you're ready.
+        Downgrade or cancel anytime.
+      </p>
+    </div>
+  </section>
+
+  <!-- Tier cards + FAQ from component -->
+  <Pricing />
+
+  <!-- Full comparison matrix -->
+  <section class="section border-t border-forge-border">
+    <div class="container-forge">
+      <div class="text-center mb-12 appear">
+        <h2 class="font-display font-bold text-3xl text-forge-text">Full feature comparison</h2>
+        <p class="text-forge-text-2 mt-2 text-sm">Every feature across every plan</p>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-forge-border appear">
+        <table class="w-full text-sm min-w-[700px]">
+          <thead>
+            <tr class="border-b border-forge-border bg-forge-surface2/60">
+              <th class="text-left px-6 py-4 text-forge-text-3 font-mono text-2xs uppercase tracking-wider w-1/3">Feature</th>
+              {['Hobby', 'Pro', 'Team', 'Enterprise'].map((tier, i) => (
+                <th class={`px-4 py-4 text-center font-display font-bold text-base ${i === 2 ? 'text-forge-accent' : 'text-forge-text'}`}>
+                  {tier}
+                  {i === 2 && <div class="text-2xs font-mono font-normal text-forge-accent/70 mt-0.5">Most popular</div>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(grouped).map(([category, rows]) => (
+              <>
+                <tr class="bg-forge-surface3/40">
+                  <td colspan="5" class="px-6 py-2.5 text-2xs font-mono uppercase tracking-widest text-forge-text-3">
+                    {category}
+                  </td>
+                </tr>
+                {rows.map((row, rowIdx) => (
+                  <tr class={`border-b border-forge-border/50 hover:bg-forge-surface2/40 transition-colors ${rowIdx === rows.length - 1 ? 'border-forge-border' : ''}`}>
+                    <td class="px-6 py-3 text-forge-text-2">{row.feature}</td>
+                    {(['hobby', 'pro', 'team', 'enterprise'] as const).map((plan, planIdx) => {
+                      const val = row[plan];
+                      return (
+                        <td class={`px-4 py-3 text-center ${planIdx === 2 ? 'bg-forge-accent-muted/20' : ''}`}>
+                          {typeof val === 'boolean' ? (
+                            val ? (
+                              <svg class="w-4 h-4 text-forge-success mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                              </svg>
+                            ) : (
+                              <svg class="w-4 h-4 text-forge-border mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                              </svg>
+                            )
+                          ) : (
+                            <span class={`text-xs font-mono ${planIdx === 2 ? 'text-forge-accent font-medium' : 'text-forge-text-2'}`}>{val}</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Enterprise callout -->
+  <section class="py-16">
+    <div class="container-forge">
+      <div class="card p-8 sm:p-12 text-center max-w-3xl mx-auto appear"
+           style="background: linear-gradient(135deg, rgba(200,255,0,0.04) 0%, rgba(34,211,238,0.04) 100%); border-color: rgba(200,255,0,0.2);">
+        <div class="text-3xl mb-4">🏢</div>
+        <h2 class="font-display font-bold text-3xl text-forge-text mb-4">
+          Need something custom?
+        </h2>
+        <p class="text-forge-text-2 mb-8 leading-relaxed">
+          Dedicated runners, private cloud deployment, custom SLAs, volume discounts,
+          and a dedicated Customer Success Manager. Let's talk.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <a href="/contact/sales" class="btn-primary btn-lg">Talk to sales</a>
+          <a href="/enterprise" class="btn-secondary btn-lg">Learn about Enterprise</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <CTA />
+</MarketingLayout>

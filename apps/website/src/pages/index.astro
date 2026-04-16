@@ -1,0 +1,91 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import Hero from '../components/marketing/Hero.astro';
+import Features from '../components/marketing/Features.astro';
+import SherlockShowcase from '../components/marketing/SherlockShowcase.astro';
+import Testimonials from '../components/marketing/Testimonials.astro';
+import Integrations from '../components/marketing/Integrations.astro';
+import Pricing from '../components/marketing/Pricing.astro';
+import CTA from '../components/marketing/CTA.astro';
+---
+
+<MarketingLayout
+  title="Forge CI — Build at the Speed of Thought"
+  description="The fastest CI/CD platform for modern engineering teams. 10x faster builds, intelligent caching, Sherlock AI agent, any cloud. Start free."
+  transparentHeader={true}
+>
+  <Hero />
+
+  <!-- Speed benchmark section -->
+  <section class="py-16 border-y border-forge-border overflow-hidden bg-forge-surface/20">
+    <div class="container-forge">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
+        {[
+          { value: '10×', label: 'Faster builds', sub: 'vs. GitHub Actions' },
+          { value: '89%', label: 'Cache hit rate', sub: 'global average' },
+          { value: '< 2s', label: 'Queue time', sub: 'p99 at peak' },
+          { value: '99.99%', label: 'Uptime SLA', sub: 'last 12 months' },
+        ].map(({ value, label, sub }) => (
+          <div class="appear">
+            <div class="font-display font-bold text-4xl sm:text-5xl text-forge-accent mb-1">{value}</div>
+            <div class="text-sm font-medium text-forge-text">{label}</div>
+            <div class="text-xs text-forge-text-3 mt-0.5">{sub}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <Features />
+  <SherlockShowcase />
+  <Testimonials />
+  <Integrations />
+
+  <!-- Speed comparison section -->
+  <section class="section">
+    <div class="container-forge">
+      <div class="text-center max-w-2xl mx-auto mb-12 appear">
+        <div class="section-label mb-5">Performance</div>
+        <h2 class="section-title">
+          The numbers
+          <span class="text-gradient"> don't lie.</span>
+        </h2>
+        <p class="section-subtitle mt-5 mx-auto text-center">
+          Head-to-head benchmark: a Node.js monorepo with 1,800 tests and a 3-service Docker build.
+        </p>
+      </div>
+
+      <div class="max-w-3xl mx-auto space-y-4 appear">
+        {[
+          { name: 'Forge CI', time: '1m 26s', pct: 8, color: 'bg-forge-accent', highlight: true },
+          { name: 'CircleCI', time: '6m 14s', pct: 35, color: 'bg-forge-text-3' },
+          { name: 'GitHub Actions', time: '14m 32s', pct: 82, color: 'bg-forge-text-3' },
+          { name: 'Jenkins', time: '17m 44s', pct: 100, color: 'bg-forge-text-3' },
+        ].map(({ name, time, pct, color, highlight }) => (
+          <div class={`flex items-center gap-4 p-4 rounded-xl border ${highlight ? 'border-forge-accent/30 bg-forge-accent-muted/30' : 'border-forge-border'}`}>
+            <div class={`text-sm font-medium w-36 flex-shrink-0 ${highlight ? 'text-forge-accent' : 'text-forge-text-2'}`}>
+              {name}
+              {highlight && <span class="ml-2 badge-accent text-2xs">Fastest</span>}
+            </div>
+            <div class="flex-1 h-2 bg-forge-surface2 rounded-full overflow-hidden">
+              <div
+                class={`h-full rounded-full transition-all duration-1000 ${color}`}
+                style={`width: ${pct}%`}
+              ></div>
+            </div>
+            <div class={`text-sm font-mono font-medium w-16 text-right flex-shrink-0 ${highlight ? 'text-forge-accent' : 'text-forge-text-3'}`}>
+              {time}
+            </div>
+          </div>
+        ))}
+
+        <p class="text-xs text-center text-forge-text-3 mt-4">
+          Test conditions: c5.2xlarge equivalent, warm cache, Ubuntu 22.04. <a href="/benchmarks" class="text-forge-text-2 hover:text-forge-accent transition-colors underline-accent">Full methodology →</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <Pricing />
+  <CTA />
+</MarketingLayout>

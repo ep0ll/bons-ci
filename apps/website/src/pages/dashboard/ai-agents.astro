@@ -1,0 +1,468 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+const recentAnalyses = [
+  {
+    id: 'a1',
+    buildId: '1845',
+    project: 'api-service',
+    branch: 'fix/null-pointer',
+    failedStep: 'Test (unit)',
+    rootCause: 'Null-check missing in AuthMiddleware.ts:34 — new test exposes unauthenticated path',
+    confidence: 97,
+    timeAgo: '14 min ago',
+    status: 'pr_opened',
+    prNumber: 292,
+    fixApplied: false,
+  },
+  {
+    id: 'a2',
+    buildId: '1838',
+    project: 'mobile',
+    branch: 'fix/crash-ios',
+    failedStep: 'iOS build',
+    rootCause: 'CocoaPods version mismatch — Podfile.lock expects 1.14.2 but runner has 1.15.0',
+    confidence: 91,
+    timeAgo: '4 hours ago',
+    status: 'fix_suggested',
+    prNumber: null,
+    fixApplied: false,
+  },
+  {
+    id: 'a3',
+    buildId: '1821',
+    project: 'web-app',
+    branch: 'feat/checkout',
+    failedStep: 'Test (e2e)',
+    rootCause: 'Playwright timeout — Stripe element selector changed in v3.2.1 dependency update',
+    confidence: 88,
+    timeAgo: '2 days ago',
+    status: 'fixed',
+    prNumber: 284,
+    fixApplied: true,
+  },
+  {
+    id: 'a4',
+    buildId: '1814',
+    project: 'api-service',
+    branch: 'main',
+    failedStep: 'Build',
+    rootCause: 'TypeScript strict mode error — implicit any in 3 new files added in this commit',
+    confidence: 99,
+    timeAgo: '3 days ago',
+    status: 'fixed',
+    prNumber: 279,
+    fixApplied: true,
+  },
+  {
+    id: 'a5',
+    buildId: '1809',
+    project: 'infra',
+    branch: 'feat/rds-upgrade',
+    failedStep: 'Terraform apply',
+    rootCause: 'State lock held by concurrent plan job — explicit depends_on needed between plan and apply steps',
+    confidence: 95,
+    timeAgo: '4 days ago',
+    status: 'fixed',
+    prNumber: null,
+    fixApplied: true,
+  },
+];
+
+const patterns = [
+  {
+    title: 'Flaky test cluster detected',
+    description: 'AuthMiddleware.test.ts has failed intermittently in 4 of the last 10 runs on main.',
+    severity: 'warning',
+    project: 'api-service',
+    occurrences: 4,
+    suggested: 'Add retry logic or isolate test environment for this suite.',
+  },
+  {
+    title: 'Cache miss rate increasing',
+    description: 'sccache hit rate dropped from 94% to 80% over the last 7 days in the worker project.',
+    severity: 'warning',
+    project: 'worker',
+    occurrences: null,
+    suggested: 'Check if Rust toolchain version changed — that invalidates the entire sccache layer.',
+  },
+  {
+    title: 'Docker build time regression',
+    description: 'api-service Docker build step increased from 18s to 44s average over the last 5 days.',
+    severity: 'info',
+    project: 'api-service',
+    occurrences: null,
+    suggested: 'A new COPY . . instruction was moved before RUN npm ci — re-order to maximise layer reuse.',
+  },
+];
+
+const statusConfig: Record<string, { label: string; cls: string }> = {
+  pr_opened:     { label: 'PR opened',      cls: 'badge-info border border-forge-info/20' },
+  fix_suggested: { label: 'Fix ready',      cls: 'badge-warning border border-forge-warning/20' },
+  fixed:         { label: 'Applied',        cls: 'badge-success border border-forge-success/20' },
+  analyzing:     { label: 'Analyzing…',     cls: 'badge-neutral border border-forge-border' },
+};
+---
+
+<DashboardLayout
+  title="Sherlock AI"
+  activeNav="ai-agents"
+  breadcrumbs={[{ label: 'Sherlock AI' }]}
+>
+  <div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 rounded-xl bg-forge-info-bg border border-forge-cyan/30 flex items-center justify-center">
+            <svg class="w-5 h-5 text-forge-cyan" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="font-display font-bold text-2xl text-forge-text">Sherlock</h1>
+            <p class="text-forge-text-3 text-sm">AI Build Intelligence · <span class="text-forge-cyan">Active</span></p>
+          </div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn-secondary btn-sm">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Configure Sherlock
+        </button>
+        <button id="ask-btn" class="btn-primary btn-sm">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+          Ask Sherlock
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {[
+        { label: 'Failures diagnosed',  value: '847',   sub: 'all time',      color: 'text-forge-cyan' },
+        { label: 'Avg confidence',      value: '93.4%', sub: '30-day avg',    color: 'text-forge-success' },
+        { label: 'Fixes applied',       value: '612',   sub: '72% acceptance',color: 'text-forge-accent' },
+        { label: 'MTTR reduction',      value: '74%',   sub: 'vs baseline',   color: 'text-forge-success' },
+      ].map(({ label, value, sub, color }) => (
+        <div class="metric-card">
+          <div class="metric-label">{label}</div>
+          <div class={`font-display font-bold text-2xl mt-1 ${color}`}>{value}</div>
+          <div class="text-2xs text-forge-text-3 mt-1">{sub}</div>
+        </div>
+      ))}
+    </div>
+
+    <div class="grid lg:grid-cols-[1fr_340px] gap-5">
+
+      <!-- Left: main content -->
+      <div class="space-y-5">
+
+        <!-- Detected patterns -->
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="font-display font-bold text-base text-forge-text">Active patterns</h2>
+            <span class="badge-warning border border-forge-warning/20 text-2xs">{patterns.length} detected</span>
+          </div>
+          <div class="space-y-3">
+            {patterns.map((p) => (
+              <div class={`p-4 rounded-xl border ${p.severity === 'warning' ? 'border-forge-warning/25 bg-forge-warning-bg/30' : 'border-forge-border bg-forge-surface2/30'}`}>
+                <div class="flex items-start gap-3">
+                  <div class={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${p.severity === 'warning' ? 'bg-forge-warning/20 text-forge-warning' : 'bg-forge-info-bg text-forge-cyan'}`}>
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      {p.severity === 'warning'
+                        ? <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        : <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                      }
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                      <span class="text-sm font-medium text-forge-text">{p.title}</span>
+                      <span class="badge-neutral border border-forge-border text-2xs">{p.project}</span>
+                      {p.occurrences && (
+                        <span class="text-2xs text-forge-warning font-mono">{p.occurrences}× seen</span>
+                      )}
+                    </div>
+                    <p class="text-xs text-forge-text-2 mb-2">{p.description}</p>
+                    <div class="flex items-start gap-2 text-xs text-forge-text-3">
+                      <span class="text-forge-cyan flex-shrink-0">→</span>
+                      <span>{p.suggested}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <!-- Recent analyses -->
+        <div class="card overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
+            <h2 class="font-display font-bold text-base text-forge-text">Recent analyses</h2>
+            <div class="flex gap-2">
+              <select class="input !py-1.5 !text-xs w-32">
+                <option>All projects</option>
+                <option>api-service</option>
+                <option>mobile</option>
+              </select>
+            </div>
+          </div>
+          <div class="divide-y divide-forge-border/50">
+            {recentAnalyses.map((a) => {
+              const s = statusConfig[a.status];
+              return (
+                <div class="px-5 py-4 hover:bg-forge-surface2/40 transition-colors">
+                  <div class="flex items-start gap-4">
+                    <!-- Confidence ring (SVG donut) -->
+                    <div class="relative flex-shrink-0 w-10 h-10">
+                      <svg class="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(30,45,66,1)" stroke-width="3"/>
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke={a.confidence > 94 ? '#10B981' : a.confidence > 84 ? '#F59E0B' : '#3B82F6'} stroke-width="3"
+                          stroke-dasharray={`${a.confidence} ${100 - a.confidence}`} stroke-linecap="round"/>
+                      </svg>
+                      <span class="absolute inset-0 flex items-center justify-center text-2xs font-mono font-bold text-forge-text">
+                        {a.confidence}
+                      </span>
+                    </div>
+
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap mb-1">
+                        <a href={`/dashboard/builds/${a.buildId}`} class="text-sm font-medium text-forge-text hover:text-forge-accent transition-colors">
+                          #{a.buildId} — {a.project}
+                        </a>
+                        <span class="text-2xs text-forge-text-3 font-mono">{a.branch}</span>
+                        <span class={`badge text-2xs ${s.cls}`}>{s.label}</span>
+                      </div>
+                      <div class="text-2xs text-forge-text-3 mb-1">
+                        Failed step: <span class="text-forge-danger font-mono">{a.failedStep}</span>
+                      </div>
+                      <p class="text-xs text-forge-text-2 leading-relaxed">{a.rootCause}</p>
+                    </div>
+
+                    <div class="flex flex-col items-end gap-2 flex-shrink-0">
+                      <span class="text-2xs text-forge-text-3">{a.timeAgo}</span>
+                      <div class="flex gap-1.5">
+                        {a.prNumber && (
+                          <a href="#" class="text-2xs text-forge-cyan hover:underline font-mono">PR #{a.prNumber}</a>
+                        )}
+                        {!a.fixApplied && (
+                          <button class="text-2xs border border-forge-accent/30 bg-forge-accent-muted text-forge-accent rounded px-2 py-0.5 hover:bg-forge-accent hover:text-forge-bg transition-all">
+                            Apply fix
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Chat interface -->
+      <div class="card flex flex-col overflow-hidden" style="height: 640px;" id="sherlock-chat">
+        <!-- Chat header -->
+        <div class="flex items-center gap-3 px-4 py-3.5 border-b border-forge-border bg-forge-surface2/40 flex-shrink-0">
+          <div class="w-7 h-7 rounded-full bg-forge-info-bg border border-forge-cyan/40 flex items-center justify-center flex-shrink-0">
+            <svg class="w-3.5 h-3.5 text-forge-cyan" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-medium text-forge-text">Sherlock</div>
+            <div class="flex items-center gap-1.5 text-2xs text-forge-success">
+              <span class="w-1.5 h-1.5 rounded-full bg-forge-success animate-pulse"></span>
+              Ready to investigate
+            </div>
+          </div>
+          <button class="ml-auto text-forge-text-3 hover:text-forge-text transition-colors">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Messages -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar" id="chat-messages">
+          <!-- Sherlock intro -->
+          <div class="flex gap-2.5">
+            <div class="w-6 h-6 rounded-full bg-forge-info-bg border border-forge-cyan/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <span class="text-forge-cyan text-xs font-bold">S</span>
+            </div>
+            <div class="bg-forge-surface2 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%]">
+              <p class="text-sm text-forge-text-2 leading-relaxed">
+                Hi! I'm Sherlock. I can analyze build failures, explain errors, suggest fixes, and open PRs on your behalf.
+              </p>
+              <p class="text-xs text-forge-text-3 mt-2">Try: "Why did build #1845 fail?" or "What's causing the flaky tests in api-service?"</p>
+            </div>
+          </div>
+
+          <!-- Quick prompts -->
+          <div class="flex flex-wrap gap-2 pl-9">
+            {[
+              'Diagnose build #1845',
+              'Why is sccache hit rate low?',
+              'Show flaky tests this week',
+              'What broke main yesterday?',
+            ].map(prompt => (
+              <button
+                class="text-xs border border-forge-border text-forge-text-2 hover:border-forge-cyan/40 hover:text-forge-cyan rounded-full px-3 py-1.5 transition-all"
+                onclick={`sendPrompt('${prompt}')`}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <!-- Input area -->
+        <div class="border-t border-forge-border p-3 flex-shrink-0">
+          <div class="flex items-end gap-2">
+            <div class="flex-1 relative">
+              <textarea
+                id="sherlock-input"
+                rows={1}
+                placeholder="Ask Sherlock about any build failure…"
+                class="input resize-none w-full !py-2.5 !pr-10 text-sm"
+                style="min-height: 42px; max-height: 120px; overflow-y: auto;"
+                onkeydown="handleSherlockKey(event)"
+              ></textarea>
+              <!-- Attach build button -->
+              <button class="absolute right-2.5 bottom-2.5 text-forge-text-3 hover:text-forge-text transition-colors" title="Attach a build">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                </svg>
+              </button>
+            </div>
+            <button
+              id="sherlock-send"
+              onclick="sendSherlockMessage()"
+              class="btn-primary btn-md flex-shrink-0 !px-3"
+              title="Send (Enter)"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+              </svg>
+            </button>
+          </div>
+          <p class="text-2xs text-forge-text-3 mt-2 px-1">
+            Sherlock reads your logs and config — your code never leaves your environment.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings card -->
+    <div class="card p-5">
+      <h2 class="font-display font-bold text-base text-forge-text mb-4">Sherlock settings</h2>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {[
+          { label:'Auto-analyze failures',   desc:'Automatically run Sherlock on every failed build', checked:true },
+          { label:'Auto-open PRs',           desc:'Let Sherlock open PRs for high-confidence fixes (>95%)', checked:false },
+          { label:'Flaky test detection',    desc:'Learn from build history to identify non-deterministic tests', checked:true },
+          { label:'Pattern notifications',   desc:'Notify in Slack when recurring failure patterns are detected', checked:true },
+        ].map(({ label, desc, checked }) => (
+          <div class="flex items-start gap-3">
+            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
+              <input type="checkbox" checked={checked} class="sr-only peer"/>
+              <div class="w-9 h-5 bg-forge-surface2 border border-forge-border rounded-full peer peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all peer-checked:after:translate-x-4 peer-checked:after:bg-forge-accent relative"></div>
+            </label>
+            <div>
+              <div class="text-sm font-medium text-forge-text">{label}</div>
+              <div class="text-xs text-forge-text-3 mt-0.5 leading-relaxed">{desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+  </div>
+</DashboardLayout>
+
+<script>
+  const messages = document.getElementById('chat-messages')!;
+  const input = document.getElementById('sherlock-input') as HTMLTextAreaElement;
+
+  const responses: Record<string, string> = {
+    default: "I've reviewed the build logs and configuration. Let me break down what I found…\n\nThe failure trace points to a type mismatch introduced in the latest commit. Here's the relevant diff that caused it — and a one-line fix that should resolve it.",
+  };
+
+  function appendMessage(text: string, role: 'user' | 'sherlock', isLoading = false) {
+    const div = document.createElement('div');
+    div.className = `flex gap-2.5 ${role === 'user' ? 'justify-end' : ''}`;
+
+    if (role === 'sherlock') {
+      div.innerHTML = `
+        <div class="w-6 h-6 rounded-full bg-forge-info-bg border border-forge-cyan/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span class="text-forge-cyan text-xs font-bold">S</span>
+        </div>
+        <div class="bg-forge-surface2 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[88%]">
+          ${isLoading
+            ? `<div class="flex gap-1 items-center py-1"><span class="w-1.5 h-1.5 rounded-full bg-forge-cyan animate-bounce"></span><span class="w-1.5 h-1.5 rounded-full bg-forge-cyan animate-bounce" style="animation-delay:0.15s"></span><span class="w-1.5 h-1.5 rounded-full bg-forge-cyan animate-bounce" style="animation-delay:0.3s"></span></div>`
+            : `<p class="text-sm text-forge-text-2 leading-relaxed whitespace-pre-line">${text}</p>`
+          }
+        </div>`;
+    } else {
+      div.innerHTML = `
+        <div class="bg-forge-accent-muted border border-forge-accent/20 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[88%]">
+          <p class="text-sm text-forge-text leading-relaxed">${text}</p>
+        </div>`;
+    }
+
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+    return div;
+  }
+
+  async function sendSherlockMessage() {
+    const val = input.value.trim();
+    if (!val) return;
+
+    appendMessage(val, 'user');
+    input.value = '';
+    input.style.height = 'auto';
+
+    const loadingEl = appendMessage('', 'sherlock', true);
+    await new Promise(r => setTimeout(r, 1800));
+    loadingEl.remove();
+
+    const reply = val.toLowerCase().includes('1845')
+      ? "I've analyzed build #1845 in full.\n\n**Root cause**: `AuthMiddleware.ts:34` calls `user.id` without a null guard. The new test in this commit passes `user = null`, exposing that code path for the first time.\n\n**Fix**: Add `if (!user || ...)` before the property access. I've already prepared the patch — want me to open a PR?"
+      : val.toLowerCase().includes('sccache') || val.toLowerCase().includes('cache')
+      ? "The sccache hit rate dropped because the Rust toolchain was bumped from 1.77 to 1.78 in commit `d3a8f1b` 6 days ago. sccache keys are scoped to the toolchain version, so the entire cache was invalidated. It should recover naturally as builds accumulate over the next 2–3 days."
+      : val.toLowerCase().includes('flaky')
+      ? "I've reviewed the last 30 runs of `AuthMiddleware.test.ts`. It's failed 4 times — always in the same test: `should handle concurrent session invalidation`. The failure is timing-dependent: two async operations race and the test doesn't await properly. I can suggest a fix using `Promise.all` and an explicit flush."
+      : responses.default;
+
+    appendMessage(reply, 'sherlock');
+  }
+
+  function sendPrompt(text: string) {
+    input.value = text;
+    sendSherlockMessage();
+  }
+
+  function handleSherlockKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendSherlockMessage();
+    }
+    // Auto-resize textarea
+    const ta = e.target as HTMLTextAreaElement;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  }
+
+  document.getElementById('ask-btn')?.addEventListener('click', () => input.focus());
+
+  (window as any).sendPrompt = sendPrompt;
+  (window as any).sendSherlockMessage = sendSherlockMessage;
+  (window as any).handleSherlockKey = handleSherlockKey;
+</script>

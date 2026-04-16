@@ -1,0 +1,216 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+const auditLog = [
+  { actor:'Ada Lovelace',    action:'secret.created',      resource:'NPM_TOKEN',             ip:'203.0.113.1',  time:'2 min ago',  severity:'info' },
+  { actor:'Tomás Reyes',    action:'member.role_changed',  resource:'priya@acme-corp.io → admin', ip:'203.0.113.2',time:'1h ago',   severity:'warning' },
+  { actor:'Ada Lovelace',    action:'sso.configured',      resource:'Okta SAML 2.0',          ip:'203.0.113.1',  time:'2h ago',     severity:'info' },
+  { actor:'System',          action:'build.triggered',     resource:'api-service #1847',       ip:'—',            time:'2h ago',     severity:'info' },
+  { actor:'Olu Adeyemi',    action:'token.created',        resource:'Terraform integration',   ip:'203.0.113.4',  time:'3h ago',     severity:'info' },
+  { actor:'Sara Johansson', action:'member.removed',       resource:'contractor@ext.com',      ip:'203.0.113.5',  time:'1d ago',     severity:'warning' },
+  { actor:'Ada Lovelace',    action:'org.settings_changed', resource:'build_timeout_min → 120', ip:'203.0.113.1', time:'2d ago',    severity:'info' },
+  { actor:'Priya Nair',     action:'secret.deleted',       resource:'OLD_AWS_KEY',             ip:'203.0.113.3',  time:'3d ago',     severity:'warning' },
+  { actor:'System',          action:'sso.login',            resource:'tomas@acme-corp.io via Okta', ip:'203.0.113.2',time:'3d ago', severity:'info' },
+  { actor:'Ada Lovelace',    action:'billing.plan_changed', resource:'Pro → Team (20 seats)',   ip:'203.0.113.1',  time:'4d ago',     severity:'info' },
+];
+
+const sessions = [
+  { device:'Chrome on macOS',     ip:'203.0.113.1', location:'San Francisco, CA', lastActive:'now',      current:true  },
+  { device:'VS Code extension',   ip:'203.0.113.1', location:'San Francisco, CA', lastActive:'2h ago',   current:false },
+  { device:'Firefox on Windows',  ip:'198.51.100.4', location:'Austin, TX',       lastActive:'3d ago',   current:false },
+  { device:'Forge CLI v2.4.1',    ip:'203.0.113.1', location:'San Francisco, CA', lastActive:'5d ago',   current:false },
+];
+
+const actionColor: Record<string, string> = {
+  warning: 'text-forge-warning',
+  danger:  'text-forge-danger',
+  info:    'text-forge-text-3',
+};
+---
+
+<DashboardLayout
+  title="Security"
+  activeNav="settings"
+  breadcrumbs={[{ label: 'Settings', href: '/dashboard/settings' }, { label: 'Security' }]}
+>
+  <div class="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-6">
+
+    <div>
+      <h1 class="font-display font-bold text-2xl text-forge-text">Security</h1>
+      <p class="text-forge-text-3 text-sm mt-0.5">SSO, MFA, active sessions, and audit logs.</p>
+    </div>
+
+    <!-- SSO status card -->
+    <div class="card p-6">
+      <div class="flex items-start justify-between gap-4 mb-5">
+        <div>
+          <h2 class="font-display font-bold text-base text-forge-text">Single Sign-On</h2>
+          <p class="text-xs text-forge-text-3 mt-0.5">SAML 2.0 via Okta — configured Jan 12, 2024</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge-success border border-forge-success/20 text-xs">Active</span>
+          <a href="/auth/sso" class="btn-secondary btn-sm text-xs">Configure</a>
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-4 mb-5">
+        {[
+          { label: 'Identity provider', value: 'Okta' },
+          { label: 'SSO URL', value: 'https://acme.okta.com/app/forge/sso/saml' },
+          { label: 'Entity ID', value: 'http://www.okta.com/exk8a2z3r...' },
+          { label: 'Certificate expires', value: 'Aug 1, 2026' },
+        ].map(({ label, value }) => (
+          <div>
+            <div class="text-xs text-forge-text-3 mb-0.5">{label}</div>
+            <code class="text-xs font-mono text-forge-text-2 truncate block">{value}</code>
+          </div>
+        ))}
+      </div>
+
+      <div class="space-y-3 border-t border-forge-border pt-5">
+        {[
+          { label:'Enforce SSO for all members',    desc:'Members must sign in via Okta. Password login disabled.',       checked:true  },
+          { label:'Bypass SSO for org owners',      desc:'Owners retain password access as a break-glass mechanism.',      checked:true  },
+          { label:'Auto-provision new members',     desc:'New Okta users are automatically added to Forge CI (SCIM).',     checked:true  },
+          { label:'Auto-deprovision on removal',    desc:'Removing from Okta immediately revokes Forge CI access.',        checked:true  },
+        ].map(({ label, desc, checked }) => (
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-sm font-medium text-forge-text">{label}</div>
+              <div class="text-xs text-forge-text-3 mt-0.5">{desc}</div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input type="checkbox" checked={checked} class="sr-only peer"/>
+              <div class="w-9 h-5 bg-forge-surface2 border border-forge-border rounded-full peer peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all peer-checked:after:translate-x-4 peer-checked:after:bg-forge-accent relative"></div>
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- MFA policy -->
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="font-display font-bold text-base text-forge-text">Multi-factor Authentication</h2>
+          <p class="text-xs text-forge-text-3 mt-0.5">14 of 20 members have MFA enabled</p>
+        </div>
+        <button class="btn-primary btn-sm text-xs">Enforce MFA org-wide</button>
+      </div>
+
+      <div class="progress mb-2">
+        <div class="progress-bar" style="width: 70%"></div>
+      </div>
+      <div class="flex justify-between text-xs text-forge-text-3 mb-5">
+        <span>14 members with MFA</span>
+        <span>6 without</span>
+      </div>
+
+      <!-- Members without MFA -->
+      <div class="space-y-2">
+        <div class="text-xs font-medium text-forge-warning mb-2">Members without MFA:</div>
+        {['contractor@ext.com', 'daniel@acme-corp.io', 'kim@acme-corp.io', 'new@acme-corp.io', 'intern@acme-corp.io', 'temp@acme-corp.io'].map(email => (
+          <div class="flex items-center justify-between py-2 border-b border-forge-border/50">
+            <span class="text-sm text-forge-text-2 font-mono">{email}</span>
+            <button class="text-xs text-forge-accent hover:text-forge-accent-dim transition-colors">Send reminder</button>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Active sessions -->
+    <div class="card overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
+        <div>
+          <h2 class="font-display font-bold text-base text-forge-text">Your active sessions</h2>
+          <p class="text-xs text-forge-text-3 mt-0.5">All devices currently signed in to your account</p>
+        </div>
+        <button class="btn-danger btn-sm text-xs">Revoke all other sessions</button>
+      </div>
+      <div class="divide-y divide-forge-border/50">
+        {sessions.map(s => (
+          <div class="flex items-center gap-4 px-5 py-4">
+            <div class="w-9 h-9 rounded-lg bg-forge-surface3 border border-forge-border flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-medium text-forge-text">{s.device}</span>
+                {s.current && <span class="badge-success border border-forge-success/20 text-2xs">Current</span>}
+              </div>
+              <div class="text-xs text-forge-text-3 mt-0.5">
+                {s.ip} · {s.location} · {s.lastActive}
+              </div>
+            </div>
+            {!s.current && (
+              <button class="btn-ghost btn-sm text-xs text-forge-danger flex-shrink-0">Revoke</button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Audit log -->
+    <div class="card overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
+        <div>
+          <h2 class="font-display font-bold text-base text-forge-text">Audit log</h2>
+          <p class="text-xs text-forge-text-3 mt-0.5">Organization actions (90-day retention)</p>
+        </div>
+        <div class="flex gap-2">
+          <select class="input !py-1.5 !text-xs w-32">
+            <option>All actions</option>
+            <option>Member events</option>
+            <option>Secret events</option>
+            <option>SSO events</option>
+            <option>Billing events</option>
+          </select>
+          <button class="btn-secondary btn-sm text-xs">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Export
+          </button>
+        </div>
+      </div>
+      <table class="table-forge">
+        <thead>
+          <tr>
+            <th>Actor</th>
+            <th>Action</th>
+            <th class="hidden md:table-cell">Resource</th>
+            <th class="hidden lg:table-cell">IP</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {auditLog.map(entry => (
+            <tr>
+              <td>
+                <span class="text-xs text-forge-text-2">{entry.actor}</span>
+              </td>
+              <td>
+                <code class={`text-xs font-mono ${actionColor[entry.severity]}`}>{entry.action}</code>
+              </td>
+              <td class="hidden md:table-cell">
+                <span class="text-xs text-forge-text-3 truncate max-w-[200px] block">{entry.resource}</span>
+              </td>
+              <td class="hidden lg:table-cell">
+                <span class="text-xs font-mono text-forge-text-3">{entry.ip}</span>
+              </td>
+              <td>
+                <span class="text-xs text-forge-text-3">{entry.time}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div class="px-5 py-3 border-t border-forge-border text-center">
+        <a href="#" class="text-xs text-forge-accent hover:text-forge-accent-dim transition-colors">Load more events →</a>
+      </div>
+    </div>
+
+  </div>
+</DashboardLayout>

@@ -1,0 +1,297 @@
+---
+const tiers = [
+  {
+    id: 'hobby',
+    name: 'Hobby',
+    tagline: 'Perfect for solo projects',
+    price: 0,
+    period: '/month',
+    cta: 'Start for free',
+    ctaHref: '/auth/signup',
+    ctaVariant: 'secondary',
+    buildMinutes: '2,000 min/mo',
+    parallelism: '1 concurrent',
+    storage: '500 MB',
+    runners: 'Linux x64 (small)',
+    features: [
+      'Unlimited public repos',
+      'GitHub & GitLab connect',
+      'Basic caching (500 MB)',
+      'Build logs (30 days)',
+      'Community support',
+      'Forge CLI',
+    ],
+    missing: ['BYOC runners', 'SSO/SAML', 'Audit logs', 'SLA'],
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    tagline: 'For serious solo devs & small teams',
+    price: 29,
+    period: '/user/mo',
+    cta: 'Start free trial',
+    ctaHref: '/auth/signup?plan=pro',
+    ctaVariant: 'secondary',
+    buildMinutes: '20,000 min/mo',
+    parallelism: '10 concurrent',
+    storage: '10 GB',
+    runners: 'Linux x64/ARM · macOS',
+    features: [
+      'Everything in Hobby',
+      'Private repos',
+      'Advanced caching (10 GB)',
+      'macOS runners',
+      'ARM64 runners',
+      'Priority queue',
+      'Build insights dashboard',
+      'Email support',
+      'Slack notifications',
+    ],
+    missing: ['SSO/SAML', 'Audit logs'],
+  },
+  {
+    id: 'team',
+    name: 'Team',
+    tagline: 'Built for growing engineering teams',
+    price: 79,
+    period: '/user/mo',
+    cta: 'Start free trial',
+    ctaHref: '/auth/signup?plan=team',
+    ctaVariant: 'primary',
+    featured: true,
+    buildMinutes: '100,000 min/mo',
+    parallelism: '50 concurrent',
+    storage: '100 GB',
+    runners: 'All runner types',
+    badge: 'Most popular',
+    features: [
+      'Everything in Pro',
+      'SSO (Google, GitHub)',
+      'Team permissions & RBAC',
+      'BYOC runners',
+      'Sherlock AI agent',
+      'Sandboxes',
+      'Image registry (100 GB)',
+      'Webhook delivery',
+      'Audit logs (90 days)',
+      'Dedicated Slack channel',
+      '99.9% SLA',
+    ],
+    missing: ['SAML 2.0', 'SCIM provisioning'],
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    tagline: 'For scale and compliance',
+    customPricing: true,
+    cta: 'Talk to sales',
+    ctaHref: '/contact/sales',
+    ctaVariant: 'secondary',
+    buildMinutes: 'Unlimited',
+    parallelism: 'Unlimited',
+    storage: 'Custom',
+    runners: 'All + dedicated fleet',
+    features: [
+      'Everything in Team',
+      'SAML 2.0 SSO',
+      'SCIM auto-provisioning',
+      'Tailnet / VPC peering',
+      'Dedicated runners',
+      'Custom regions',
+      'Audit logs (indefinite)',
+      'HIPAA BAA available',
+      'SOC 2 report access',
+      'Custom contracts & MSA',
+      'Dedicated CSM',
+      'SLA 99.99%',
+    ],
+    missing: [],
+  },
+];
+
+const faq = [
+  { q: 'What counts as a build minute?', a: "A build minute is the wall-clock time a job runs on our infrastructure, measured to the nearest second. Parallelism multiplies — a 1-minute job split across 10 workers uses 10 build minutes." },
+  { q: 'Can I bring my own cloud runners (BYOC)?', a: "Yes! Team and Enterprise plans support registering your own AWS, GCP, or Azure VMs as runners. Your data never leaves your cloud." },
+  { q: 'Is there a free trial for paid plans?', a: "All paid plans come with a 14-day free trial — no credit card required. You keep the free plan if you don't upgrade." },
+  { q: 'How does the Sherlock AI agent work?', a: "Sherlock reads your build logs, config files, and Git diff, then uses a large language model to explain the failure and suggest specific fixes. It never sends your code to a third party — inference runs in our isolated environment." },
+  { q: 'What happens if I exceed my build minutes?', a: "Overages are billed at $0.008/minute on Hobby, $0.006/minute on Pro/Team, and custom on Enterprise. You can set spending caps to avoid surprises." },
+  { q: 'Do you offer nonprofit / open-source discounts?', a: "Yes! Open source projects on public repos get Hobby for free indefinitely. Nonprofits and educational institutions get 50% off any plan. Contact us." },
+];
+---
+
+<section class="section" id="pricing">
+  <div class="container-forge">
+
+    <!-- Header -->
+    <div class="text-center max-w-2xl mx-auto mb-4 appear">
+      <div class="section-label mb-5">Pricing</div>
+      <h2 class="section-title">
+        Simple pricing.
+        <span class="text-gradient"> No surprises.</span>
+      </h2>
+      <p class="section-subtitle mt-5 mx-auto text-center">
+        Start free. Scale as you grow. Transparent overages.
+        No hidden fees, no seat minimums.
+      </p>
+    </div>
+
+    <!-- Billing toggle -->
+    <div class="flex items-center justify-center gap-3 mb-12 appear">
+      <span class="text-sm text-forge-text-2">Monthly</span>
+      <label class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="billing-toggle" class="sr-only peer" />
+        <div class="w-11 h-6 bg-forge-surface border border-forge-border rounded-full peer
+                    peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted
+                    after:content-[''] after:absolute after:top-[3px] after:left-[3px]
+                    after:w-4.5 after:h-4.5 after:bg-forge-text-2 after:rounded-full after:transition-all
+                    peer-checked:after:translate-x-5 peer-checked:after:bg-forge-accent relative">
+        </div>
+      </label>
+      <span class="text-sm text-forge-text-2">
+        Annual
+        <span class="ml-1.5 badge-accent">Save 20%</span>
+      </span>
+    </div>
+
+    <!-- Tier cards -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-16 appear">
+      {tiers.map((tier) => (
+        <div class={[
+          'card flex flex-col relative',
+          tier.featured
+            ? 'border-forge-accent/50 shadow-lime-lg'
+            : '',
+        ].join(' ')}>
+
+          {tier.badge && (
+            <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+              <span class="badge-accent text-xs px-3 py-1">{tier.badge}</span>
+            </div>
+          )}
+
+          <div class="p-5 sm:p-6 flex flex-col flex-1">
+            <!-- Tier header -->
+            <div class="mb-5">
+              <div class="text-2xs font-mono uppercase tracking-widest text-forge-text-3 mb-1">
+                {tier.name}
+              </div>
+              <h3 class={`font-display font-bold text-2xl mb-1 ${tier.featured ? 'text-forge-accent' : 'text-forge-text'}`}>
+                {tier.customPricing ? (
+                  'Custom'
+                ) : (
+                  <>
+                    <span class="price-monthly">${tier.price}</span>
+                    <span class="price-yearly hidden">${Math.round(tier.price * 0.8)}</span>
+                    <span class="text-sm font-normal text-forge-text-3">{tier.period}</span>
+                  </>
+                )}
+              </h3>
+              <p class="text-xs text-forge-text-3">{tier.tagline}</p>
+            </div>
+
+            <!-- Key specs -->
+            <div class="space-y-2 mb-5 p-3 rounded-lg bg-forge-surface2/50 border border-forge-border/50">
+              {[
+                { label: 'Build minutes', value: tier.buildMinutes },
+                { label: 'Parallelism', value: tier.parallelism },
+                { label: 'Cache / Storage', value: tier.storage },
+                { label: 'Runners', value: tier.runners },
+              ].map(({ label, value }) => (
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-forge-text-3">{label}</span>
+                  <span class="text-xs font-mono font-medium text-forge-text text-right">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <!-- Features list -->
+            <ul class="space-y-2 mb-6 flex-1">
+              {tier.features.map((f) => (
+                <li class="flex items-start gap-2 text-sm text-forge-text-2">
+                  <svg class="w-3.5 h-3.5 text-forge-success mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                  <span>{f}</span>
+                </li>
+              ))}
+              {tier.missing && tier.missing.map((f) => (
+                <li class="flex items-start gap-2 text-sm text-forge-text-3 line-through decoration-forge-text-3/40">
+                  <svg class="w-3.5 h-3.5 text-forge-text-3/40 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+
+            <!-- CTA -->
+            <a
+              href={tier.ctaHref}
+              class={tier.featured ? 'btn-primary btn-md w-full justify-center' : 'btn-secondary btn-md w-full justify-center'}
+            >
+              {tier.cta}
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- FAQ -->
+    <div class="max-w-3xl mx-auto appear">
+      <h3 class="font-display font-bold text-2xl text-center mb-8">Frequently asked questions</h3>
+      <div class="space-y-3" id="faq-accordion">
+        {faq.map((item, i) => (
+          <div class="card overflow-hidden">
+            <button
+              class="w-full flex items-center justify-between p-5 text-left gap-4"
+              aria-expanded="false"
+              data-faq-btn
+            >
+              <span class="font-medium text-forge-text">{item.q}</span>
+              <svg class="w-4 h-4 text-forge-text-3 flex-shrink-0 transition-transform duration-200" data-faq-chevron fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <div class="overflow-hidden max-h-0 transition-all duration-300 ease-spring" data-faq-content>
+              <p class="px-5 pb-5 text-sm text-forge-text-2 leading-relaxed">{item.a}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<script>
+  // Billing toggle
+  const billingToggle = document.getElementById('billing-toggle') as HTMLInputElement;
+  billingToggle?.addEventListener('change', () => {
+    const monthly = document.querySelectorAll('.price-monthly');
+    const yearly = document.querySelectorAll('.price-yearly');
+    monthly.forEach(el => el.classList.toggle('hidden', billingToggle.checked));
+    yearly.forEach(el => el.classList.toggle('hidden', !billingToggle.checked));
+  });
+
+  // FAQ accordion
+  document.querySelectorAll('[data-faq-btn]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const content = btn.nextElementSibling as HTMLElement;
+      const chevron = btn.querySelector('[data-faq-chevron]') as HTMLElement;
+      const isOpen = btn.getAttribute('aria-expanded') === 'true';
+
+      // Close all
+      document.querySelectorAll('[data-faq-btn]').forEach((b) => {
+        b.setAttribute('aria-expanded', 'false');
+        (b.querySelector('[data-faq-chevron]') as HTMLElement)?.classList.remove('rotate-180');
+        ((b.nextElementSibling) as HTMLElement).style.maxHeight = '0';
+      });
+
+      if (!isOpen) {
+        btn.setAttribute('aria-expanded', 'true');
+        chevron?.classList.add('rotate-180');
+        content.style.maxHeight = content.scrollHeight + 'px';
+      }
+    });
+  });
+</script>

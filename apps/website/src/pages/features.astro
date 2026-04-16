@@ -1,0 +1,294 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import CTA from '../components/marketing/CTA.astro';
+
+const categories = [
+  {
+    id: 'speed',
+    label: 'Speed & Caching',
+    icon: '⚡',
+    headline: 'Your builds. 10× faster.',
+    description: 'Forge CI\'s execution engine was purpose-built for speed. Pre-warmed runners, content-addressed caching, and smart parallelism mean your team never waits.',
+    color: 'accent',
+    features: [
+      {
+        title: 'Pre-warmed runner fleet',
+        description: 'Runners stay hot between builds. No cold start delays — jobs begin executing within 2 seconds of trigger.',
+        metric: '< 2s queue time (p99)',
+      },
+      {
+        title: 'Content-addressed layer cache',
+        description: 'We cache at the layer level — not just packages. Docker layers, npm installs, pip envs, Go modules, and Cargo registry all cache independently.',
+        metric: '89% average cache hit rate',
+      },
+      {
+        title: 'Automatic test splitting',
+        description: 'Forge analyses historical test timing and splits suites across workers to minimize the slowest worker, not just average time.',
+        metric: 'Up to 50× parallel workers',
+      },
+      {
+        title: 'Incremental build detection',
+        description: 'Change-graph analysis means untouched packages in your monorepo skip their build step entirely. Zero unnecessary work.',
+        metric: 'Works with Nx, Turborepo, Bazel',
+      },
+      {
+        title: 'Remote build execution',
+        description: 'Share a distributed build cache across your whole team. Local builds hit the same cache as CI. Your laptop feels like a server room.',
+        metric: 'Up to 10× local build speedup',
+      },
+      {
+        title: 'Smart resource allocation',
+        description: 'Profiling tells Forge which steps are CPU-bound vs memory-bound. Resources are matched automatically — no manual runner sizing needed.',
+        metric: 'Auto-sized from small to 2xlarge',
+      },
+    ],
+  },
+  {
+    id: 'pipelines',
+    label: 'Pipelines',
+    icon: '🔀',
+    headline: 'Pipelines as powerful as your imagination.',
+    description: 'Express any workflow in simple YAML. Fan-out, fan-in, conditional branches, matrix builds, cross-repo triggers — all declarative, all version-controlled.',
+    color: 'cyan',
+    features: [
+      {
+        title: 'Matrix builds',
+        description: 'Test across any combination of OS, runtime version, env variable, or architecture. Forge generates the job graph automatically.',
+        metric: 'Up to 1,024 matrix combinations',
+      },
+      {
+        title: 'Fan-out / fan-in',
+        description: 'Trigger hundreds of parallel jobs then collect results into a single gate step. Perfect for distributed testing and microservice deploys.',
+        metric: 'Up to 10,000 concurrent jobs',
+      },
+      {
+        title: 'Conditional steps & gates',
+        description: 'Steps run based on branch name, file path, git tag, previous step result, or any custom expression. Full boolean logic supported.',
+        metric: 'CEL expression engine',
+      },
+      {
+        title: 'Cross-repo triggers',
+        description: 'A successful build in repo A can trigger a downstream pipeline in repo B. Build complex release trains without glue scripts.',
+        metric: 'Works across namespaces',
+      },
+      {
+        title: 'Scheduled pipelines',
+        description: 'Cron syntax with timezone support. Run nightly test suites, weekly dependency audits, or monthly billing reconciliation runs.',
+        metric: 'Any cron expression',
+      },
+      {
+        title: 'Reusable pipeline components',
+        description: 'Extract pipeline fragments into reusable components shared across repos. DRY principle for your CI config.',
+        metric: '400+ community templates',
+      },
+    ],
+  },
+  {
+    id: 'sherlock',
+    label: 'Sherlock AI',
+    icon: '🔍',
+    headline: 'AI that actually understands your codebase.',
+    description: 'Sherlock is not a chatbot bolted onto a dashboard. It reads your logs, config, and Git history together — and gives you the exact fix, not a guess.',
+    color: 'accent',
+    features: [
+      {
+        title: 'Root-cause analysis',
+        description: 'Sherlock cross-references logs, environment variables, config files, and the triggering Git diff to identify the true cause of failures — not just the symptom.',
+        metric: '97% root-cause accuracy',
+      },
+      {
+        title: 'Code-level fix suggestions',
+        description: 'Instead of "check your configuration", Sherlock shows you the exact diff. File, line number, and the change — ready to apply.',
+        metric: '74% reduction in MTTR',
+      },
+      {
+        title: 'Automated PR generation',
+        description: 'For common failure patterns, Sherlock can create a pull request with the fix applied. One click from diagnosis to solution.',
+        metric: 'Integrates with GitHub & GitLab',
+      },
+      {
+        title: 'Flaky test quarantine',
+        description: 'Sherlock identifies tests that pass and fail non-deterministically, quarantines them automatically, and creates tracking issues.',
+        metric: 'Learns from 30-day build history',
+      },
+      {
+        title: 'Dependency vulnerability alerts',
+        description: 'When a build fails due to a known CVE in a dependency, Sherlock identifies the package and links to the patched version.',
+        metric: 'Integrates with Snyk & Trivy',
+      },
+      {
+        title: 'Natural language queries',
+        description: 'Ask Sherlock anything about your build: "Why is the Docker layer cache miss rate so high?" or "What changed that broke staging deploys?"',
+        metric: 'GPT-4 class reasoning',
+      },
+    ],
+  },
+  {
+    id: 'security',
+    label: 'Security',
+    icon: '🔒',
+    headline: 'Enterprise-grade security built in from day one.',
+    description: 'Security isn\'t a feature you add. It\'s the foundation Forge CI was built on. Every build runs isolated, every secret is encrypted, every action is audited.',
+    color: 'cyan',
+    features: [
+      {
+        title: 'OIDC-based secrets injection',
+        description: 'No long-lived credentials stored anywhere. Forge uses OpenID Connect to generate short-lived tokens for AWS, GCP, Azure, and Vault.',
+        metric: 'Zero secrets stored at rest',
+      },
+      {
+        title: 'Ephemeral runner isolation',
+        description: 'Every build runs in a fresh, ephemeral VM. No shared state, no leftover files, no inter-build contamination. Runners are destroyed on completion.',
+        metric: 'Kernel-level isolation',
+      },
+      {
+        title: 'SAML 2.0 SSO',
+        description: 'Full SAML 2.0 support for Okta, Azure AD, Google Workspace, and any standards-compliant IdP. Metadata upload or manual endpoint configuration.',
+        metric: 'Enterprise plan',
+      },
+      {
+        title: 'SCIM auto-provisioning',
+        description: 'Automatically provision and deprovision users via SCIM. Employees who leave the company lose access immediately — no manual cleanup.',
+        metric: 'Okta & Azure AD',
+      },
+      {
+        title: 'Granular audit logs',
+        description: 'Every API call, build trigger, secret access, settings change, and team membership modification is logged with actor, IP, and timestamp.',
+        metric: 'Export to SIEM systems',
+      },
+      {
+        title: 'Network egress controls',
+        description: 'Allowlist and blocklist outbound network destinations per project. Prevent supply chain attacks and data exfiltration at the infrastructure level.',
+        metric: 'L4 + L7 rules',
+      },
+    ],
+  },
+  {
+    id: 'observability',
+    label: 'Observability',
+    icon: '📊',
+    headline: 'See everything. Understand everything.',
+    description: 'Forge CI gives you deep visibility into every build — resource usage, cost attribution, performance trends, and anomaly detection built in.',
+    color: 'accent',
+    features: [
+      {
+        title: 'Per-build resource metrics',
+        description: 'CPU, memory, network I/O, and disk usage sampled every second throughout your build. See exactly where time and money are going.',
+        metric: '1s sampling resolution',
+      },
+      {
+        title: '30-day rolling analytics',
+        description: 'Build duration trends, success rates, cost per pipeline, team-level usage — all with configurable time windows and breakdowns.',
+        metric: 'Exportable as CSV / JSON',
+      },
+      {
+        title: 'Cost attribution',
+        description: 'Break down build credit usage by team, project, branch, or pipeline step. Identify wasteful patterns and optimize with data.',
+        metric: 'Per-step cost breakdown',
+      },
+      {
+        title: 'Anomaly detection',
+        description: 'Forge alerts you when a pipeline suddenly takes 3× longer than baseline or when cache hit rate drops unexpectedly.',
+        metric: 'ML-based baselining',
+      },
+      {
+        title: 'Datadog & Grafana integration',
+        description: 'Stream build metrics directly to your existing observability stack. Pre-built dashboards for both Datadog and Grafana Cloud.',
+        metric: 'OpenTelemetry native',
+      },
+      {
+        title: 'Log search & export',
+        description: 'Full-text search across build logs with filters, highlights, and download. Integrate with your log aggregator via syslog or HTTP.',
+        metric: '90-day log retention',
+      },
+    ],
+  },
+];
+---
+
+<MarketingLayout
+  title="Features — Forge CI"
+  description="Every feature your CI/CD pipeline needs. Speed, security, AI intelligence, observability, and enterprise compliance — all in one platform."
+>
+  <!-- Hero -->
+  <section class="relative pt-32 pb-20 overflow-hidden">
+    <div class="absolute inset-0 bg-grid opacity-30" aria-hidden="true"></div>
+    <div class="absolute inset-0" style="background: radial-gradient(ellipse 1000px 500px at 50% 0, rgba(200,255,0,0.07), transparent 60%)" aria-hidden="true"></div>
+
+    <div class="container-forge relative z-10 text-center">
+      <div class="section-label mb-6">Platform Features</div>
+      <h1 class="section-title max-w-4xl mx-auto">
+        Built for teams that
+        <span class="text-gradient"> refuse to wait.</span>
+      </h1>
+      <p class="section-subtitle mt-6 mx-auto text-center">
+        Every feature you need to ship faster, safer, and smarter.
+        No half-measures. No compromises.
+      </p>
+
+      <!-- Category nav pills -->
+      <div class="flex flex-wrap items-center justify-center gap-2 mt-10">
+        {categories.map((cat) => (
+          <a
+            href={`#${cat.id}`}
+            class="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border border-forge-border text-forge-text-2 hover:border-forge-accent/40 hover:text-forge-accent hover:bg-forge-accent-muted transition-all duration-200"
+          >
+            <span aria-hidden="true">{cat.icon}</span>
+            {cat.label}
+          </a>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature categories -->
+  {categories.map((cat, catIdx) => (
+    <section id={cat.id} class={`section ${catIdx % 2 === 1 ? 'bg-forge-surface/20' : ''}`}>
+      <div class="container-forge">
+
+        <!-- Category header -->
+        <div class="max-w-2xl mb-14 appear">
+          <div class={`section-label mb-5 ${cat.color === 'cyan' ? '!text-forge-cyan !border-forge-cyan/25 !bg-forge-info-bg/50' : ''}`}>
+            <span aria-hidden="true">{cat.icon}</span>
+            {cat.label}
+          </div>
+          <h2 class="font-display font-bold text-4xl sm:text-5xl tracking-tight leading-[1.08] mb-5">
+            {cat.headline}
+          </h2>
+          <p class="text-lg text-forge-text-2 leading-relaxed">
+            {cat.description}
+          </p>
+        </div>
+
+        <!-- Feature grid -->
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {cat.features.map((feature, i) => (
+            <div
+              class="card p-6 group hover:border-forge-border-2 hover:-translate-y-1 transition-all duration-300 appear"
+              style={`animation-delay: ${i * 60}ms`}
+            >
+              <!-- Number -->
+              <div class={`text-2xs font-mono mb-3 ${cat.color === 'accent' ? 'text-forge-accent' : 'text-forge-cyan'}`}>
+                {String(i + 1).padStart(2, '0')}
+              </div>
+
+              <h3 class="font-display font-bold text-lg text-forge-text mb-2 group-hover:text-forge-accent transition-colors">
+                {feature.title}
+              </h3>
+
+              <p class="text-sm text-forge-text-2 leading-relaxed mb-4">
+                {feature.description}
+              </p>
+
+              <div class={`text-xs font-mono mt-auto ${cat.color === 'accent' ? 'text-forge-accent' : 'text-forge-cyan'}`}>
+                {feature.metric}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  ))}
+
+  <CTA />
+</MarketingLayout>

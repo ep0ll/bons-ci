@@ -1,0 +1,286 @@
+---
+// Hero component — animated pipeline terminal, trust signals, CTAs
+---
+
+<section class="relative min-h-[100svh] flex flex-col items-center justify-center overflow-hidden pt-16">
+
+  <!-- Background layers -->
+  <div class="absolute inset-0 bg-forge-bg" aria-hidden="true">
+    <!-- Grid -->
+    <div class="absolute inset-0 bg-grid opacity-40"></div>
+
+    <!-- Radial lime glow from top -->
+    <div class="absolute inset-0" style="background: radial-gradient(ellipse 1400px 700px at 50% -80px, rgba(200,255,0,0.07) 0%, transparent 65%)"></div>
+
+    <!-- Subtle cyan from bottom-right -->
+    <div class="absolute inset-0" style="background: radial-gradient(ellipse 800px 600px at 100% 100%, rgba(34,211,238,0.04) 0%, transparent 60%)"></div>
+
+    <!-- Animated vertical beams -->
+    <div class="beam absolute top-0 left-[20%] h-full w-px opacity-20" style="background: linear-gradient(to bottom, transparent 0%, rgba(200,255,0,0.6) 30%, rgba(200,255,0,0.2) 60%, transparent 100%); animation-delay: 0s;"></div>
+    <div class="beam absolute top-0 left-[50%] h-full w-px opacity-10" style="background: linear-gradient(to bottom, transparent 20%, rgba(200,255,0,0.4) 50%, transparent 80%); animation-delay: 2s;"></div>
+    <div class="beam absolute top-0 left-[80%] h-full w-px opacity-15" style="background: linear-gradient(to bottom, transparent 10%, rgba(34,211,238,0.4) 40%, transparent 70%); animation-delay: 4s;"></div>
+  </div>
+
+  <div class="container-forge relative z-10 py-20 lg:py-28 flex flex-col items-center text-center">
+
+    <!-- Top badge -->
+    <div class="animate-fade-in mb-8">
+      <a href="/changelog" class="inline-flex items-center gap-2 section-label hover:border-forge-accent/50 transition-all duration-200">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-forge-accent opacity-60"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-forge-accent"></span>
+        </span>
+        v2.4 — Sherlock AI agent is now in GA
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+        </svg>
+      </a>
+    </div>
+
+    <!-- Headline -->
+    <h1 class="section-title animate-slide-up max-w-5xl">
+      <span class="text-forge-text">Build at the</span>
+      <br />
+      <span class="relative">
+        <span class="text-gradient">speed of thought</span>
+        <!-- Underline decoration -->
+        <svg class="absolute -bottom-2 left-0 w-full" height="6" viewBox="0 0 100 6" preserveAspectRatio="none" fill="none">
+          <path d="M0 5 Q25 1 50 4 Q75 7 100 3" stroke="url(#lineGrad)" stroke-width="2" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="100" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#C8FF00" stop-opacity="0"/>
+              <stop offset="30%" stop-color="#C8FF00"/>
+              <stop offset="70%" stop-color="#22D3EE"/>
+              <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </span>
+    </h1>
+
+    <!-- Subheadline -->
+    <p class="section-subtitle mt-8 animate-slide-up delay-150 text-center mx-auto">
+      The CI/CD platform engineered for velocity. <strong class="text-forge-text font-medium">10× faster builds</strong>,
+      intelligent caching, any cloud — and an AI agent that actually understands your failures.
+    </p>
+
+    <!-- CTA buttons -->
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 animate-slide-up delay-300">
+      <a href="/auth/signup" class="btn-primary btn-xl group">
+        Start building for free
+        <svg class="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+        </svg>
+      </a>
+      <a href="/demo" class="btn-secondary btn-xl group">
+        <svg class="w-5 h-5 text-forge-accent" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        Watch 90s demo
+      </a>
+    </div>
+
+    <!-- Trust signals -->
+    <div class="flex flex-wrap items-center justify-center gap-5 mt-10 animate-fade-in delay-500">
+      <div class="flex items-center gap-1.5 text-sm text-forge-text-3">
+        <svg class="w-4 h-4 text-forge-success" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        No credit card required
+      </div>
+      <span class="text-forge-border">·</span>
+      <div class="flex items-center gap-1.5 text-sm text-forge-text-3">
+        <svg class="w-4 h-4 text-forge-success" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        Free plan forever
+      </div>
+      <span class="text-forge-border">·</span>
+      <div class="flex items-center gap-1.5 text-sm text-forge-text-3">
+        <svg class="w-4 h-4 text-forge-success" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        Set up in 2 minutes
+      </div>
+      <span class="text-forge-border">·</span>
+      <div class="flex items-center gap-1.5 text-sm text-forge-text-3">
+        <svg class="w-4 h-4 text-forge-success" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+        </svg>
+        SOC 2 Type II
+      </div>
+    </div>
+
+    <!-- Social proof numbers -->
+    <div class="grid grid-cols-3 gap-8 sm:gap-12 mt-14 animate-fade-in delay-700 w-full max-w-lg">
+      {[
+        { number: '50K+', label: 'Teams building' },
+        { number: '2.4B', label: 'Builds run' },
+        { number: '99.99%', label: 'Uptime SLA' },
+      ].map(({ number, label }) => (
+        <div class="text-center">
+          <div class="font-display font-bold text-3xl sm:text-4xl text-forge-accent glow-text">{number}</div>
+          <div class="text-sm text-forge-text-3 mt-1">{label}</div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Terminal window -->
+    <div class="w-full max-w-4xl mt-20 animate-slide-up delay-500">
+      <div class="terminal shadow-modal">
+        <!-- Terminal header -->
+        <div class="terminal-header">
+          <div class="terminal-dot bg-[#FF5F57]"></div>
+          <div class="terminal-dot bg-[#FFBD2E]"></div>
+          <div class="terminal-dot bg-[#28C840]"></div>
+          <div class="flex-1"></div>
+          <div class="flex items-center gap-2 text-xs text-forge-text-3 font-mono">
+            <span class="w-1.5 h-1.5 rounded-full bg-forge-success animate-pulse"></span>
+            forge-ci · main · build #1842
+          </div>
+          <div class="flex-1"></div>
+          <!-- Copy button -->
+          <button class="text-forge-text-3 hover:text-forge-text transition-colors" aria-label="Copy">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Terminal body -->
+        <div class="p-5 sm:p-6 space-y-1 text-sm font-mono overflow-x-auto" id="terminal-output">
+          <div class="terminal-line opacity-0" data-delay="0">
+            <span class="text-forge-text-3">$</span>
+            <span class="text-forge-text ml-2">forge run pipeline</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="200">
+            <span class="text-forge-text-3">→</span>
+            <span class="text-forge-cyan ml-2">Fetching pipeline config...</span>
+            <span class="text-forge-text-3 ml-2">[0.12s]</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="400">
+            <span class="text-forge-text-3">→</span>
+            <span class="text-forge-text-2 ml-2">Cache hit!</span>
+            <span class="text-forge-success ml-2 font-medium">✓</span>
+            <span class="text-forge-text-3 ml-2">node_modules restored (1.2GB in 0.8s)</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="700">
+            <span class="text-forge-text-3">→</span>
+            <span class="text-forge-text-2 ml-2">Running</span>
+            <span class="text-forge-accent font-medium ml-2">install</span>
+            <span class="text-forge-text-3 ml-2">on linux-x64-2xlarge</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="900">
+            <span class="text-forge-success ml-4 font-medium">✓</span>
+            <span class="text-forge-text-2 ml-2">Dependencies validated</span>
+            <span class="text-forge-text-3 ml-2">[0.02s]</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="1100">
+            <span class="text-forge-text-3">→</span>
+            <span class="text-forge-text-2 ml-2">Running</span>
+            <span class="text-forge-accent font-medium ml-2">test</span>
+            <span class="text-forge-text-3 ml-2">— 24 workers · parallel</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="1400">
+            <span class="text-forge-success ml-4 font-medium">✓</span>
+            <span class="text-forge-text-2 ml-2">1,847 tests passed</span>
+            <span class="text-forge-text-3 ml-2">[12.4s] ↓ was 3m 22s</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="1700">
+            <span class="text-forge-text-3">→</span>
+            <span class="text-forge-text-2 ml-2">Running</span>
+            <span class="text-forge-accent font-medium ml-2">build</span>
+            <span class="text-forge-text-3 ml-2">— optimized production bundle</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="2000">
+            <span class="text-forge-success ml-4 font-medium">✓</span>
+            <span class="text-forge-text-2 ml-2">Build complete:</span>
+            <span class="text-forge-text ml-2">dist/ (2.4 MB)</span>
+            <span class="text-forge-text-3 ml-2">[8.1s]</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="2200">
+            <span class="text-forge-text-3">→</span>
+            <span class="text-forge-text-2 ml-2">Running</span>
+            <span class="text-forge-accent font-medium ml-2">deploy</span>
+            <span class="text-forge-text-3 ml-2">→ prod-k8s-cluster</span>
+          </div>
+          <div class="terminal-line opacity-0" data-delay="2500">
+            <span class="text-forge-success ml-4 font-medium">✓</span>
+            <span class="text-forge-text-2 ml-2">Deployed to production</span>
+            <span class="text-forge-text-3 ml-2">[4.2s]</span>
+          </div>
+
+          <!-- Success summary -->
+          <div class="terminal-line opacity-0 mt-4 pt-4 border-t border-forge-border/50" data-delay="3000">
+            <div class="flex items-center gap-3 flex-wrap">
+              <div class="flex items-center gap-2">
+                <div class="w-5 h-5 rounded-full bg-forge-success flex items-center justify-center flex-shrink-0">
+                  <svg class="w-3 h-3 text-forge-bg" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                </div>
+                <span class="text-forge-success font-semibold">Pipeline passed</span>
+              </div>
+              <div class="flex items-center gap-2 text-forge-text-3 text-xs font-mono">
+                <span>25.8s total</span>
+                <span>·</span>
+                <span class="text-forge-accent">10.2× faster than baseline</span>
+                <span>·</span>
+                <span>12 build credits used</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Blinking cursor -->
+          <div class="terminal-line opacity-0 mt-2" data-delay="3200">
+            <span class="text-forge-text-3">$</span>
+            <span class="cursor-blink text-forge-text ml-2"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Terminal chrome decoration -->
+      <div class="flex items-center justify-center gap-6 mt-4 text-xs text-forge-text-3 font-mono">
+        <span>▲ 10.2× faster vs. GitHub Actions</span>
+        <span class="text-forge-border">|</span>
+        <span>↓ 89% cache hit rate</span>
+        <span class="text-forge-border">|</span>
+        <span>🌎 4 regions available</span>
+      </div>
+    </div>
+
+    <!-- Company logos -->
+    <div class="w-full mt-20 animate-fade-in delay-700">
+      <p class="text-xs font-mono text-forge-text-3 uppercase tracking-widest mb-8">
+        Trusted by engineering teams at
+      </p>
+      <div class="flex flex-wrap items-center justify-center gap-8 sm:gap-12">
+        {['Vercel', 'Stripe', 'Linear', 'Notion', 'Figma', 'Supabase', 'PlanetScale', 'Railway'].map((co) => (
+          <div class="text-forge-text-3 font-display font-semibold text-lg hover:text-forge-text-2 transition-colors duration-200 opacity-50 hover:opacity-80">
+            {co}
+          </div>
+        ))}
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Scroll indicator -->
+  <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce opacity-40" aria-hidden="true">
+    <svg class="w-5 h-5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+    </svg>
+  </div>
+</section>
+
+<!-- Terminal animation script -->
+<script>
+  const lines = document.querySelectorAll('.terminal-line');
+  lines.forEach((line) => {
+    const delay = parseInt((line as HTMLElement).dataset.delay ?? '0', 10);
+    setTimeout(() => {
+      (line as HTMLElement).style.transition = 'opacity 0.3s ease';
+      (line as HTMLElement).style.opacity = '1';
+    }, delay + 800);
+  });
+</script>

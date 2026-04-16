@@ -1,0 +1,363 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+const projects = [
+  {
+    id: 'api-service',
+    name: 'api-service',
+    description: 'Core REST API — Node.js + TypeScript + PostgreSQL',
+    vcs: 'github',
+    repo: 'acme-corp/api-service',
+    defaultBranch: 'main',
+    language: 'TypeScript',
+    lastBuild: { id:'1847', status:'success', branch:'main', ago:'2m ago' },
+    stats: { builds: 842, successRate: 97.4, avgDuration: '1m 24s', minutesUsed: 19724 },
+    runner: 'linux-x64-medium',
+    parallelism: 10,
+    cacheEnabled: true,
+    tags: ['production', 'api'],
+    members: 8,
+  },
+  {
+    id: 'web-app',
+    name: 'web-app',
+    description: 'Next.js customer-facing dashboard and marketing site',
+    vcs: 'github',
+    repo: 'acme-corp/web-app',
+    defaultBranch: 'main',
+    language: 'TypeScript',
+    lastBuild: { id:'1846', status:'running', branch:'feat/dashboard', ago:'now' },
+    stats: { builds: 634, successRate: 98.1, avgDuration: '1m 18s', minutesUsed: 13782 },
+    runner: 'linux-x64-medium',
+    parallelism: 10,
+    cacheEnabled: true,
+    tags: ['production', 'frontend'],
+    members: 6,
+  },
+  {
+    id: 'mobile',
+    name: 'mobile',
+    description: 'React Native iOS & Android mobile application',
+    vcs: 'github',
+    repo: 'acme-corp/mobile',
+    defaultBranch: 'main',
+    language: 'TypeScript',
+    lastBuild: { id:'1843', status:'success', branch:'release/2.4.0', ago:'41m ago' },
+    stats: { builds: 241, successRate: 95.8, avgDuration: '8m 12s', minutesUsed: 19722 },
+    runner: 'macos-m2-large',
+    parallelism: 4,
+    cacheEnabled: true,
+    tags: ['production', 'mobile'],
+    members: 5,
+  },
+  {
+    id: 'infra',
+    name: 'infra',
+    description: 'Terraform infrastructure as code — AWS + Cloudflare',
+    vcs: 'github',
+    repo: 'acme-corp/infra',
+    defaultBranch: 'main',
+    language: 'HCL',
+    lastBuild: { id:'1844', status:'success', branch:'main', ago:'22m ago' },
+    stats: { builds: 88, successRate: 99.9, avgDuration: '3m 44s', minutesUsed: 5502 },
+    runner: 'linux-x64-small',
+    parallelism: 2,
+    cacheEnabled: false,
+    tags: ['infrastructure'],
+    members: 3,
+  },
+  {
+    id: 'docs',
+    name: 'docs',
+    description: 'Mintlify-powered developer documentation site',
+    vcs: 'github',
+    repo: 'acme-corp/docs',
+    defaultBranch: 'main',
+    language: 'MDX',
+    lastBuild: { id:'1840', status:'success', branch:'main', ago:'3h ago' },
+    stats: { builds: 112, successRate: 100, avgDuration: '0m 44s', minutesUsed: 1386 },
+    runner: 'linux-x64-small',
+    parallelism: 1,
+    cacheEnabled: true,
+    tags: ['docs'],
+    members: 4,
+  },
+];
+
+const statusDot: Record<string, string> = {
+  success: 'bg-forge-success',
+  running: 'bg-forge-cyan animate-pulse',
+  failed:  'bg-forge-danger',
+  queued:  'bg-forge-text-3 animate-pulse',
+};
+
+const langColor: Record<string, string> = {
+  TypeScript: 'text-forge-info bg-forge-info-bg border-forge-info/20',
+  HCL:        'text-forge-warning bg-forge-warning-bg border-forge-warning/20',
+  MDX:        'text-forge-success bg-forge-success-bg border-forge-success/20',
+};
+---
+
+<DashboardLayout
+  title="Projects"
+  activeNav="projects"
+  breadcrumbs={[{ label: 'Projects' }]}
+>
+  <div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="font-display font-bold text-2xl text-forge-text">Projects</h1>
+        <p class="text-forge-text-3 text-sm mt-0.5">
+          {projects.length} active projects in <strong class="text-forge-text">acme-corp</strong>
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input type="search" placeholder="Search projects…" class="input !pl-9 !py-2 !text-xs w-48" id="proj-search"/>
+        </div>
+        <button
+          id="new-project-btn"
+          class="btn-primary btn-sm"
+        >
+          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+          </svg>
+          New project
+        </button>
+      </div>
+    </div>
+
+    <!-- Project grid -->
+    <div class="grid lg:grid-cols-2 xl:grid-cols-3 gap-4" id="projects-grid">
+      {projects.map((proj) => (
+        <div
+          class="card-hover p-0 overflow-hidden group project-card"
+          data-name={proj.name.toLowerCase()}
+          data-desc={proj.description.toLowerCase()}
+        >
+          <!-- Card header -->
+          <div class="px-5 pt-5 pb-4 border-b border-forge-border/50">
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <!-- Project icon + name -->
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-forge-surface3 border border-forge-border flex items-center justify-center text-sm font-bold text-forge-accent font-display flex-shrink-0">
+                  {proj.name[0].toUpperCase()}
+                </div>
+                <div>
+                  <h2 class="font-display font-bold text-base text-forge-text group-hover:text-forge-accent transition-colors">
+                    {proj.name}
+                  </h2>
+                  <div class="text-2xs text-forge-text-3 font-mono">{proj.repo}</div>
+                </div>
+              </div>
+
+              <!-- Last build status -->
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <div class={`w-2 h-2 rounded-full ${statusDot[proj.lastBuild.status]}`}></div>
+                <span class="text-2xs text-forge-text-3 font-mono">{proj.lastBuild.ago}</span>
+              </div>
+            </div>
+
+            <p class="text-xs text-forge-text-3 leading-relaxed line-clamp-2 mb-3">
+              {proj.description}
+            </p>
+
+            <!-- Tags + language -->
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class={`badge border text-2xs ${langColor[proj.language] ?? 'badge-neutral'}`}>
+                {proj.language}
+              </span>
+              {proj.tags.map((tag) => (
+                <span class="badge-neutral text-2xs">{tag}</span>
+              ))}
+            </div>
+          </div>
+
+          <!-- Stats row -->
+          <div class="grid grid-cols-4 divide-x divide-forge-border/50 bg-forge-surface2/30">
+            {[
+              { label: 'Builds', value: proj.stats.builds.toLocaleString() },
+              { label: 'Success', value: `${proj.stats.successRate}%` },
+              { label: 'Avg time', value: proj.stats.avgDuration },
+              { label: 'Minutes', value: proj.stats.minutesUsed.toLocaleString() },
+            ].map(({ label, value }) => (
+              <div class="px-3 py-3 text-center">
+                <div class="text-sm font-mono font-bold text-forge-text">{value}</div>
+                <div class="text-2xs text-forge-text-3 mt-0.5">{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <!-- Config summary + actions -->
+          <div class="px-5 py-3.5 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 text-2xs text-forge-text-3 font-mono">
+              <span title="Runner">{proj.runner.split('-').slice(0,2).join('-')}</span>
+              <span class="text-forge-border">·</span>
+              <span title="Parallelism">{proj.parallelism}×</span>
+              <span class="text-forge-border">·</span>
+              <span title="Cache" class={proj.cacheEnabled ? 'text-forge-success' : 'text-forge-text-3'}>
+                {proj.cacheEnabled ? 'cache ✓' : 'cache ✗'}
+              </span>
+              <span class="text-forge-border">·</span>
+              <span title="Members">{proj.members} members</span>
+            </div>
+
+            <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <a
+                href={`/dashboard/builds?project=${proj.id}`}
+                class="btn-ghost btn-sm text-xs text-forge-text-3 !px-2"
+                onclick="event.stopPropagation()"
+                title="View builds"
+              >
+                Builds
+              </a>
+              <a
+                href={`/dashboard/projects/${proj.id}/settings`}
+                class="btn-ghost btn-sm text-xs text-forge-text-3 !px-2"
+                onclick="event.stopPropagation()"
+                title="Settings"
+              >
+                Settings
+              </a>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <!-- Add project card -->
+      <button
+        id="add-project-card"
+        class="card flex flex-col items-center justify-center gap-3 p-8 border-dashed hover:border-forge-accent/40 hover:bg-forge-accent-muted/10 transition-all duration-200 cursor-pointer text-center min-h-[200px] group"
+      >
+        <div class="w-10 h-10 rounded-full border-2 border-dashed border-forge-border group-hover:border-forge-accent/40 flex items-center justify-center transition-colors">
+          <svg class="w-5 h-5 text-forge-text-3 group-hover:text-forge-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+          </svg>
+        </div>
+        <div>
+          <div class="text-sm font-medium text-forge-text-2 group-hover:text-forge-accent transition-colors">Add new project</div>
+          <div class="text-xs text-forge-text-3 mt-0.5">Connect a repository to get started</div>
+        </div>
+      </button>
+    </div>
+
+    <!-- Empty search state -->
+    <div id="proj-empty" class="hidden py-16 text-center">
+      <div class="text-4xl mb-3">🔍</div>
+      <h3 class="font-display font-bold text-lg text-forge-text mb-1">No projects found</h3>
+      <p class="text-forge-text-2 text-sm">Try a different search term.</p>
+    </div>
+
+  </div>
+
+  <!-- ── New project modal ─────────────────────── -->
+  <div id="new-project-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="modal-backdrop"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+      <div class="w-full max-w-lg bg-forge-surface border border-forge-border rounded-2xl shadow-modal animate-scale-in overflow-hidden">
+        <!-- Modal header -->
+        <div class="flex items-center justify-between px-6 py-5 border-b border-forge-border">
+          <h2 class="font-display font-bold text-lg text-forge-text">New project</h2>
+          <button id="modal-close" class="text-forge-text-3 hover:text-forge-text transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <!-- Modal body -->
+        <div class="px-6 py-5 space-y-5">
+          <!-- VCS provider -->
+          <div>
+            <label class="input-label">Connect repository from</label>
+            <div class="grid grid-cols-3 gap-2">
+              {['GitHub', 'GitLab', 'Bitbucket'].map((vcs, i) => (
+                <label class="flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer hover:border-forge-border-2 has-[:checked]:border-forge-accent/40 has-[:checked]:bg-forge-accent-muted/20 transition-all">
+                  <input type="radio" name="vcs" value={vcs.toLowerCase()} checked={i===0} class="sr-only"/>
+                  <span class="text-xs font-medium text-forge-text-2">{vcs}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <!-- Repo select -->
+          <div>
+            <label class="input-label" for="repo-select">Repository</label>
+            <select id="repo-select" class="input">
+              <option value="">Select a repository…</option>
+              <option>acme-corp/new-service</option>
+              <option>acme-corp/data-pipeline</option>
+              <option>acme-corp/ml-training</option>
+            </select>
+          </div>
+
+          <!-- Project name -->
+          <div>
+            <label class="input-label" for="proj-name">Project name</label>
+            <input type="text" id="proj-name" class="input" placeholder="new-service"/>
+            <p class="text-2xs text-forge-text-3 mt-1">Auto-generated from repository name. You can change it.</p>
+          </div>
+
+          <!-- Default branch -->
+          <div>
+            <label class="input-label" for="default-branch">Default branch</label>
+            <input type="text" id="default-branch" class="input" value="main" />
+          </div>
+
+          <!-- Runner size -->
+          <div>
+            <label class="input-label">Default runner</label>
+            <select class="input">
+              <option>linux-x64-small (2 vCPU · 4 GB) — 1× credit</option>
+              <option selected>linux-x64-medium (4 vCPU · 8 GB) — 2× credit</option>
+              <option>linux-x64-large (8 vCPU · 16 GB) — 4× credit</option>
+              <option>linux-arm64-medium (4 vCPU · 8 GB) — 2× credit</option>
+              <option>macos-m2-medium (4 vCPU · 8 GB) — 10× credit</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Modal footer -->
+        <div class="flex gap-3 px-6 py-4 border-t border-forge-border bg-forge-surface2/30">
+          <button id="modal-cancel" class="btn-secondary btn-md flex-1 justify-center">Cancel</button>
+          <button class="btn-primary btn-md flex-1 justify-center">
+            Create project →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</DashboardLayout>
+
+<script>
+  // Modal open/close
+  const modal = document.getElementById('new-project-modal')!;
+  const openModal = () => modal.classList.remove('hidden');
+  const closeModal = () => modal.classList.add('hidden');
+
+  document.getElementById('new-project-btn')?.addEventListener('click', openModal);
+  document.getElementById('add-project-card')?.addEventListener('click', openModal);
+  document.getElementById('modal-close')?.addEventListener('click', closeModal);
+  document.getElementById('modal-cancel')?.addEventListener('click', closeModal);
+  document.getElementById('modal-backdrop')?.addEventListener('click', closeModal);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // Project search filter
+  const searchEl = document.getElementById('proj-search') as HTMLInputElement;
+  const cards = document.querySelectorAll<HTMLElement>('.project-card');
+  const emptyEl = document.getElementById('proj-empty')!;
+
+  searchEl?.addEventListener('input', () => {
+    const q = searchEl.value.toLowerCase();
+    let visible = 0;
+    cards.forEach(card => {
+      const show = !q || card.dataset.name!.includes(q) || card.dataset.desc!.includes(q);
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    emptyEl.classList.toggle('hidden', visible > 0);
+  });
+</script>

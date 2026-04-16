@@ -1,0 +1,42 @@
+---
+export interface Props {
+  hover?: boolean;
+  glow?: boolean;
+  padding?: 'none' | 'sm' | 'md' | 'lg';
+  class?: string;
+  href?: string;
+  animated?: boolean;
+}
+
+const {
+  hover = false,
+  glow = false,
+  padding = 'md',
+  class: className = '',
+  href,
+  animated = false,
+} = Astro.props;
+
+const paddings: Record<string, string> = {
+  none: '',
+  sm: 'p-4',
+  md: 'p-5 sm:p-6',
+  lg: 'p-6 sm:p-8',
+};
+
+const base = hover ? 'card-hover' : 'card';
+const glowCls = glow ? 'card-glow' : '';
+const animCls = animated ? 'animate-fade-in' : '';
+
+const classes = [base, glowCls, animCls, paddings[padding], className].filter(Boolean).join(' ');
+---
+
+{href ? (
+  <a href={href} class={classes}>
+    <slot />
+  </a>
+) : (
+  <div class={classes}>
+    <slot />
+  </div>
+)}

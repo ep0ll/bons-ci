@@ -1,0 +1,157 @@
+---
+const features = [
+  {
+    category: 'Speed',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`,
+    title: '10× Faster Builds',
+    description: 'Intelligent parallelism, layer-aware caching, and pre-warmed runners eliminate cold starts. Your builds complete before your coffee cools.',
+    highlight: '89% avg cache hit rate',
+    color: 'accent',
+  },
+  {
+    category: 'Intelligence',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>`,
+    title: 'Sherlock AI Agent',
+    description: 'One click and Sherlock analyzes your failed build, traces the root cause through logs and config, and hands you a plain-English fix.',
+    highlight: 'Reduces MTTR by 74%',
+    color: 'cyan',
+  },
+  {
+    category: 'Scale',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`,
+    title: 'Limitless Parallelism',
+    description: 'Fan out to thousands of parallel jobs. Matrix builds, split test suites, and fan-in strategies — all declarative in your pipeline YAML.',
+    highlight: 'Up to 10,000 concurrent jobs',
+    color: 'accent',
+  },
+  {
+    category: 'Security',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>`,
+    title: 'Zero-Trust Security',
+    description: 'OIDC-based secrets injection, ephemeral runners, network-isolated sandboxes, audit logs, and granular RBAC. SOC 2 Type II certified.',
+    highlight: 'No secret ever touches disk',
+    color: 'cyan',
+  },
+  {
+    category: 'Cloud',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>`,
+    title: 'Any Cloud, Any Runner',
+    description: 'Run on our global infrastructure or BYOC — bring your own AWS, GCP, or Azure runners. Tailnet integration for private networking.',
+    highlight: 'AWS · GCP · Azure · On-prem',
+    color: 'accent',
+  },
+  {
+    category: 'Developer XP',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>`,
+    title: 'Native Developer Tools',
+    description: 'Local pipeline preview, VS Code extension, CLI first-class support, and a GitHub App that puts build status right where you work.',
+    highlight: 'Zero context switching',
+    color: 'cyan',
+  },
+  {
+    category: 'Observability',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>`,
+    title: 'Deep Metrics & Insights',
+    description: 'Per-build CPU, memory, network, and egress graphs. 30-day rolling averages, cost attribution, and Datadog / Grafana integrations.',
+    highlight: 'P99 build analytics',
+    color: 'accent',
+  },
+  {
+    category: 'Extensibility',
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+    title: 'Marketplace & Plugins',
+    description: '600+ prebuilt integrations in our marketplace. Or build your own with our open Plugin SDK. Slack, PagerDuty, Jira, Linear — all first class.',
+    highlight: '600+ official integrations',
+    color: 'cyan',
+  },
+];
+
+const pillars = [
+  { title: 'Enterprise Ready', items: ['SAML 2.0 SSO', 'SCIM provisioning', 'Audit logs', 'VPC peering', 'SLA 99.99%'] },
+  { title: 'Compliance Built-in', items: ['SOC 2 Type II', 'GDPR compliant', 'HIPAA ready', 'ISO 27001', 'FedRAMP eligible'] },
+  { title: 'Global Infrastructure', items: ['4 cloud regions', 'Edge runners', '<50ms queue time', '100Gbps egress', 'No cold starts'] },
+];
+---
+
+<section class="section">
+  <div class="container-forge">
+
+    <!-- Section header -->
+    <div class="text-center max-w-3xl mx-auto mb-16 appear">
+      <div class="section-label mb-5">Platform Features</div>
+      <h2 class="section-title">
+        Every tool your team needs.
+        <span class="text-gradient"> Zero compromise.</span>
+      </h2>
+      <p class="section-subtitle mt-5 mx-auto text-center">
+        Forge CI is the only CI/CD platform built for the entire engineering lifecycle —
+        from a solo dev's side project to a 2,000-person platform team.
+      </p>
+    </div>
+
+    <!-- Feature grid -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-16">
+      {features.map((feature, i) => (
+        <div
+          class={`card-hover p-6 group cursor-default appear delay-${Math.min(i * 75, 600)}`}
+          style={`animation-delay: ${i * 60}ms`}
+        >
+          <!-- Icon -->
+          <div class={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 transition-colors duration-300 ${
+            feature.color === 'accent'
+              ? 'bg-forge-accent-muted text-forge-accent group-hover:bg-forge-accent group-hover:text-forge-bg'
+              : 'bg-forge-info-bg text-forge-cyan group-hover:bg-forge-cyan group-hover:text-forge-bg'
+          }`}>
+            <div class="w-5 h-5">
+              <Fragment set:html={feature.icon} />
+            </div>
+          </div>
+
+          <!-- Category -->
+          <div class="text-2xs font-mono text-forge-text-3 uppercase tracking-widest mb-1">
+            {feature.category}
+          </div>
+
+          <!-- Title -->
+          <h3 class="font-display font-bold text-lg text-forge-text mb-2 group-hover:text-forge-accent transition-colors duration-200">
+            {feature.title}
+          </h3>
+
+          <!-- Description -->
+          <p class="text-sm text-forge-text-2 leading-relaxed mb-4">
+            {feature.description}
+          </p>
+
+          <!-- Highlight -->
+          <div class={`text-xs font-mono font-medium mt-auto ${
+            feature.color === 'accent' ? 'text-forge-accent' : 'text-forge-cyan'
+          }`}>
+            → {feature.highlight}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Pillars row -->
+    <div class="grid sm:grid-cols-3 gap-4 appear">
+      {pillars.map((pillar) => (
+        <div class="card p-5 sm:p-6">
+          <h3 class="font-display font-bold text-base text-forge-text mb-4">
+            {pillar.title}
+          </h3>
+          <ul class="space-y-2">
+            {pillar.items.map((item) => (
+              <li class="flex items-center gap-2.5 text-sm text-forge-text-2">
+                <svg class="w-3.5 h-3.5 text-forge-success flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</section>

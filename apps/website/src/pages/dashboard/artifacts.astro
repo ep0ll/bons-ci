@@ -1,0 +1,275 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+
+const artifacts = [
+  { id:'a1', build:'#1847', project:'api-service', branch:'main',        name:'coverage-report.html',  type:'text/html',          size:2_100_000,  created:'2 min ago',   expires:'88 days', icon:'📊' },
+  { id:'a2', build:'#1847', project:'api-service', branch:'main',        name:'test-results.xml',      type:'application/xml',    size:48_000,     created:'2 min ago',   expires:'88 days', icon:'🧪' },
+  { id:'a3', build:'#1847', project:'api-service', branch:'main',        name:'build.log',             type:'text/plain',         size:131_000,    created:'2 min ago',   expires:'88 days', icon:'📄' },
+  { id:'a4', build:'#1843', project:'mobile',      branch:'release/2.4', name:'app-release.apk',       type:'application/vnd.android.package-archive', size:89_400_000, created:'41 min ago', expires:'87 days', icon:'📱' },
+  { id:'a5', build:'#1843', project:'mobile',      branch:'release/2.4', name:'app-release.ipa',       type:'application/octet-stream', size:112_000_000, created:'41 min ago', expires:'87 days', icon:'🍎' },
+  { id:'a6', build:'#1843', project:'mobile',      branch:'release/2.4', name:'dsyms.zip',             type:'application/zip',    size:24_000_000, created:'41 min ago',   expires:'87 days', icon:'🗜' },
+  { id:'a7', build:'#1844', project:'infra',       branch:'main',        name:'terraform-plan.txt',    type:'text/plain',         size:18_000,     created:'22 min ago',  expires:'87 days', icon:'📋' },
+  { id:'a8', build:'#1844', project:'infra',       branch:'main',        name:'tfstate.json',          type:'application/json',   size:44_000,     created:'22 min ago',  expires:'87 days', icon:'📦' },
+  { id:'a9', build:'#1842', project:'web-app',     branch:'main',        name:'bundle-analysis.html',  type:'text/html',          size:3_400_000,  created:'1 hour ago',  expires:'87 days', icon:'📊' },
+  { id:'a10',build:'#1842', project:'web-app',     branch:'main',        name:'lighthouse-report.json',type:'application/json',   size:220_000,    created:'1 hour ago',  expires:'87 days', icon:'💡' },
+  { id:'a11',build:'#1840', project:'docs',        branch:'main',        name:'site.tar.gz',           type:'application/gzip',   size:5_800_000,  created:'3 hours ago', expires:'87 days', icon:'🗜' },
+  { id:'a12',build:'#1838', project:'mobile',      branch:'fix/crash',   name:'crashlog.txt',          type:'text/plain',         size:8_400,      created:'4 hours ago', expires:'86 days', icon:'💥' },
+];
+
+const typeGroups: Record<string, string[]> = {
+  'All':      [],
+  'Reports':  ['text/html', 'application/json'],
+  'Logs':     ['text/plain'],
+  'Binaries': ['application/vnd.android.package-archive', 'application/octet-stream'],
+  'Archives': ['application/zip', 'application/gzip', 'application/x-tar'],
+  'Data':     ['application/xml'],
+};
+
+function fmtSize(b: number) {
+  if (b >= 1e9) return (b/1e9).toFixed(1)+' GB';
+  if (b >= 1e6) return (b/1e6).toFixed(1)+' MB';
+  if (b >= 1e3) return (b/1e3).toFixed(0)+' KB';
+  return b+' B';
+}
+
+const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
+---
+
+<DashboardLayout
+  title="Artifacts"
+  activeNav="artifacts"
+  breadcrumbs={[{ label: 'Artifacts' }]}
+>
+  <div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="font-display font-bold text-2xl text-forge-text">Artifacts</h1>
+        <p class="text-forge-text-3 text-sm mt-0.5">
+          {artifacts.length} artifacts · {fmtSize(totalSize)} total · retained for 90 days
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn-secondary btn-sm">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          </svg>
+          Retention settings
+        </button>
+        <button class="btn-primary btn-sm">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download selected
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="flex flex-col sm:flex-row gap-3">
+      <!-- Type tabs -->
+      <div class="flex gap-1 bg-forge-surface border border-forge-border rounded-lg p-1 flex-shrink-0 flex-wrap">
+        {Object.keys(typeGroups).map((type, i) => (
+          <button
+            class={`type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all ${i===0 ? 'bg-forge-surface2 text-forge-text' : 'text-forge-text-3 hover:text-forge-text'}`}
+            data-type={type}
+            onclick="filterType(this)"
+          >
+            {type}
+          </button>
+        ))}
+      </div>
+
+      <div class="flex gap-2 flex-1">
+        <div class="relative flex-1">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input type="search" id="artifact-search" placeholder="Search artifacts, build IDs, branches…" class="input !pl-9 !py-2 !text-xs w-full"/>
+        </div>
+        <select id="proj-filter" class="input !py-2 !text-xs w-36">
+          <option value="">All projects</option>
+          {['api-service','web-app','mobile','infra','docs'].map(p => (
+            <option value={p}>{p}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+
+    <!-- Select all banner (when items checked) -->
+    <div id="selection-bar" class="hidden card p-3 border-forge-accent/30 bg-forge-accent-muted/20 flex items-center gap-3">
+      <span class="text-sm text-forge-text" id="selection-count">0 selected</span>
+      <div class="ml-auto flex gap-2">
+        <button class="btn-secondary btn-sm text-xs">Download all</button>
+        <button class="btn-danger btn-sm text-xs">Delete selected</button>
+        <button class="btn-ghost btn-sm text-xs text-forge-text-3" onclick="clearSelection()">Clear</button>
+      </div>
+    </div>
+
+    <!-- Artifacts table -->
+    <div class="card overflow-hidden">
+      <table class="table-forge" id="artifacts-table">
+        <thead>
+          <tr>
+            <th class="w-6"><input type="checkbox" id="select-all" class="rounded border-forge-border"/></th>
+            <th>Name</th>
+            <th>Build</th>
+            <th class="hidden md:table-cell">Project / Branch</th>
+            <th class="hidden sm:table-cell">Type</th>
+            <th>Size</th>
+            <th class="hidden lg:table-cell">Created</th>
+            <th class="hidden xl:table-cell">Expires in</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="artifacts-tbody">
+          {artifacts.map((a) => (
+            <tr
+              class="artifact-row group"
+              data-type={a.type}
+              data-project={a.project}
+              data-text={`${a.name} ${a.build} ${a.branch} ${a.project}`.toLowerCase()}
+            >
+              <td onclick="event.stopPropagation()">
+                <input type="checkbox" class="artifact-check rounded border-forge-border" data-id={a.id}/>
+              </td>
+              <td>
+                <div class="flex items-center gap-2.5">
+                  <span class="text-base flex-shrink-0" aria-hidden="true">{a.icon}</span>
+                  <div>
+                    <div class="text-xs font-medium text-forge-text font-mono">{a.name}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <a href={`/dashboard/builds/${a.build.replace('#','')}`} class="text-xs font-mono text-forge-accent hover:text-forge-accent-dim transition-colors" onclick="event.stopPropagation()">
+                  {a.build}
+                </a>
+              </td>
+              <td class="hidden md:table-cell">
+                <div class="text-xs text-forge-text-2">{a.project}</div>
+                <div class="text-2xs text-forge-text-3 font-mono">{a.branch}</div>
+              </td>
+              <td class="hidden sm:table-cell">
+                <span class="text-2xs font-mono text-forge-text-3">{a.type.split('/')[1]}</span>
+              </td>
+              <td>
+                <span class="text-xs font-mono text-forge-text-2">{fmtSize(a.size)}</span>
+              </td>
+              <td class="hidden lg:table-cell">
+                <span class="text-xs text-forge-text-3">{a.created}</span>
+              </td>
+              <td class="hidden xl:table-cell">
+                <span class={`text-xs font-mono ${parseInt(a.expires) < 7 ? 'text-forge-warning' : 'text-forge-text-3'}`}>
+                  {a.expires}
+                </span>
+              </td>
+              <td>
+                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3 hover:text-forge-accent" title="Download">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                  </button>
+                  <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3 hover:text-forge-text" title="Copy URL">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                  </button>
+                  <button class="btn-ghost btn-sm !p-1.5 text-forge-danger" title="Delete">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div id="artifacts-empty" class="hidden py-14 text-center">
+        <div class="text-3xl mb-3">📦</div>
+        <h3 class="font-display font-bold text-lg text-forge-text mb-1">No artifacts found</h3>
+        <p class="text-forge-text-2 text-sm">Try changing filters or run a build that produces artifacts.</p>
+      </div>
+    </div>
+
+  </div>
+</DashboardLayout>
+
+<script>
+  const rows = document.querySelectorAll<HTMLElement>('.artifact-row');
+  const emptyEl = document.getElementById('artifacts-empty')!;
+  const tbody = document.getElementById('artifacts-tbody')!;
+  const selectionBar = document.getElementById('selection-bar')!;
+  const selectionCount = document.getElementById('selection-count')!;
+  let activeType = 'All';
+
+  const typeMap: Record<string, string[]> = {
+    'Reports':  ['text/html','application/json'],
+    'Logs':     ['text/plain'],
+    'Binaries': ['application/vnd.android.package-archive','application/octet-stream'],
+    'Archives': ['application/zip','application/gzip'],
+    'Data':     ['application/xml'],
+  };
+
+  function applyFilters() {
+    const q = (document.getElementById('artifact-search') as HTMLInputElement).value.toLowerCase();
+    const proj = (document.getElementById('proj-filter') as HTMLSelectElement).value;
+    let visible = 0;
+
+    rows.forEach(row => {
+      const textMatch = !q || row.dataset.text!.includes(q);
+      const projMatch = !proj || row.dataset.project === proj;
+      const typeMatch = activeType === 'All' || (typeMap[activeType] ?? []).includes(row.dataset.type!);
+      const show = textMatch && projMatch && typeMatch;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+
+    emptyEl.classList.toggle('hidden', visible > 0);
+    tbody.classList.toggle('hidden', visible === 0);
+  }
+
+  document.getElementById('artifact-search')?.addEventListener('input', applyFilters);
+  document.getElementById('proj-filter')?.addEventListener('change', applyFilters);
+
+  function filterType(btn: HTMLButtonElement) {
+    document.querySelectorAll('.type-tab').forEach(b => {
+      b.className = 'type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all text-forge-text-3 hover:text-forge-text';
+    });
+    btn.className = 'type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all bg-forge-surface2 text-forge-text';
+    activeType = btn.dataset.type!;
+    applyFilters();
+  }
+
+  // Checkbox selection
+  function updateSelection() {
+    const checked = document.querySelectorAll<HTMLInputElement>('.artifact-check:checked');
+    selectionBar.classList.toggle('hidden', checked.length === 0);
+    selectionCount.textContent = `${checked.length} selected`;
+  }
+
+  function clearSelection() {
+    document.querySelectorAll<HTMLInputElement>('.artifact-check').forEach(c => c.checked = false);
+    (document.getElementById('select-all') as HTMLInputElement).checked = false;
+    updateSelection();
+  }
+
+  document.getElementById('select-all')?.addEventListener('change', (e) => {
+    const checked = (e.target as HTMLInputElement).checked;
+    rows.forEach(row => {
+      if (row.style.display !== 'none') {
+        (row.querySelector('.artifact-check') as HTMLInputElement).checked = checked;
+      }
+    });
+    updateSelection();
+  });
+
+  document.querySelectorAll('.artifact-check').forEach(c => c.addEventListener('change', updateSelection));
+
+  (window as any).filterType = filterType;
+  (window as any).clearSelection = clearSelection;
+</script>

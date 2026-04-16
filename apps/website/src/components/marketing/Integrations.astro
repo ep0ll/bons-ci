@@ -1,0 +1,132 @@
+---
+const categories = [
+  {
+    name: 'Version Control',
+    integrations: [
+      { name: 'GitHub', color: '#f0f6ff', icon: 'GH', official: true },
+      { name: 'GitLab', color: '#e8f0fe', icon: 'GL', official: true },
+      { name: 'Bitbucket', color: '#e8f0ff', icon: 'BB', official: true },
+      { name: 'Azure Repos', color: '#e8f4ff', icon: 'AZ', official: true },
+    ],
+  },
+  {
+    name: 'Cloud Providers',
+    integrations: [
+      { name: 'AWS', color: '#fff8e8', icon: 'AW', official: true },
+      { name: 'GCP', color: '#e8fff0', icon: 'GC', official: true },
+      { name: 'Azure', color: '#e8f0ff', icon: 'AZ', official: true },
+      { name: 'Fly.io', color: '#f0e8ff', icon: 'FI', official: true },
+    ],
+  },
+  {
+    name: 'Notifications',
+    integrations: [
+      { name: 'Slack', color: '#e8fff8', icon: 'SL', official: true },
+      { name: 'PagerDuty', color: '#ffe8e8', icon: 'PD', official: true },
+      { name: 'OpsGenie', color: '#e8f8ff', icon: 'OG' },
+      { name: 'Linear', color: '#ece8ff', icon: 'LN', official: true },
+    ],
+  },
+  {
+    name: 'Observability',
+    integrations: [
+      { name: 'Datadog', color: '#fff8e8', icon: 'DD', official: true },
+      { name: 'Grafana', color: '#fff0e8', icon: 'GF', official: true },
+      { name: 'Sentry', color: '#ffe8e8', icon: 'SE', official: true },
+      { name: 'New Relic', color: '#e8ffe8', icon: 'NR' },
+    ],
+  },
+  {
+    name: 'Security',
+    integrations: [
+      { name: 'Okta', color: '#e8f4ff', icon: 'OK', official: true },
+      { name: 'Auth0', color: '#e8eeff', icon: 'A0', official: true },
+      { name: 'Vault', color: '#fff8e8', icon: 'VA', official: true },
+      { name: 'Snyk', color: '#e8fff0', icon: 'SN', official: true },
+    ],
+  },
+  {
+    name: 'Deployment',
+    integrations: [
+      { name: 'Kubernetes', color: '#e8f0ff', icon: 'K8', official: true },
+      { name: 'Terraform', color: '#f0e8ff', icon: 'TF', official: true },
+      { name: 'ArgoCD', color: '#e8f8ff', icon: 'AC' },
+      { name: 'Helm', color: '#e8eeff', icon: 'HM', official: true },
+    ],
+  },
+];
+
+const stats = [
+  { number: '600+', label: 'Integrations' },
+  { number: '120+', label: 'Official plugins' },
+  { number: '48h', label: 'Avg review time' },
+];
+---
+
+<section class="section bg-forge-surface/30">
+  <div class="container-forge">
+
+    <div class="grid lg:grid-cols-2 gap-16 items-center">
+
+      <!-- Left: copy -->
+      <div class="appear">
+        <div class="section-label mb-6">Integrations & Ecosystem</div>
+        <h2 class="font-display font-bold text-4xl sm:text-5xl tracking-tight leading-[1.08] mb-6">
+          Plays well with
+          <span class="text-gradient"> everything.</span>
+        </h2>
+        <p class="text-lg text-forge-text-2 leading-relaxed mb-8">
+          Forge CI connects to your entire stack out of the box.
+          600+ integrations and a Plugin SDK so you can build your own in hours, not weeks.
+        </p>
+
+        <!-- Stats -->
+        <div class="flex gap-8 mb-8">
+          {stats.map(({ number, label }) => (
+            <div>
+              <div class="font-display font-bold text-3xl text-forge-accent">{number}</div>
+              <div class="text-sm text-forge-text-3 mt-0.5">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3">
+          <a href="/integrations" class="btn-secondary btn-lg">
+            Browse all integrations
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+            </svg>
+          </a>
+          <a href="/docs/plugins" class="btn-ghost btn-lg">
+            Build a plugin →
+          </a>
+        </div>
+      </div>
+
+      <!-- Right: integration grid -->
+      <div class="appear">
+        <div class="space-y-4">
+          {categories.map((cat) => (
+            <div>
+              <p class="text-2xs font-mono uppercase tracking-widest text-forge-text-3 mb-2">{cat.name}</p>
+              <div class="grid grid-cols-4 gap-2">
+                {cat.integrations.map((intg) => (
+                  <div class="card p-3 flex flex-col items-center gap-1.5 hover:border-forge-accent/30 hover:-translate-y-0.5 transition-all duration-200 cursor-default group">
+                    <div class="w-8 h-8 rounded-md bg-forge-surface3 border border-forge-border flex items-center justify-center text-xs font-mono font-bold text-forge-text-2 group-hover:border-forge-accent/30 transition-colors">
+                      {intg.icon}
+                    </div>
+                    <span class="text-2xs text-forge-text-3 text-center leading-tight">{intg.name}</span>
+                    {intg.official && (
+                      <div class="w-1 h-1 rounded-full bg-forge-success" title="Official"></div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>

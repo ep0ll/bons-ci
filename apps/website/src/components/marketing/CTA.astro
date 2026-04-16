@@ -1,0 +1,72 @@
+---
+// Final CTA section — bottom of landing page
+---
+
+<section class="section relative overflow-hidden">
+  <!-- Background decoration -->
+  <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
+    <div class="absolute inset-0 bg-grid opacity-20"></div>
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] rounded-full opacity-10"
+         style="background: radial-gradient(ellipse, rgba(200,255,0,1) 0%, transparent 70%); filter: blur(60px);"></div>
+  </div>
+
+  <div class="container-forge relative z-10">
+    <div class="max-w-3xl mx-auto text-center appear">
+
+      <!-- Accent label -->
+      <div class="section-label mb-8">Get started today</div>
+
+      <!-- Headline -->
+      <h2 class="font-display font-bold text-5xl sm:text-6xl lg:text-7xl tracking-tight leading-[1.04] mb-8">
+        Your next build
+        <br/>
+        <span class="text-gradient-lime">starts in 2 minutes.</span>
+      </h2>
+
+      <p class="text-xl text-forge-text-2 leading-relaxed mb-10 max-w-xl mx-auto">
+        Connect your repo, push a commit, and watch Forge CI do the rest.
+        Free forever. No credit card. No lock-in.
+      </p>
+
+      <!-- CTAs -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
+        <a href="/auth/signup" class="btn-primary btn-xl group min-w-[200px] justify-center">
+          Start building free
+          <svg class="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+          </svg>
+        </a>
+        <a href="/contact/sales" class="btn-secondary btn-xl min-w-[200px] justify-center">
+          Talk to sales
+        </a>
+      </div>
+
+      <!-- Quick start methods -->
+      <div class="flex flex-wrap items-center justify-center gap-3">
+        <span class="text-sm text-forge-text-3">Quick start with:</span>
+        {['GitHub', 'GitLab', 'Bitbucket', 'CLI'].map((method) => (
+          <a href={`/auth/signup?vcs=${method.toLowerCase()}`}
+             class="inline-flex items-center gap-1.5 text-sm font-mono text-forge-text-2 hover:text-forge-accent transition-colors border border-forge-border hover:border-forge-accent/40 rounded-md px-3 py-1.5">
+            {method}
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <!-- Mini feature strip -->
+    <div class="grid sm:grid-cols-4 gap-4 mt-16 appear">
+      {[
+        { icon: '⚡', title: '< 2 min setup', desc: 'Connect repo and go' },
+        { icon: '🔒', title: 'SOC 2 certified', desc: 'Enterprise-grade security' },
+        { icon: '🌍', title: '4 global regions', desc: 'Low latency everywhere' },
+        { icon: '🤖', title: 'AI-powered', desc: 'Sherlock finds your bugs' },
+      ].map(({ icon, title, desc }) => (
+        <div class="card p-5 text-center hover:border-forge-accent/20 transition-colors">
+          <div class="text-2xl mb-2" aria-hidden="true">{icon}</div>
+          <div class="text-sm font-medium text-forge-text mb-1">{title}</div>
+          <div class="text-xs text-forge-text-3">{desc}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
