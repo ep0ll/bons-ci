@@ -59,7 +59,7 @@ func (n *noopGitHubClient) CreateRegistrationToken(_ context.Context, _ string) 
 	return &github.RegistrationToken{Token: "noop-token", ExpiresAt: time.Now().Add(time.Hour)}, nil
 }
 func (n *noopGitHubClient) RemoveRunner(_ context.Context, _ string, _ int64) error { return nil }
-func (n *noopGitHubClient) ValidateWebhookSignature(_, _, _ string) error           { return nil }
+func (n *noopGitHubClient) ValidateWebhookSignature(_ []byte, _, _ string) error           { return nil }
 func (n *noopGitHubClient) ParseWorkflowJobEvent(payload []byte) (*github.WorkflowJobEvent, error) {
 	return &github.WorkflowJobEvent{}, nil
 }
