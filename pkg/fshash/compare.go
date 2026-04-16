@@ -8,17 +8,13 @@ import (
 
 // ── ChangeStatus ──────────────────────────────────────────────────────────────
 
-// ChangeStatus classifies a path in a [TreeComparison].
+// ChangeStatus classifies a path in a TreeComparison.
 type ChangeStatus uint8
 
 const (
-	// StatusUnchanged means the path exists in both trees with identical digests.
 	StatusUnchanged ChangeStatus = iota
-	// StatusAdded means the path exists only in the second tree (B).
 	StatusAdded
-	// StatusRemoved means the path exists only in the first tree (A).
 	StatusRemoved
-	// StatusModified means the path exists in both trees but has different digests.
 	StatusModified
 )
 
@@ -41,17 +37,11 @@ func (s ChangeStatus) String() string {
 
 // TreeChange describes the state of a single path across two trees.
 type TreeChange struct {
-	// RelPath is the slash-separated path relative to the tree root.
 	RelPath string
-	// Status describes what changed (or didn't).
-	Status ChangeStatus
-	// Kind is the entry kind in the tree where the entry is present.
-	// For StatusModified, it reflects the kind in tree B.
-	Kind EntryKind
-	// DigestA is the digest in tree A (zero for StatusAdded).
-	DigestA []byte
-	// DigestB is the digest in tree B (zero for StatusRemoved).
-	DigestB []byte
+	Status  ChangeStatus
+	Kind    EntryKind // kind in the tree where the entry is present
+	DigestA []byte    // zero for StatusAdded
+	DigestB []byte    // zero for StatusRemoved
 }
 
 func (c TreeChange) String() string {
@@ -60,30 +50,17 @@ func (c TreeChange) String() string {
 
 // ── TreeComparison ────────────────────────────────────────────────────────────
 
-// TreeComparison is the full per-entry result of [Checksummer.CompareTrees].
+// TreeComparison is the full per-entry result of CompareTrees.
 type TreeComparison struct {
-	// Changes holds one record per unique path, sorted by RelPath.
-	Changes []TreeChange
-	// RootA is the root digest of tree A.
-	RootA []byte
-	// RootB is the root digest of tree B.
-	RootB []byte
+	Changes []TreeChange // sorted by RelPath
+	RootA   []byte
+	RootB   []byte
 }
 
-// Equal returns true if both trees have identical root digests.
-func (tc *TreeComparison) Equal() bool {
-	if len(tc.RootA) != len(tc.RootB) {
-		return false
-	}
-	for i := range tc.RootA {
-		if tc.RootA[i] != tc.RootB[i] {
-			return false
-		}
-	}
-	return true
-}
+// Equal reports whether both trees have identical root digests.
+func (tc *TreeComparison) Equal() bool { return digestsEqual(tc.RootA, tc.RootB) }
 
-// OnlyChanged returns a slice of changes that are not StatusUnchanged.
+// OnlyChanged filters out StatusUnchanged entries.
 func (tc *TreeComparison) OnlyChanged() []TreeChange {
 	out := make([]TreeChange, 0, len(tc.Changes))
 	for _, c := range tc.Changes {
@@ -94,7 +71,7 @@ func (tc *TreeComparison) OnlyChanged() []TreeChange {
 	return out
 }
 
-// CountByStatus returns the number of changes with each status.
+// CountByStatus returns a map of status → count including zero values.
 func (tc *TreeComparison) CountByStatus() map[ChangeStatus]int {
 	m := map[ChangeStatus]int{
 		StatusUnchanged: 0,
@@ -108,12 +85,12 @@ func (tc *TreeComparison) CountByStatus() map[ChangeStatus]int {
 	return m
 }
 
-// Summary returns a one-line human-readable summary.
+// Summary returns a one-line human-readable description.
 func (tc *TreeComparison) Summary() string {
-	counts := tc.CountByStatus()
 	if tc.Equal() {
 		return fmt.Sprintf("identical (%d entries)", len(tc.Changes))
 	}
+	counts := tc.CountByStatus()
 	return fmt.Sprintf("added=%d removed=%d modified=%d unchanged=%d",
 		counts[StatusAdded], counts[StatusRemoved],
 		counts[StatusModified], counts[StatusUnchanged])
@@ -121,31 +98,17 @@ func (tc *TreeComparison) Summary() string {
 
 // ── CompareTrees ──────────────────────────────────────────────────────────────
 
-// CompareTrees performs a full per-entry comparison between two directory trees
-// rooted at absPathA and absPathB.  It returns a [TreeComparison] containing
-// one [TreeChange] per unique path found in either tree, including unchanged
-// entries.
-//
-// CompareTrees runs both Sum calls concurrently (like [Checksummer.ParallelDiff])
-// and is the richest comparison API in the package.  Use [Checksummer.Diff] or
-// [Checksummer.ParallelDiff] when you only need added/removed/modified sets.
+// CompareTrees performs a full per-entry comparison between two directory trees.
+// Both Sum calls run concurrently. Every unique path in either tree has exactly
+// one TreeChange in the result, including unchanged entries.
 func (cs *Checksummer) CompareTrees(ctx context.Context, absPathA, absPathB string) (*TreeComparison, error) {
-	type sumResult struct {
+	type sr struct {
 		res Result
 		err error
 	}
-
-	chA := make(chan sumResult, 1)
-	chB := make(chan sumResult, 1)
-
-	go func() {
-		res, err := cs.withCollect().Sum(ctx, absPathA)
-		chA <- sumResult{res, err}
-	}()
-	go func() {
-		res, err := cs.withCollect().Sum(ctx, absPathB)
-		chB <- sumResult{res, err}
-	}()
+	chA, chB := make(chan sr, 1), make(chan sr, 1)
+	go func() { r, e := cs.withCollect().Sum(ctx, absPathA); chA <- sr{r, e} }()
+	go func() { r, e := cs.withCollect().Sum(ctx, absPathB); chB <- sr{r, e} }()
 
 	rA, rB := <-chA, <-chB
 	if rA.err != nil {
@@ -155,27 +118,23 @@ func (cs *Checksummer) CompareTrees(ctx context.Context, absPathA, absPathB stri
 		return nil, fmt.Errorf("fshash: CompareTrees B: %w", rB.err)
 	}
 
-	// Index entries by relPath.
-	type entryRecord struct {
+	type rec struct {
 		kind   EntryKind
 		digest []byte
 	}
-	mapA := make(map[string]entryRecord, len(rA.res.Entries))
+	mapA := make(map[string]rec, len(rA.res.Entries))
 	for _, e := range rA.res.Entries {
-		if e.RelPath == "." {
-			continue // root represented by RootA/RootB digest fields
+		if e.RelPath != "." {
+			mapA[e.RelPath] = rec{e.Kind, e.Digest}
 		}
-		mapA[e.RelPath] = entryRecord{kind: e.Kind, digest: e.Digest}
 	}
-	mapB := make(map[string]entryRecord, len(rB.res.Entries))
+	mapB := make(map[string]rec, len(rB.res.Entries))
 	for _, e := range rB.res.Entries {
-		if e.RelPath == "." {
-			continue
+		if e.RelPath != "." {
+			mapB[e.RelPath] = rec{e.Kind, e.Digest}
 		}
-		mapB[e.RelPath] = entryRecord{kind: e.Kind, digest: e.Digest}
 	}
 
-	// Collect all unique paths.
 	seen := make(map[string]struct{}, len(mapA)+len(mapB))
 	for p := range mapA {
 		seen[p] = struct{}{}
@@ -188,24 +147,15 @@ func (cs *Checksummer) CompareTrees(ctx context.Context, absPathA, absPathB stri
 	for p := range seen {
 		ea, inA := mapA[p]
 		eb, inB := mapB[p]
-
-		var ch TreeChange
-		ch.RelPath = p
-
+		ch := TreeChange{RelPath: p}
 		switch {
 		case inA && !inB:
-			ch.Status = StatusRemoved
-			ch.Kind = ea.kind
-			ch.DigestA = ea.digest
+			ch.Status, ch.Kind, ch.DigestA = StatusRemoved, ea.kind, ea.digest
 		case !inA && inB:
-			ch.Status = StatusAdded
-			ch.Kind = eb.kind
-			ch.DigestB = eb.digest
-		default: // both present
-			ch.Kind = eb.kind
-			ch.DigestA = ea.digest
-			ch.DigestB = eb.digest
-			if equal(ea.digest, eb.digest) {
+			ch.Status, ch.Kind, ch.DigestB = StatusAdded, eb.kind, eb.digest
+		default:
+			ch.Kind, ch.DigestA, ch.DigestB = eb.kind, ea.digest, eb.digest
+			if digestsEqual(ea.digest, eb.digest) {
 				ch.Status = StatusUnchanged
 			} else {
 				ch.Status = StatusModified
@@ -213,28 +163,7 @@ func (cs *Checksummer) CompareTrees(ctx context.Context, absPathA, absPathB stri
 		}
 		changes = append(changes, ch)
 	}
+	sort.Slice(changes, func(i, j int) bool { return changes[i].RelPath < changes[j].RelPath })
 
-	sort.Slice(changes, func(i, j int) bool {
-		return changes[i].RelPath < changes[j].RelPath
-	})
-
-	return &TreeComparison{
-		Changes: changes,
-		RootA:   rA.res.Digest,
-		RootB:   rB.res.Digest,
-	}, nil
-}
-
-// equal compares two byte slices without importing bytes (avoids a new import
-// in this file; the comparison is trivial).
-func equal(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return &TreeComparison{Changes: changes, RootA: rA.res.Digest, RootB: rB.res.Digest}, nil
 }

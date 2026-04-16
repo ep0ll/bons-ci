@@ -1,3 +1,21 @@
+// Package fshash computes reproducible, hermetic checksums of files and
+// directory trees.
+//
+// Architecture — two layers:
+//
+//	pkg/fshash/core   Low-level, dependency-free primitives (algorithms,
+//	                  buffer pools, worker pools, reactive streams). Reusable
+//	                  by any external package.
+//
+//	pkg/fshash        High-level filesystem API: Checksummer, Snapshot,
+//	                  Watcher, CompareTrees, Walk, Canonicalize, SumMany.
+//
+// External libraries used (no reinvented wheels):
+//
+//	github.com/zeebo/blake3       BLAKE3-256, ~8× faster than SHA-256
+//	github.com/cespare/xxhash/v2  XXHash64, ~15 GB/s
+//	github.com/zeebo/xxh3         XXHash3-64, ~25 GB/s
+//	hash/crc32 (stdlib)           CRC32C with SSE4.2 hardware acceleration
 package fshash
 
 import (
@@ -5,6 +23,8 @@ import (
 	"fmt"
 	"strings"
 )
+
+// ── EntryKind ──────────────────────────────────────────────────────────────────
 
 // EntryKind classifies a filesystem entry.
 type EntryKind uint8
@@ -29,42 +49,30 @@ func (k EntryKind) String() string {
 	}
 }
 
+// ── EntryResult ───────────────────────────────────────────────────────────────
+
 // EntryResult holds the per-entry checksum produced during a walk.
 type EntryResult struct {
-	// RelPath is the slash-separated path relative to the root that was
-	// passed to [Checksummer.Sum].
-	RelPath string
-	// Kind describes what kind of filesystem entry this is.
-	Kind EntryKind
-	// Digest is the raw digest bytes for this entry.
-	Digest []byte
+	RelPath string    // slash-separated path relative to Sum root
+	Kind    EntryKind
+	Digest  []byte
 }
 
-// Hex returns the hex-encoded digest.
-func (e EntryResult) Hex() string { return hex.EncodeToString(e.Digest) }
+func (e EntryResult) Hex() string    { return hex.EncodeToString(e.Digest) }
+func (e EntryResult) String() string { return fmt.Sprintf("%s  %s  (%s)", e.Hex(), e.RelPath, e.Kind) }
 
-func (e EntryResult) String() string {
-	return fmt.Sprintf("%s  %s  (%s)", e.Hex(), e.RelPath, e.Kind)
-}
+// ── Result ────────────────────────────────────────────────────────────────────
 
-// Result is the outcome of a [Checksummer.Sum] call.
+// Result is the outcome of a Checksummer.Sum call.
 type Result struct {
-	// Digest is the root digest: for a file it is the file's digest; for a
-	// directory it is derived from all descendants.
-	Digest []byte
-	// Entries holds one EntryResult per file/directory visited, in the
-	// deterministic (sorted) order that was used to build the root digest.
-	// It is populated only when [Options.CollectEntries] is true.
-	Entries []EntryResult
+	Digest  []byte        // root digest
+	Entries []EntryResult // populated only when CollectEntries is true
 }
 
-// Hex returns the hex-encoded root digest.
-func (r Result) Hex() string { return hex.EncodeToString(r.Digest) }
-
+func (r Result) Hex() string    { return hex.EncodeToString(r.Digest) }
 func (r Result) String() string { return r.Hex() }
 
 // Equal reports whether r and other have identical root digests.
-// Entry lists are not compared.
 func (r Result) Equal(other Result) bool {
 	if len(r.Digest) != len(other.Digest) {
 		return false
@@ -77,9 +85,19 @@ func (r Result) Equal(other Result) bool {
 	return true
 }
 
-// ── Error types ───────────────────────────────────────────────────────────────
+// ── DiffResult ────────────────────────────────────────────────────────────────
 
-// String returns a human-readable summary of the diff.
+// DiffResult describes entry-level differences between two trees.
+type DiffResult struct {
+	Added    []string
+	Removed  []string
+	Modified []string
+}
+
+func (d DiffResult) Empty() bool {
+	return len(d.Added)+len(d.Removed)+len(d.Modified) == 0
+}
+
 func (d DiffResult) String() string {
 	if d.Empty() {
 		return "no differences"
@@ -97,8 +115,20 @@ func (d DiffResult) String() string {
 	return strings.Join(parts, ", ")
 }
 
-// FileTooLargeError is returned by [Checksummer.Sum] when a file exceeds
-// the [Options.SizeLimit] threshold.
+// ── Error types ───────────────────────────────────────────────────────────────
+
+// VerifyError is returned by Checksummer.Verify on a digest mismatch.
+type VerifyError struct {
+	Path string
+	Got  []byte
+	Want []byte
+}
+
+func (e *VerifyError) Error() string {
+	return fmt.Sprintf("fshash: verify %q: got %x, want %x", e.Path, e.Got, e.Want)
+}
+
+// FileTooLargeError is returned when a file exceeds Options.SizeLimit.
 type FileTooLargeError struct {
 	Path  string
 	Size  int64

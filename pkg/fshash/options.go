@@ -3,61 +3,34 @@ package fshash
 import (
 	"fmt"
 	"runtime"
+
+	"github.com/bons/bons-ci/pkg/fshash/core"
 )
 
-// Options configures a [Checksummer].  Use the With* helpers to build one
-// instead of constructing it directly.
+// Options configures a Checksummer. Use the With* helpers; do not construct directly.
 type Options struct {
-	// Hasher selects the hash algorithm.  Defaults to SHA-256.
-	Hasher Hasher
-
-	// Walker controls how the filesystem is traversed.  Defaults to
-	// [OSWalker], which calls os.ReadDir and os.Lstat.
-	Walker Walker
-
-	// Filter decides which entries to include or skip.
-	// Defaults to [AllowAll].
-	Filter Filter
-
-	// Meta selects which metadata fields are mixed into each file's digest.
-	// Defaults to [MetaModeAndSize].
-	Meta MetaFlag
-
-	// Workers is the number of goroutines used to hash files in parallel.
-	// A value ≤ 0 uses runtime.NumCPU().  Set to 1 to disable parallelism.
-	Workers int
-
-	// CollectEntries, when true, populates [Result.Entries] with per-entry
-	// results.  Adds a small overhead.
+	Hasher         core.Hasher
+	Walker         Walker
+	Filter         Filter
+	Meta           core.MetaFlag
+	Workers        int
 	CollectEntries bool
-
-	// FollowSymlinks, when true, follows symbolic links.  Cycles are
-	// detected and result in an error.
 	FollowSymlinks bool
+	FileCache      FileCache
+	SizeLimit      int64
+	Pool           core.BufPool // nil → core.DefaultPool
 
-	// FileCache, when non-nil, is consulted before hashing each file and
-	// updated after.  Directory digests are never cached here (they are
-	// recomputed from already-cached children and are therefore cheap).
-	// Use [NewCachingChecksummer] as a convenience constructor.
-	FileCache FileCache
-
-	// SizeLimit, when > 0, causes hashFile to return a [FileTooLargeError]
-	// instead of reading any file whose size exceeds this value.  Set to 0
-	// to disable the limit (default).
-	SizeLimit int64
-
-	// metaSet is true when WithMetadata was called explicitly.  It lets
-	// applyDefaults distinguish MetaNone (intentional) from zero (unset).
+	// metaSet prevents applyDefaults from overriding an explicit MetaNone.
 	metaSet bool
 }
 
-// Option is a functional option for [New].
+// Option is a functional option for New.
 type Option func(*Options) error
 
 // WithAlgorithm sets the hash algorithm by name.
-func WithAlgorithm(algo Algorithm) Option {
+func WithAlgorithm(algo core.Algorithm) Option {
 	return func(o *Options) error {
-		h, err := NewHasher(algo)
+		h, err := core.NewHasher(algo)
 		if err != nil {
 			return err
 		}
@@ -66,8 +39,8 @@ func WithAlgorithm(algo Algorithm) Option {
 	}
 }
 
-// WithHasher sets a custom [Hasher].
-func WithHasher(h Hasher) Option {
+// WithHasher sets a custom Hasher (e.g. registered in a custom registry).
+func WithHasher(h core.Hasher) Option {
 	return func(o *Options) error {
 		if h == nil {
 			return fmt.Errorf("fshash: Hasher must not be nil")
@@ -77,7 +50,7 @@ func WithHasher(h Hasher) Option {
 	}
 }
 
-// WithWalker sets a custom [Walker].
+// WithWalker sets a custom Walker.
 func WithWalker(w Walker) Option {
 	return func(o *Options) error {
 		if w == nil {
@@ -88,18 +61,13 @@ func WithWalker(w Walker) Option {
 	}
 }
 
-// WithFilter sets the [Filter] used to include/exclude entries.
+// WithFilter sets the entry filter.
 func WithFilter(f Filter) Option {
-	return func(o *Options) error {
-		o.Filter = f
-		return nil
-	}
+	return func(o *Options) error { o.Filter = f; return nil }
 }
 
-// WithMetadata selects which metadata fields are mixed into file digests.
-// MetaNone is a valid value and is respected even though its numeric value
-// is zero.
-func WithMetadata(flags MetaFlag) Option {
+// WithMetadata sets the metadata flags. MetaNone is valid and respected.
+func WithMetadata(flags core.MetaFlag) Option {
 	return func(o *Options) error {
 		o.Meta = flags
 		o.metaSet = true
@@ -107,41 +75,28 @@ func WithMetadata(flags MetaFlag) Option {
 	}
 }
 
-// WithWorkers sets the number of parallel hashing workers.
-// A value ≤ 0 uses runtime.NumCPU().
+// WithWorkers sets the parallel worker count (≤ 0 → NumCPU, capped at 64).
 func WithWorkers(n int) Option {
-	return func(o *Options) error {
-		o.Workers = n
-		return nil
-	}
+	return func(o *Options) error { o.Workers = n; return nil }
 }
 
-// WithCollectEntries enables per-entry result collection.
+// WithCollectEntries enables per-entry result collection in Result.Entries.
 func WithCollectEntries(v bool) Option {
-	return func(o *Options) error {
-		o.CollectEntries = v
-		return nil
-	}
+	return func(o *Options) error { o.CollectEntries = v; return nil }
 }
 
-// WithFollowSymlinks controls symlink resolution.
+// WithFollowSymlinks enables symlink resolution (with cycle detection).
 func WithFollowSymlinks(v bool) Option {
-	return func(o *Options) error {
-		o.FollowSymlinks = v
-		return nil
-	}
+	return func(o *Options) error { o.FollowSymlinks = v; return nil }
 }
 
-// WithFileCache sets a [FileCache] that short-circuits file hashing on hits.
+// WithFileCache sets a FileCache to short-circuit repeated file hashing.
 func WithFileCache(c FileCache) Option {
-	return func(o *Options) error {
-		o.FileCache = c
-		return nil
-	}
+	return func(o *Options) error { o.FileCache = c; return nil }
 }
 
-// WithSizeLimit causes Sum to return a [FileTooLargeError] for any file
-// whose size exceeds limit bytes.  A limit of 0 disables the check.
+// WithSizeLimit causes Sum to return FileTooLargeError for files exceeding
+// limit bytes. 0 disables the check.
 func WithSizeLimit(limit int64) Option {
 	return func(o *Options) error {
 		if limit < 0 {
@@ -152,10 +107,15 @@ func WithSizeLimit(limit int64) Option {
 	}
 }
 
-// applyDefaults fills in zero-value fields with sensible defaults.
+// WithPool sets the buffer pool (nil → core.DefaultPool).
+func WithPool(p core.BufPool) Option {
+	return func(o *Options) error { o.Pool = p; return nil }
+}
+
+// applyDefaults fills zero-value fields with sensible defaults.
 func applyDefaults(o *Options) {
 	if o.Hasher == nil {
-		o.Hasher = mustHasher(SHA256)
+		o.Hasher = core.MustHasher(core.SHA256)
 	}
 	if o.Walker == nil {
 		o.Walker = OSWalker{}
@@ -164,13 +124,15 @@ func applyDefaults(o *Options) {
 		o.Filter = noopFilter{}
 	}
 	if !o.metaSet {
-		o.Meta = MetaModeAndSize
+		o.Meta = core.MetaModeAndSize
 	}
 	if o.Workers <= 0 {
 		o.Workers = runtime.NumCPU()
 	}
 	if o.Workers > 64 {
-		// Cap to avoid over-subscription on massive machines.
 		o.Workers = 64
+	}
+	if o.Pool == nil {
+		o.Pool = core.DefaultPool
 	}
 }
