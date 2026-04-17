@@ -1561,6 +1561,16 @@ github.com/huandu/xstrings
 # github.com/iancoleman/strcase v0.3.0
 ## explicit; go 1.16
 github.com/iancoleman/strcase
+# github.com/in-toto/attestation v1.1.2
+## explicit; go 1.22
+github.com/in-toto/attestation/go/v1
+# github.com/in-toto/in-toto-golang v0.10.0
+## explicit; go 1.24.0
+github.com/in-toto/in-toto-golang/in_toto
+github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/common
+github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v0.1
+github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v0.2
+github.com/in-toto/in-toto-golang/in_toto/slsa_provenance/v1
 # github.com/inconshreveable/mousetrap v1.1.0
 ## explicit; go 1.18
 github.com/inconshreveable/mousetrap
@@ -1695,6 +1705,7 @@ github.com/moby/buildkit/util/appcontext
 github.com/moby/buildkit/util/bklog
 github.com/moby/buildkit/util/entitlements/security
 github.com/moby/buildkit/util/flightcontrol
+github.com/moby/buildkit/util/gitutil
 github.com/moby/buildkit/util/gogo/proto
 github.com/moby/buildkit/util/grpcerrors
 github.com/moby/buildkit/util/leaseutil
@@ -1704,6 +1715,7 @@ github.com/moby/buildkit/util/progress
 github.com/moby/buildkit/util/resolvconf
 github.com/moby/buildkit/util/rootless/mountopts
 github.com/moby/buildkit/util/rootless/specconv
+github.com/moby/buildkit/util/sshutil
 github.com/moby/buildkit/util/stack
 github.com/moby/buildkit/util/strutil
 github.com/moby/buildkit/util/system
@@ -2058,9 +2070,17 @@ github.com/scylladb/go-set/iset
 github.com/scylladb/go-set/strset
 github.com/scylladb/go-set/u32set
 github.com/scylladb/go-set/uset
+# github.com/secure-systems-lab/go-securesystemslib v0.10.0
+## explicit; go 1.24.0
+github.com/secure-systems-lab/go-securesystemslib/cjson
+github.com/secure-systems-lab/go-securesystemslib/dsse
+github.com/secure-systems-lab/go-securesystemslib/signerverifier
 # github.com/sergi/go-diff v1.4.0
 ## explicit; go 1.13
 github.com/sergi/go-diff/diffmatchpatch
+# github.com/shibumi/go-pathspec v1.3.0
+## explicit; go 1.17
+github.com/shibumi/go-pathspec
 # github.com/shopspring/decimal v1.4.0
 ## explicit; go 1.10
 github.com/shopspring/decimal
