@@ -4,46 +4,48 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moby/buildkit/util/apicaps"
-	"github.com/opencontainers/image-spec/specs-go/v1"
-	"github.com/moby/buildkit/solver/pb"
 	"github.com/containerd/platforms"
+	"github.com/moby/buildkit/solver/pb"
+	"github.com/moby/buildkit/util/apicaps"
+	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // ─── Constraints ─────────────────────────────────────────────────────────────
 
 // Constraints carry build-time context that flows through the graph but is not
-// part of any individual vertex's identity. They influence marshalling (e.g.,
-// which platform a source op targets) but are provided externally at marshal
-// time rather than baked into the vertex.
+// baked into any vertex's content address. They are supplied externally at
+// marshal time.
 type Constraints struct {
-	// Platform specifies the target OS/arch. Defaults to the host platform.
-	Platform *v1.Platform
+	// Platform is the target OS/arch. Defaults to host platform.
+	Platform *ocispecs.Platform
 
-	// WorkerConstraints are label-selector filters for choosing a BuildKit
-	// worker (e.g., "label:gpu=true").
+	// WorkerConstraints are label-selector filters for choosing a BuildKit worker.
 	WorkerConstraints []string
 
-	// Metadata carries per-vertex LLB metadata (cache hints, descriptions).
+	// Metadata carries per-vertex LLB metadata (cache hints, descriptions, caps).
 	Metadata OpMetadata
 
-	// LocalUniqueID is a per-build identifier for local directory sources,
-	// preventing cross-build cache collisions.
+	// LocalUniqueID prevents cross-build local-source cache collisions.
 	LocalUniqueID string
 
 	// Caps is the capability set advertised by the connected BuildKit daemon.
-	// Nil means "no capability negotiation"; the marshaler applies safe defaults.
 	Caps *apicaps.CapSet
 
 	// SourceLocations are source file positions to attach to this vertex.
 	SourceLocations []*SourceLocation
+
+	// BuildArgs are arbitrary key/value pairs available to conditional and
+	// selector vertices at definition time.
+	BuildArgs map[string]string
 }
 
-// DefaultConstraints returns constraints initialised with the host platform.
+// DefaultConstraints returns a Constraints initialised with the host platform
+// and a freshly generated LocalUniqueID.
 func DefaultConstraints() *Constraints {
 	p := platforms.Normalize(platforms.DefaultSpec())
 	return &Constraints{
-		Platform: &p,
+		Platform:  &p,
+		BuildArgs: make(map[string]string),
 	}
 }
 
@@ -52,44 +54,47 @@ func (c *Constraints) Clone() *Constraints {
 	if c == nil {
 		return DefaultConstraints()
 	}
-	cloned := *c
-	cloned.WorkerConstraints = slices.Clone(c.WorkerConstraints)
-	cloned.Metadata = c.Metadata.Clone()
+	out := *c
+	out.WorkerConstraints = slices.Clone(c.WorkerConstraints)
+	out.Metadata = c.Metadata.Clone()
+	out.SourceLocations = slices.Clone(c.SourceLocations)
+	out.BuildArgs = maps.Clone(c.BuildArgs)
 	if c.Platform != nil {
 		p := *c.Platform
 		if c.Platform.OSFeatures != nil {
 			p.OSFeatures = slices.Clone(c.Platform.OSFeatures)
 		}
-		cloned.Platform = &p
+		out.Platform = &p
 	}
-	cloned.SourceLocations = slices.Clone(c.SourceLocations)
-	return &cloned
+	return &out
 }
 
-// Merge applies overrides on top of the receiver, returning a new Constraints.
-// Fields in override that are non-zero/non-nil replace those in the receiver.
+// Merge overlays override on top of the receiver, returning a new Constraints.
 func (c *Constraints) Merge(override *Constraints) *Constraints {
 	if override == nil {
 		return c.Clone()
 	}
-	merged := c.Clone()
+	m := c.Clone()
 	if override.Platform != nil {
 		p := *override.Platform
-		merged.Platform = &p
+		m.Platform = &p
 	}
-	merged.WorkerConstraints = append(merged.WorkerConstraints, override.WorkerConstraints...)
-	merged.Metadata = merged.Metadata.MergeWith(override.Metadata)
+	m.WorkerConstraints = append(m.WorkerConstraints, override.WorkerConstraints...)
+	m.Metadata = m.Metadata.MergeWith(override.Metadata)
 	if override.LocalUniqueID != "" {
-		merged.LocalUniqueID = override.LocalUniqueID
+		m.LocalUniqueID = override.LocalUniqueID
 	}
 	if override.Caps != nil {
-		merged.Caps = override.Caps
+		m.Caps = override.Caps
 	}
-	merged.SourceLocations = append(merged.SourceLocations, override.SourceLocations...)
-	return merged
+	m.SourceLocations = append(m.SourceLocations, override.SourceLocations...)
+	for k, v := range override.BuildArgs {
+		m.BuildArgs[k] = v
+	}
+	return m
 }
 
-// AddCap registers a capability requirement in the metadata.
+// AddCap registers a capability requirement.
 func (c *Constraints) AddCap(id apicaps.CapID) {
 	if c.Metadata.Caps == nil {
 		c.Metadata.Caps = make(map[apicaps.CapID]bool)
@@ -97,9 +102,18 @@ func (c *Constraints) AddCap(id apicaps.CapID) {
 	c.Metadata.Caps[id] = true
 }
 
+// BuildArg returns the value of a build argument, or ("", false) if absent.
+func (c *Constraints) BuildArg(key string) (string, bool) {
+	if c.BuildArgs == nil {
+		return "", false
+	}
+	v, ok := c.BuildArgs[key]
+	return v, ok
+}
+
 // ─── OpMetadata ───────────────────────────────────────────────────────────────
 
-// OpMetadata is the human-friendly counterpart of pb.OpMetadata.
+// OpMetadata is the user-friendly representation of pb.OpMetadata.
 type OpMetadata struct {
 	IgnoreCache   bool
 	Description   map[string]string
@@ -108,46 +122,43 @@ type OpMetadata struct {
 	ProgressGroup *pb.ProgressGroup
 }
 
-// Clone returns a deep copy.
 func (m OpMetadata) Clone() OpMetadata {
-	cloned := m
+	out := m
 	if m.Description != nil {
-		cloned.Description = maps.Clone(m.Description)
+		out.Description = maps.Clone(m.Description)
 	}
 	if m.Caps != nil {
-		cloned.Caps = maps.Clone(m.Caps)
+		out.Caps = maps.Clone(m.Caps)
 	}
-	return cloned
+	return out
 }
 
-// MergeWith applies m2 on top of m, returning a new merged OpMetadata.
 func (m OpMetadata) MergeWith(m2 OpMetadata) OpMetadata {
-	merged := m.Clone()
+	out := m.Clone()
 	if m2.IgnoreCache {
-		merged.IgnoreCache = true
+		out.IgnoreCache = true
 	}
-	if len(m2.Description) > 0 {
-		if merged.Description == nil {
-			merged.Description = make(map[string]string)
+	for k, v := range m2.Description {
+		if out.Description == nil {
+			out.Description = make(map[string]string)
 		}
-		maps.Copy(merged.Description, m2.Description)
+		out.Description[k] = v
 	}
 	if m2.ExportCache != nil {
-		merged.ExportCache = m2.ExportCache
+		out.ExportCache = m2.ExportCache
 	}
 	for k := range m2.Caps {
-		if merged.Caps == nil {
-			merged.Caps = make(map[apicaps.CapID]bool)
+		if out.Caps == nil {
+			out.Caps = make(map[apicaps.CapID]bool)
 		}
-		merged.Caps[k] = true
+		out.Caps[k] = true
 	}
 	if m2.ProgressGroup != nil {
-		merged.ProgressGroup = m2.ProgressGroup
+		out.ProgressGroup = m2.ProgressGroup
 	}
-	return merged
+	return out
 }
 
-// ToPB converts the OpMetadata to its protobuf representation.
 func (m OpMetadata) ToPB() *pb.OpMetadata {
 	caps := make(map[string]bool, len(m.Caps))
 	for k, v := range m.Caps {
@@ -162,7 +173,6 @@ func (m OpMetadata) ToPB() *pb.OpMetadata {
 	}
 }
 
-// FromPB populates an OpMetadata from its protobuf representation.
 func OpMetadataFromPB(mpb *pb.OpMetadata) OpMetadata {
 	if mpb == nil {
 		return OpMetadata{}
@@ -187,31 +197,25 @@ func OpMetadataFromPB(mpb *pb.OpMetadata) OpMetadata {
 // ConstraintsOption is a functional option that modifies a Constraints value.
 type ConstraintsOption func(*Constraints)
 
-// Apply applies all options to c in order.
+// ApplyConstraintsOptions applies all options to c in order.
 func ApplyConstraintsOptions(c *Constraints, opts ...ConstraintsOption) {
 	for _, o := range opts {
 		o(c)
 	}
 }
 
-// WithPlatform sets the target platform.
-func WithPlatform(p v1.Platform) ConstraintsOption {
+func WithPlatform(p ocispecs.Platform) ConstraintsOption {
 	return func(c *Constraints) { c.Platform = &p }
 }
 
-// WithWorkerConstraint appends a worker label filter.
 func WithWorkerConstraint(filter string) ConstraintsOption {
-	return func(c *Constraints) {
-		c.WorkerConstraints = append(c.WorkerConstraints, filter)
-	}
+	return func(c *Constraints) { c.WorkerConstraints = append(c.WorkerConstraints, filter) }
 }
 
-// WithIgnoreCache sets the ignore-cache flag on the metadata.
 func WithIgnoreCache() ConstraintsOption {
 	return func(c *Constraints) { c.Metadata.IgnoreCache = true }
 }
 
-// WithDescription adds key/value pairs to the metadata description map.
 func WithDescription(key, value string) ConstraintsOption {
 	return func(c *Constraints) {
 		if c.Metadata.Description == nil {
@@ -221,24 +225,29 @@ func WithDescription(key, value string) ConstraintsOption {
 	}
 }
 
-// WithCustomName sets the "llb.customname" description field.
 func WithCustomName(name string) ConstraintsOption {
 	return WithDescription("llb.customname", name)
 }
 
-// WithCaps sets the capability set.
 func WithCaps(caps apicaps.CapSet) ConstraintsOption {
 	return func(c *Constraints) { c.Caps = &caps }
 }
 
-// WithExportCache forces cache export for this vertex.
 func WithExportCache() ConstraintsOption {
 	return func(c *Constraints) {
 		c.Metadata.ExportCache = &pb.ExportCache{Value: true}
 	}
 }
 
-// WithSourceLocation attaches a source file range to the vertex.
+func WithBuildArg(key, value string) ConstraintsOption {
+	return func(c *Constraints) {
+		if c.BuildArgs == nil {
+			c.BuildArgs = make(map[string]string)
+		}
+		c.BuildArgs[key] = value
+	}
+}
+
 func WithSourceLocation(sm *SourceMap, ranges ...*pb.Range) ConstraintsOption {
 	return func(c *Constraints) {
 		c.SourceLocations = append(c.SourceLocations, &SourceLocation{

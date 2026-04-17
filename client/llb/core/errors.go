@@ -10,105 +10,45 @@ import (
 // ─── Sentinel errors ──────────────────────────────────────────────────────────
 
 var (
-	// ErrVertexNotFound is returned when a lookup by VertexID yields nothing.
-	ErrVertexNotFound = errors.New("vertex not found in graph")
-
-	// ErrCyclicGraph is returned when a mutation would introduce a cycle.
-	ErrCyclicGraph = errors.New("mutation would create a cycle in the graph")
-
-	// ErrIncompatibleInputs is returned when a vertex cannot accept the
-	// provided edges (wrong count, wrong types, etc.).
+	ErrVertexNotFound     = errors.New("vertex not found in graph")
+	ErrCyclicGraph        = errors.New("mutation would create a cycle in the graph")
 	ErrIncompatibleInputs = errors.New("inputs are incompatible with this vertex type")
-
-	// ErrInvalidOutputIndex is returned when an edge references an output slot
-	// that does not exist on the producer vertex.
 	ErrInvalidOutputIndex = errors.New("output index out of range")
-
-	// ErrEmptyGraph is returned when serialisation is attempted on an empty
-	// (scratch-only) graph.
-	ErrEmptyGraph = errors.New("graph has no vertices")
-
-	// ErrMarshalFailed wraps any serialisation failure.
-	ErrMarshalFailed = errors.New("vertex marshal failed")
-
-	// ErrValidationFailed wraps any validation failure.
-	ErrValidationFailed = errors.New("vertex validation failed")
+	ErrEmptyGraph         = errors.New("graph has no reachable vertices")
+	ErrMarshalFailed      = errors.New("vertex marshal failed")
+	ErrValidationFailed   = errors.New("vertex validation failed")
+	ErrPolicyRejected     = errors.New("gate policy rejected the vertex")
+	ErrNoMatch            = errors.New("no candidate matched the selector criteria")
 )
 
-// ─── Typed error types ────────────────────────────────────────────────────────
+// ─── Typed errors ─────────────────────────────────────────────────────────────
 
-// VertexNotFoundError carries the ID that could not be located.
-type VertexNotFoundError struct {
-	ID VertexID
-}
+type VertexNotFoundError struct{ ID VertexID }
 
-func (e *VertexNotFoundError) Error() string {
-	return fmt.Sprintf("vertex %q not found in graph", e.ID)
-}
-func (e *VertexNotFoundError) Is(target error) bool {
-	return target == ErrVertexNotFound
-}
+func (e *VertexNotFoundError) Error() string { return fmt.Sprintf("vertex %q not found", e.ID) }
+func (e *VertexNotFoundError) Is(t error) bool { return t == ErrVertexNotFound }
 
-// IncompatibleInputsError describes a bad rewiring attempt.
+type CyclicGraphError struct{ Cycle []VertexID }
+
+func (e *CyclicGraphError) Error() string { return fmt.Sprintf("cycle detected: %v", e.Cycle) }
+func (e *CyclicGraphError) Is(t error) bool { return t == ErrCyclicGraph }
+
 type IncompatibleInputsError struct {
 	VertexType VertexType
 	Got        int
-	Want       string // human description e.g. "exactly 2" or "at least 1"
+	Want       string
 	Detail     string
 }
 
 func (e *IncompatibleInputsError) Error() string {
-	msg := fmt.Sprintf("vertex type %q expects %s inputs, got %d", e.VertexType, e.Want, e.Got)
+	msg := fmt.Sprintf("vertex %q expects %s inputs, got %d", e.VertexType, e.Want, e.Got)
 	if e.Detail != "" {
 		msg += ": " + e.Detail
 	}
 	return msg
 }
-func (e *IncompatibleInputsError) Is(target error) bool {
-	return target == ErrIncompatibleInputs
-}
+func (e *IncompatibleInputsError) Is(t error) bool { return t == ErrIncompatibleInputs }
 
-// InvalidOutputIndexError carries the offending index and the vertex's capacity.
-type InvalidOutputIndexError struct {
-	VertexID VertexID
-	Index    int
-	Max      int
-}
-
-func (e *InvalidOutputIndexError) Error() string {
-	return fmt.Sprintf("output index %d out of range for vertex %q (max %d)", e.Index, e.VertexID, e.Max)
-}
-func (e *InvalidOutputIndexError) Is(target error) bool {
-	return target == ErrInvalidOutputIndex
-}
-
-// CyclicGraphError names the vertices that form the cycle.
-type CyclicGraphError struct {
-	Cycle []VertexID
-}
-
-func (e *CyclicGraphError) Error() string {
-	return fmt.Sprintf("cycle detected: %v", e.Cycle)
-}
-func (e *CyclicGraphError) Is(target error) bool {
-	return target == ErrCyclicGraph
-}
-
-// MarshalError wraps a low-level serialisation failure with vertex context.
-type MarshalError struct {
-	VertexID VertexID
-	Cause    error
-}
-
-func (e *MarshalError) Error() string {
-	return fmt.Sprintf("marshal vertex %q: %v", e.VertexID, e.Cause)
-}
-func (e *MarshalError) Unwrap() error { return e.Cause }
-func (e *MarshalError) Is(target error) bool {
-	return target == ErrMarshalFailed
-}
-
-// ValidationError wraps a validation failure with vertex context.
 type ValidationError struct {
 	VertexID VertexID
 	Field    string
@@ -117,18 +57,45 @@ type ValidationError struct {
 
 func (e *ValidationError) Error() string {
 	if e.Field != "" {
-		return fmt.Sprintf("validation failed for vertex %q field %q: %v", e.VertexID, e.Field, e.Cause)
+		return fmt.Sprintf("validation of vertex %q field %q: %v", e.VertexID, e.Field, e.Cause)
 	}
-	return fmt.Sprintf("validation failed for vertex %q: %v", e.VertexID, e.Cause)
+	return fmt.Sprintf("validation of vertex %q: %v", e.VertexID, e.Cause)
 }
-func (e *ValidationError) Unwrap() error { return e.Cause }
-func (e *ValidationError) Is(target error) bool {
-	return target == ErrValidationFailed
+func (e *ValidationError) Unwrap() error        { return e.Cause }
+func (e *ValidationError) Is(t error) bool      { return t == ErrValidationFailed }
+
+type MarshalError struct {
+	VertexID VertexID
+	Cause    error
 }
+
+func (e *MarshalError) Error() string  { return fmt.Sprintf("marshal vertex %q: %v", e.VertexID, e.Cause) }
+func (e *MarshalError) Unwrap() error  { return e.Cause }
+func (e *MarshalError) Is(t error) bool { return t == ErrMarshalFailed }
+
+type PolicyRejectedError struct {
+	VertexID VertexID
+	Policy   string
+	Reason   string
+}
+
+func (e *PolicyRejectedError) Error() string {
+	return fmt.Sprintf("gate policy %q rejected vertex %q: %s", e.Policy, e.VertexID, e.Reason)
+}
+func (e *PolicyRejectedError) Is(t error) bool { return t == ErrPolicyRejected }
+
+type NoMatchError struct {
+	SelectorID VertexID
+	Criteria   string
+}
+
+func (e *NoMatchError) Error() string {
+	return fmt.Sprintf("selector %q: no candidate matched %q", e.SelectorID, e.Criteria)
+}
+func (e *NoMatchError) Is(t error) bool { return t == ErrNoMatch }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// WrapMarshal wraps err as a MarshalError for the given digest. Nil-safe.
 func WrapMarshal(id digest.Digest, err error) error {
 	if err == nil {
 		return nil
@@ -136,7 +103,6 @@ func WrapMarshal(id digest.Digest, err error) error {
 	return &MarshalError{VertexID: id, Cause: err}
 }
 
-// WrapValidation wraps err as a ValidationError. Nil-safe.
 func WrapValidation(id digest.Digest, field string, err error) error {
 	if err == nil {
 		return nil

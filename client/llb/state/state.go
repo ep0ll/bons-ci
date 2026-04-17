@@ -1,20 +1,6 @@
-// Package state provides a high-level, fluent builder API over llbx's vertex
-// graph. It bridges the low-level vertex/output primitives with an ergonomic
-// interface that mirrors the BuildKit llb.State concept while remaining fully
-// decoupled from any specific vertex implementation.
-//
-// Immutability contract
-// ─────────────────────
-// Every method on State returns a new State; the receiver is never modified.
-// States are therefore safe to share across goroutines and to use as
-// immutable checkpoints in a build definition.
-//
-// Usage
-//
-//	alpine := state.From(image.Must(image.WithRef("alpine:3.20")).Output())
-//	built  := alpine.
-//	    File(file.New(file.OnState(alpine.Output()), file.Do(file.Mkfile("/hello", 0644, []byte("hi"))))).
-//	    Run(exec.New(exec.WithCommand("cat", "/hello"), exec.WithWorkingDir("/")))
+// Package state provides an immutable, composable fluent API over the llbx
+// vertex graph, similar to BuildKit's llb.State but fully decoupled from any
+// concrete vertex implementation.
 package state
 
 import (
@@ -25,26 +11,22 @@ import (
 	"github.com/bons/bons-ci/client/llb/ops/diff"
 	execop "github.com/bons/bons-ci/client/llb/ops/exec"
 	fileop "github.com/bons/bons-ci/client/llb/ops/file"
-	"github.com/bons/bons-ci/client/llb/ops/merge"
-	"github.com/moby/buildkit/solver/pb"
+	mergeop "github.com/bons/bons-ci/client/llb/ops/merge"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
-// ─── Scratch ──────────────────────────────────────────────────────────────────
+// ─── Scratch ─────────────────────────────────────────────────────────────────
 
-// Scratch returns a State representing an empty filesystem.
+// Scratch returns an empty-filesystem State.
 func Scratch() State { return State{} }
 
-// ─── State ────────────────────────────────────────────────────────────────────
+// ─── State ───────────────────────────────────────────────────────────────────
 
-// State is an immutable reference to a point in the build graph, identified by
-// a core.Output. A zero-value State represents scratch (an empty filesystem).
+// State is an immutable reference to a point in the build graph.
+// A zero-value State is scratch (empty filesystem).
 type State struct {
-	output core.Output
-
-	// platform is the resolved platform for this state, used to propagate
-	// platform information to derived operations.
-	platform *ocispecs.Platform
+	output   core.Output
+	platform *ocispecs.Platform // propagated from source ops
 }
 
 // From wraps an existing core.Output in a State.
@@ -54,32 +36,32 @@ func From(out core.Output) State {
 	return s
 }
 
-// Output returns the underlying core.Output, or nil for scratch.
+// Output returns the underlying core.Output (nil for scratch).
 func (s State) Output() core.Output { return s.output }
 
-// IsScratch reports whether the state represents an empty filesystem.
+// IsScratch reports whether the state is empty (nil output).
 func (s State) IsScratch() bool { return s.output == nil }
 
-// ─── File operations ─────────────────────────────────────────────────────────
+// GetPlatform returns the platform propagated from the backing source op, or nil.
+func (s State) GetPlatform() *ocispecs.Platform { return s.platform }
 
-// File applies a file op vertex and returns the resulting State.
-func (s State) File(v *fileop.Vertex) State {
-	return From(v.Output())
-}
+// ─── File ─────────────────────────────────────────────────────────────────────
 
-// ─── Exec / Run ───────────────────────────────────────────────────────────────
+// File applies a file op vertex to this state and returns the result.
+func (s State) File(v *fileop.Vertex) State { return From(v.Output()) }
 
-// Run executes a command on top of this state (as the root filesystem) and
-// returns an ExecState that exposes individual mount outputs.
+// ─── Run ─────────────────────────────────────────────────────────────────────
+
+// Run executes a command on top of this state (as root filesystem) and returns
+// an ExecState that gives access to individual mount outputs.
 func (s State) Run(v *execop.Vertex) ExecState {
 	return ExecState{root: From(v.RootOutput()), exec: v}
 }
 
-// ─── Merge ────────────────────────────────────────────────────────────────────
+// ─── Merge ───────────────────────────────────────────────────────────────────
 
-// Merge overlays this state with others and returns the combined result.
-// Scratch inputs are silently dropped. Returns Scratch if fewer than 2 real
-// inputs remain.
+// Merge overlays this state with others. Scratch inputs are silently dropped.
+// Returns Scratch if fewer than 2 non-scratch inputs remain.
 func (s State) Merge(others ...State) State {
 	inputs := make([]core.Output, 0, 1+len(others))
 	if s.output != nil {
@@ -90,15 +72,14 @@ func (s State) Merge(others ...State) State {
 			inputs = append(inputs, o.output)
 		}
 	}
-	if len(inputs) < 2 {
-		if len(inputs) == 1 {
-			return From(inputs[0])
-		}
+	switch len(inputs) {
+	case 0:
 		return Scratch()
+	case 1:
+		return From(inputs[0])
 	}
-	v, err := merge.New(merge.WithInputs(inputs...))
+	v, err := mergeop.New(mergeop.WithInputs(inputs...))
 	if err != nil {
-		// Unreachable if len(inputs) >= 2.
 		return Scratch()
 	}
 	return From(v.Output())
@@ -106,21 +87,20 @@ func (s State) Merge(others ...State) State {
 
 // ─── Diff ─────────────────────────────────────────────────────────────────────
 
-// Diff computes the filesystem delta between this state (lower/base) and upper.
+// Diff computes the filesystem delta between this state (lower) and upper.
 func (s State) Diff(upper State) State {
 	return From(diff.New(diff.WithLower(s.output), diff.WithUpper(upper.output)).Output())
 }
 
-// ─── Serialisation ────────────────────────────────────────────────────────────
+// ─── Marshal ─────────────────────────────────────────────────────────────────
 
-// Marshal serialises the build graph rooted at this state into a Definition.
+// Marshal serialises the build graph rooted at this state.
 func (s State) Marshal(ctx context.Context, opts ...core.ConstraintsOption) (*marshal.Definition, error) {
 	if s.output == nil {
 		return &marshal.Definition{
 			Metadata: make(map[core.VertexID]core.OpMetadata),
 		}, nil
 	}
-
 	c := core.DefaultConstraints()
 	core.ApplyConstraintsOptions(c, opts...)
 
@@ -130,53 +110,41 @@ func (s State) Marshal(ctx context.Context, opts ...core.ConstraintsOption) (*ma
 			Metadata: make(map[core.VertexID]core.OpMetadata),
 		}, nil
 	}
-
-	return marshal.NewSerializer().Serialize(ctx, v, c)
+	return marshal.NewSerializer().Serialize(ctx, s.output, c)
 }
 
-// ─── Platform propagation ─────────────────────────────────────────────────────
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 func (s State) extractPlatform() State {
 	if s.output == nil {
 		return s
 	}
-	if pp, ok := s.output.(interface{ Platform() *ocispecs.Platform }); ok {
+	type platformProvider interface {
+		Platform() *ocispecs.Platform
+	}
+	if pp, ok := s.output.(platformProvider); ok {
 		s.platform = pp.Platform()
 	}
 	return s
 }
 
-// GetPlatform returns the platform associated with this state, or nil.
-func (s State) GetPlatform() *ocispecs.Platform { return s.platform }
+// ─── ExecState ───────────────────────────────────────────────────────────────
 
-// ─── ExecState ────────────────────────────────────────────────────────────────
-
-// ExecState wraps the result of a Run call, providing access to individual
-// mount outputs in addition to the root filesystem.
+// ExecState wraps the result of Run(), exposing root and named mount outputs.
 type ExecState struct {
 	root State
 	exec *execop.Vertex
 }
 
-// Root returns the State representing the root filesystem after the exec.
+// Root returns the State representing the root filesystem after execution.
 func (e ExecState) Root() State { return e.root }
 
 // GetMount returns the State for the specified mount target path.
-// Returns Scratch if the mount is not found.
+// Returns Scratch if the mount is not found or has no writable output.
 func (e ExecState) GetMount(target string) State {
 	out := e.exec.OutputFor(target)
 	if out == nil {
 		return Scratch()
 	}
 	return From(out)
-}
-
-// ─── scratch output helper ────────────────────────────────────────────────────
-
-// scratchOutput is a sentinel core.Output for scratch states.
-type scratchOutput struct{}
-
-func (scratchOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return nil }
-func (scratchOutput) ToInput(_ context.Context, _ *core.Constraints) (*pb.Input, error) {
-	return nil, nil
 }

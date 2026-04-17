@@ -1,6 +1,5 @@
-// Package core defines the foundational interfaces and primitives for the llbx
-// graph system. All other packages depend on these contracts; nothing in core
-// depends on any other llbx sub-package.
+// Package core defines every interface and primitive that the rest of the
+// library depends on. It has zero dependencies on other llb sub-packages.
 package core
 
 import (
@@ -10,103 +9,95 @@ import (
 	digest "github.com/opencontainers/go-digest"
 )
 
-// ─── Vertex ──────────────────────────────────────────────────────────────────
+// ─── VertexType ───────────────────────────────────────────────────────────────
 
-// VertexType identifies the kind of operation a vertex represents.
+// VertexType identifies the operation category of a Vertex.
 type VertexType string
 
 const (
-	VertexTypeSource VertexType = "source"
-	VertexTypeExec   VertexType = "exec"
-	VertexTypeFile   VertexType = "file"
-	VertexTypeMerge  VertexType = "merge"
-	VertexTypeDiff   VertexType = "diff"
-	VertexTypeBuild  VertexType = "build"
-	VertexTypeCustom VertexType = "custom"
+	VertexTypeSource      VertexType = "source"
+	VertexTypeExec        VertexType = "exec"
+	VertexTypeFile        VertexType = "file"
+	VertexTypeMerge       VertexType = "merge"
+	VertexTypeDiff        VertexType = "diff"
+	VertexTypeBuild       VertexType = "build"
+	VertexTypeConditional VertexType = "conditional"
+	VertexTypeMatrix      VertexType = "matrix"
+	VertexTypeGate        VertexType = "gate"
+	VertexTypeSelector    VertexType = "selector"
+	VertexTypeCustom      VertexType = "custom"
 )
 
-// VertexID is the content-addressed identity of a vertex. It is derived from
-// the deterministic protobuf serialisation of the vertex's Op.
+// VertexID is the content-address (SHA256 digest) of a serialised Vertex.
+// It changes whenever any field of the vertex or any of its inputs changes.
 type VertexID = digest.Digest
 
-// Vertex is the fundamental node in the build graph. Implementations must be
-// safe for concurrent read access; mutations must produce new instances.
+// ─── Vertex ───────────────────────────────────────────────────────────────────
+
+// Vertex is a node in the build DAG. Implementations MUST be safe for
+// concurrent read access. All mutations MUST produce new instances (immutability
+// contract), so the caller can keep old snapshots for rollback.
 type Vertex interface {
-	// Type returns the operation category.
+	// Type returns the op category.
 	Type() VertexType
 
-	// Inputs returns the ordered set of edges feeding into this vertex.
-	// The slice must not be mutated by callers.
+	// Inputs returns the ordered slice of edges feeding into this vertex.
+	// Callers must not mutate the returned slice.
 	Inputs() []Edge
 
-	// Marshal serialises the vertex into its wire format. The returned
-	// MarshaledVertex is cached by the marshal layer; the vertex itself must
-	// remain immutable after the first successful call.
-	Marshal(ctx context.Context, c *Constraints) (*MarshaledVertex, error)
+	// Outputs describes each output slot the vertex exposes.
+	Outputs() []OutputSlot
 
-	// Validate checks the vertex's internal consistency without serialising.
-	// Returns a descriptive error if the vertex is not executable.
+	// Validate checks internal consistency without serialising.
 	Validate(ctx context.Context, c *Constraints) error
 
-	// Outputs returns descriptions of each output slot this vertex exposes.
-	// Most vertices have a single output; multi-output ops (e.g., ExecOp with
-	// several writable mounts) return one entry per slot.
-	Outputs() []OutputSlot
+	// Marshal serialises the vertex. The result is deterministic and cached
+	// per-Constraints pointer; changing any field must invalidate the cache.
+	Marshal(ctx context.Context, c *Constraints) (*MarshaledVertex, error)
 }
 
-// MutatingVertex is an optional interface for vertices that can return a new
-// version of themselves after a field-level mutation. Implementations must
-// recompute any cached digest after mutation.
+// MutatingVertex is an optional interface for vertices that support structural
+// rewiring (changing which vertices feed into them).
 type MutatingVertex interface {
 	Vertex
-	// WithInputs returns a new vertex identical to the receiver except with
-	// the supplied edges as inputs. Returns ErrIncompatibleInputs if the
-	// new edges cannot satisfy the vertex's requirements.
+	// WithInputs returns a new vertex whose inputs are replaced by the given
+	// edges. Returns ErrIncompatibleInputs if the new edges are invalid.
 	WithInputs(inputs []Edge) (Vertex, error)
 }
 
 // ─── Edge ─────────────────────────────────────────────────────────────────────
 
-// Edge connects one vertex's output slot to a consumer vertex's input slot.
+// Edge connects one output slot of a producer vertex to a consumer.
 type Edge struct {
-	// Vertex is the producer.
-	Vertex Vertex
-	// Index selects which output of Vertex is consumed.
-	Index int
+	Vertex Vertex // the producing vertex
+	Index  int    // which output slot of Vertex is consumed
 }
 
-// OutputSlot describes a single output produced by a vertex.
+// ─── OutputSlot ───────────────────────────────────────────────────────────────
+
+// OutputSlot describes one output produced by a vertex.
 type OutputSlot struct {
-	// Index is the zero-based output index within the vertex.
-	Index int
-	// Description is a human-readable label (e.g., mount path for exec ops).
-	Description string
+	Index       int
+	Description string // e.g., the mount path for exec ops
 }
 
-// ─── MarshaledVertex ─────────────────────────────────────────────────────────
+// ─── MarshaledVertex ──────────────────────────────────────────────────────────
 
-// MarshaledVertex carries the result of serialising a vertex.
+// MarshaledVertex is the result of serialising a vertex.
 type MarshaledVertex struct {
-	// Digest is the content-address of Bytes.
-	Digest digest.Digest
-	// Bytes is the deterministically-serialised pb.Op.
-	Bytes []byte
-	// Metadata holds per-vertex LLB metadata (caps, cache opts, etc.).
-	Metadata *pb.OpMetadata
-	// SourceLocations maps ranges in source files to this vertex.
+	Digest          digest.Digest
+	Bytes           []byte
+	Metadata        *pb.OpMetadata
 	SourceLocations []*SourceLocation
 }
 
-// ─── SourceLocation ──────────────────────────────────────────────────────────
+// ─── SourceMap / SourceLocation ───────────────────────────────────────────────
 
-// SourceMap associates an LLB sub-graph with a human-readable source file.
+// SourceMap associates a human-readable source file with part of the graph.
 type SourceMap struct {
-	// Filename is the path to the source file (e.g., "Dockerfile").
-	Filename string
-	// Language identifies the file format (linguist name convention).
-	Language string
-	// Data holds the raw source content for display in error messages.
-	Data []byte
+	Filename string // e.g. "Dockerfile"
+	Language string // linguist name
+	Data     []byte // raw source content
 }
 
 // SourceLocation pins a vertex to a specific range within a SourceMap.
@@ -117,34 +108,52 @@ type SourceLocation struct {
 
 // ─── Output ───────────────────────────────────────────────────────────────────
 
-// Output is a reference to a specific output slot of a vertex. It is the
-// currency of state composition: states pass Outputs as inputs to new vertices.
+// Output is a typed reference to a specific output slot of a vertex. States
+// pass Outputs as inputs when constructing new vertices.
 type Output interface {
-	// Vertex returns the producing vertex.
 	Vertex(ctx context.Context, c *Constraints) Vertex
-	// ToInput converts the output to a pb.Input for wire serialisation.
 	ToInput(ctx context.Context, c *Constraints) (*pb.Input, error)
+}
+
+// ─── Labels ───────────────────────────────────────────────────────────────────
+
+// Labels is an arbitrary string→string map attached to a vertex for use by
+// the selector and gate operations.
+type Labels map[string]string
+
+// Match reports whether every key/value in selector is present in l.
+func (l Labels) Match(selector Labels) bool {
+	for k, v := range selector {
+		if l[k] != v {
+			return false
+		}
+	}
+	return true
 }
 
 // ─── Serializer ───────────────────────────────────────────────────────────────
 
-// Serializer converts a complete build graph into a protobuf Definition.
+// Serializer converts a graph rooted at a given Output into a pb.Definition.
 type Serializer interface {
-	Serialize(ctx context.Context, root Output, c *Constraints) (*pb.Definition, error)
+	Serialize(ctx context.Context, root Output, c *Constraints) (*SerializedDefinition, error)
 }
 
-// ─── Observer ─────────────────────────────────────────────────────────────────
-
-// Observer is notified when a vertex's digest changes, enabling reactive
-// propagation of changes through the graph.
-type Observer[T any] interface {
-	OnNext(value T)
-	OnError(err error)
-	OnComplete()
+// SerializedDefinition is the wire-ready representation of a build graph.
+type SerializedDefinition struct {
+	Def      [][]byte
+	Metadata map[digest.Digest]OpMetadata
+	Source   *pb.Source
 }
 
-// Subscription represents an active observation. Calling Cancel removes the
-// subscriber from the publisher's list without blocking.
-type Subscription interface {
-	Cancel()
+// ToPB converts to the protobuf Definition.
+func (d *SerializedDefinition) ToPB() *pb.Definition {
+	metas := make(map[string]*pb.OpMetadata, len(d.Metadata))
+	for dgst, m := range d.Metadata {
+		metas[string(dgst)] = m.ToPB()
+	}
+	return &pb.Definition{
+		Def:      d.Def,
+		Source:   d.Source,
+		Metadata: metas,
+	}
 }

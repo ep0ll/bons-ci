@@ -1,35 +1,5 @@
-// Package builder provides a high-level, reactive pipeline builder that
-// integrates state composition, graph management, and event-driven mutation
-// into a single cohesive interface.
-//
-// Design goals
-// ────────────
-//  1. Single entry point – callers import only this package for typical use.
-//  2. Reactive by default – all graph mutations fire change events on the
-//     shared bus; callers can subscribe to observe cascading digest changes.
-//  3. Immutable snapshots – each Build() call returns an independent snapshot
-//     of the current graph; previous snapshots are unaffected.
-//  4. Pluggable – callers can register custom vertex factories via the embedded
-//     ops.Registry.
-//
-// Example
-//
-//	b := builder.New()
-//	b.Subscribe(func(e reactive.GraphEvent) {
-//	    log.Printf("graph changed: %s %s", e.Kind, e.AffectedID)
-//	})
-//
-//	alpine := b.Image("alpine:3.20")
-//	compiled := alpine.Run(exec.New(
-//	    exec.WithCommand("go", "build", "./..."),
-//	    exec.WithWorkingDir("/src"),
-//	    exec.WithMount(exec.Mount{
-//	        Target: "/src",
-//	        Source: b.Local("context").Output(),
-//	    }),
-//	))
-//
-//	def, err := b.Serialize(ctx, compiled.Root())
+// Package builder provides the top-level reactive orchestrator that integrates
+// state composition, DAG management, and event-driven mutation.
 package builder
 
 import (
@@ -65,7 +35,7 @@ func WithRegistry(r *ops.Registry) Option {
 	return func(b *Builder) { b.registry = r }
 }
 
-// WithConstraints sets default build constraints (platform, caps, etc.).
+// WithConstraints sets default build constraints.
 func WithConstraints(c *core.Constraints) Option {
 	return func(b *Builder) { b.constraints = c }
 }
@@ -84,10 +54,9 @@ func New(opts ...Option) *Builder {
 	return b
 }
 
-// ─── Subscriptions ────────────────────────────────────────────────────────────
+// ─── Subscriptions ───────────────────────────────────────────────────────────
 
-// Subscribe registers a handler that receives graph change events.
-// Returns a Subscription whose Cancel() method removes the registration.
+// Subscribe registers a handler for graph change events.
 func (b *Builder) Subscribe(handler func(reactive.GraphEvent)) reactive.Subscription {
 	return b.bus.Subscribe(handler)
 }
@@ -99,7 +68,6 @@ func (b *Builder) Image(ref string, opts ...image.Option) state.State {
 	all := append([]image.Option{image.WithRef(ref)}, opts...)
 	v, err := image.New(all...)
 	if err != nil {
-		// Return scratch and let the caller discover the error on Marshal.
 		return state.Scratch()
 	}
 	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
@@ -120,26 +88,24 @@ func (b *Builder) Local(name string, opts ...local.Option) state.State {
 // Scratch returns an empty filesystem state.
 func (b *Builder) Scratch() state.State { return state.Scratch() }
 
-// ─── Operation helpers ────────────────────────────────────────────────────────
+// ─── Composition helpers ──────────────────────────────────────────────────────
 
-// Run executes a command vertex on top of a base state and returns an
-// ExecState that exposes root and named mount outputs.
-func (b *Builder) Run(base state.State, v *execop.Vertex) state.ExecState {
-	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
-	return base.Run(v)
-}
-
-// File applies a file op vertex to a base state and returns the result.
+// File applies a file op to a base state.
 func (b *Builder) File(base state.State, v *fileop.Vertex) state.State {
 	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
 	return base.File(v)
 }
 
-// ─── Graph operations ─────────────────────────────────────────────────────────
+// Run executes a command on a base state.
+func (b *Builder) Run(base state.State, v *execop.Vertex) state.ExecState {
+	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
+	return base.Run(v)
+}
 
-// BuildGraph constructs a Graph from the given root state for mutation and
-// traversal operations.
-func (b *Builder) BuildGraph(ctx context.Context, root state.State) (*graph.Graph, error) {
+// ─── DAG operations ──────────────────────────────────────────────────────────
+
+// BuildDAG constructs a DAG from the given root state.
+func (b *Builder) BuildDAG(ctx context.Context, root state.State) (*graph.DAG, error) {
 	if root.IsScratch() {
 		return nil, core.ErrEmptyGraph
 	}
@@ -147,30 +113,60 @@ func (b *Builder) BuildGraph(ctx context.Context, root state.State) (*graph.Grap
 	return graph.New(ctx, v, b.constraints)
 }
 
-// Mutator returns a Mutator wrapping the given graph.
-func (b *Builder) Mutator(g *graph.Graph) *graph.Mutator {
-	return graph.NewMutator(g)
+// MergeDAGs merges multiple DAGs into one, deduplicating by content address.
+func (b *Builder) MergeDAGs(ctx context.Context, dags ...*graph.DAG) (*graph.DAG, error) {
+	return graph.MergeDAGs(ctx, b.constraints, dags...)
 }
 
-// Traversal returns a Traversal wrapping the given graph.
-func (b *Builder) Traversal(g *graph.Graph) *graph.Traversal {
-	return graph.NewTraversal(g)
+// Mutator returns a Mutator wrapping the given DAG.
+func (b *Builder) Mutator(d *graph.DAG) *graph.Mutator { return graph.NewMutator(d) }
+
+// Traversal returns a Traversal wrapping the given DAG.
+func (b *Builder) Traversal(d *graph.DAG) *graph.Traversal { return graph.NewTraversal(d) }
+
+// Selector returns a Selector wrapping the given DAG.
+func (b *Builder) Selector(d *graph.DAG) *graph.Selector { return graph.NewSelector(d) }
+
+// SubDAG extracts the sub-graph reachable from the given roots.
+func (b *Builder) SubDAG(
+	ctx context.Context,
+	d *graph.DAG,
+	roots []core.VertexID,
+	include func(core.VertexID, core.Vertex) bool,
+) *graph.DAG {
+	return graph.SubDAG(ctx, d, b.constraints, roots, include)
 }
 
-// Selector returns a Selector wrapping the given graph.
-func (b *Builder) Selector(g *graph.Graph) *graph.Selector {
-	return graph.NewSelector(g)
+// DiffDAGs computes the structural difference between two DAG snapshots.
+func (b *Builder) DiffDAGs(ctx context.Context, before, after *graph.DAG) graph.DiffResult {
+	return graph.DiffDAGs(ctx, before, after)
 }
 
-// ─── Serialisation ────────────────────────────────────────────────────────────
+// ─── Serialisation ───────────────────────────────────────────────────────────
 
 // Serialize converts the graph rooted at root into a wire-format Definition.
-func (b *Builder) Serialize(ctx context.Context, root state.State, opts ...core.ConstraintsOption) (*marshal.Definition, error) {
+func (b *Builder) Serialize(
+	ctx context.Context,
+	root state.State,
+	opts ...core.ConstraintsOption,
+) (*marshal.Definition, error) {
 	return root.Marshal(ctx, opts...)
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Constraints accessors ───────────────────────────────────────────────────
 
-func (b *Builder) emit(e reactive.GraphEvent) {
-	b.bus.Publish(e)
+// Constraints returns the builder's default constraints.
+func (b *Builder) Constraints() *core.Constraints { return b.constraints }
+
+// WithBuildArg returns a new Builder with a build argument added to constraints.
+func (b *Builder) WithBuildArg(key, value string) *Builder {
+	nb := *b
+	newC := b.constraints.Clone()
+	newC.BuildArgs[key] = value
+	nb.constraints = newC
+	return &nb
 }
+
+// ─── internal ────────────────────────────────────────────────────────────────
+
+func (b *Builder) emit(e reactive.GraphEvent) { b.bus.Publish(e) }

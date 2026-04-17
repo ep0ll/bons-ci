@@ -6,43 +6,33 @@ import (
 	"github.com/bons/bons-ci/client/llb/core"
 )
 
-// ─── VisitFunc ────────────────────────────────────────────────────────────────
-
-// VisitFunc is called for each vertex during a traversal.
-// Returning false stops the traversal immediately (like filepath.WalkDir).
-type VisitFunc func(id core.VertexID, v core.Vertex, depth int) (continueWalk bool)
-
 // ─── Traversal ────────────────────────────────────────────────────────────────
 
-// Traversal provides algorithm choices for walking a Graph.
-type Traversal struct {
-	g *Graph
-}
+// VisitFunc is called for each vertex during traversal.
+// Returning false stops the walk.
+type VisitFunc func(id core.VertexID, v core.Vertex, depth int) (continueWalk bool)
 
-// NewTraversal wraps g for traversal.
-func NewTraversal(g *Graph) *Traversal { return &Traversal{g: g} }
+// Traversal provides algorithm choices for walking a DAG.
+type Traversal struct{ d *DAG }
 
-// DFS performs a depth-first pre-order traversal from the given root IDs,
-// visiting each reachable vertex once. Roots are visited before their inputs.
+// NewTraversal wraps d for traversal.
+func NewTraversal(d *DAG) *Traversal { return &Traversal{d: d} }
+
+// DFS performs depth-first pre-order traversal from roots.
+// Each reachable vertex is visited exactly once.
 func (t *Traversal) DFS(roots []core.VertexID, visit VisitFunc) {
 	visited := make(map[core.VertexID]bool)
-	for _, root := range roots {
-		t.dfs(root, 0, visited, visit)
+	for _, r := range roots {
+		t.dfs(r, 0, visited, visit)
 	}
 }
 
-func (t *Traversal) dfs(
-	id core.VertexID,
-	depth int,
-	visited map[core.VertexID]bool,
-	visit VisitFunc,
-) bool {
+func (t *Traversal) dfs(id core.VertexID, depth int, visited map[core.VertexID]bool, visit VisitFunc) bool {
 	if visited[id] {
 		return true
 	}
 	visited[id] = true
-
-	v, ok := t.g.vertices[id]
+	v, ok := t.d.vertices[id]
 	if !ok {
 		return true
 	}
@@ -50,9 +40,7 @@ func (t *Traversal) dfs(
 		return false
 	}
 	for _, edge := range v.Inputs() {
-		// We need the digest of the input vertex; use the pointer if it's
-		// already in the vertex map (avoid re-marshaling during traversal).
-		for inputID, inputV := range t.g.vertices {
+		for inputID, inputV := range t.d.vertices {
 			if inputV == edge.Vertex {
 				if !t.dfs(inputID, depth+1, visited, visit) {
 					return false
@@ -64,8 +52,7 @@ func (t *Traversal) dfs(
 	return true
 }
 
-// BFS performs a breadth-first traversal from the given root IDs.
-// Roots are visited before their inputs.
+// BFS performs breadth-first traversal from roots.
 func (t *Traversal) BFS(roots []core.VertexID, visit VisitFunc) {
 	type entry struct {
 		id    core.VertexID
@@ -74,18 +61,16 @@ func (t *Traversal) BFS(roots []core.VertexID, visit VisitFunc) {
 	visited := make(map[core.VertexID]bool)
 	queue := make([]entry, 0, len(roots))
 	for _, r := range roots {
-		queue = append(queue, entry{id: r, depth: 0})
+		queue = append(queue, entry{id: r})
 	}
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
-
 		if visited[cur.id] {
 			continue
 		}
 		visited[cur.id] = true
-
-		v, ok := t.g.vertices[cur.id]
+		v, ok := t.d.vertices[cur.id]
 		if !ok {
 			continue
 		}
@@ -93,7 +78,7 @@ func (t *Traversal) BFS(roots []core.VertexID, visit VisitFunc) {
 			return
 		}
 		for _, edge := range v.Inputs() {
-			for inputID, inputV := range t.g.vertices {
+			for inputID, inputV := range t.d.vertices {
 				if inputV == edge.Vertex {
 					queue = append(queue, entry{id: inputID, depth: cur.depth + 1})
 					break
@@ -103,10 +88,9 @@ func (t *Traversal) BFS(roots []core.VertexID, visit VisitFunc) {
 	}
 }
 
-// TopologicalOrder returns vertices in topological order (inputs before
-// consumers). Useful for deterministic serialisation.
+// TopologicalOrder returns vertices in topological order (inputs before consumers).
 func (t *Traversal) TopologicalOrder(roots []core.VertexID) []core.VertexID {
-	result := make([]core.VertexID, 0, len(t.g.vertices))
+	result := make([]core.VertexID, 0, len(t.d.vertices))
 	visited := make(map[core.VertexID]bool)
 	var topo func(id core.VertexID)
 	topo = func(id core.VertexID) {
@@ -114,12 +98,12 @@ func (t *Traversal) TopologicalOrder(roots []core.VertexID) []core.VertexID {
 			return
 		}
 		visited[id] = true
-		v, ok := t.g.vertices[id]
+		v, ok := t.d.vertices[id]
 		if !ok {
 			return
 		}
 		for _, edge := range v.Inputs() {
-			for inputID, inputV := range t.g.vertices {
+			for inputID, inputV := range t.d.vertices {
 				if inputV == edge.Vertex {
 					topo(inputID)
 					break
@@ -134,30 +118,74 @@ func (t *Traversal) TopologicalOrder(roots []core.VertexID) []core.VertexID {
 	return result
 }
 
-// ─── Selection ────────────────────────────────────────────────────────────────
-
-// Selector accumulates vertices matching a predicate.
-type Selector struct {
-	g *Graph
+// Ancestors returns all vertex IDs that are transitive inputs of id.
+func (t *Traversal) Ancestors(ctx context.Context, id core.VertexID, c *core.Constraints) []core.VertexID {
+	var result []core.VertexID
+	t.DFS([]core.VertexID{id}, func(vid core.VertexID, _ core.Vertex, depth int) bool {
+		if depth > 0 {
+			result = append(result, vid)
+		}
+		return true
+	})
+	return result
 }
 
-// NewSelector wraps g for selection.
-func NewSelector(g *Graph) *Selector { return &Selector{g: g} }
+// Descendants returns all vertex IDs that are transitive consumers of id.
+func (t *Traversal) Descendants(id core.VertexID) []core.VertexID {
+	result := make([]core.VertexID, 0)
+	visited := make(map[core.VertexID]bool)
+	var visit func(id core.VertexID)
+	visit = func(current core.VertexID) {
+		if visited[current] {
+			return
+		}
+		visited[current] = true
+		for consID := range t.d.reverse[current] {
+			result = append(result, consID)
+			visit(consID)
+		}
+	}
+	visit(id)
+	return result
+}
 
-// Predicate is a function that returns true if a vertex should be selected.
+// ─── Selector ─────────────────────────────────────────────────────────────────
+
+// Predicate is a vertex filter function.
 type Predicate func(id core.VertexID, v core.Vertex) bool
 
-// ByType returns all vertices of the given type.
+// Selector accumulates vertices matching a predicate.
+type Selector struct{ d *DAG }
+
+// NewSelector wraps d for selection.
+func NewSelector(d *DAG) *Selector { return &Selector{d: d} }
+
+// ByType returns all vertex IDs of the given type.
 func (s *Selector) ByType(vt core.VertexType) []core.VertexID {
 	return s.Where(func(_ core.VertexID, v core.Vertex) bool {
 		return v.Type() == vt
 	})
 }
 
+// ByLabel returns all vertex IDs whose labels contain all entries in selector.
+func (s *Selector) ByLabel(selector core.Labels) []core.VertexID {
+	s.d.mu.RLock()
+	defer s.d.mu.RUnlock()
+	var out []core.VertexID
+	for id, lbl := range s.d.labels {
+		if lbl.Match(selector) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
 // Where returns all vertex IDs for which predicate returns true.
 func (s *Selector) Where(predicate Predicate) []core.VertexID {
+	s.d.mu.RLock()
+	defer s.d.mu.RUnlock()
 	var out []core.VertexID
-	for id, v := range s.g.vertices {
+	for id, v := range s.d.vertices {
 		if predicate(id, v) {
 			out = append(out, id)
 		}
@@ -165,25 +193,18 @@ func (s *Selector) Where(predicate Predicate) []core.VertexID {
 	return out
 }
 
-// Subgraph returns a new Graph containing only the vertices reachable from
-// roots, applying an optional filter predicate. Excluded vertices are bypassed:
-// their consumers point directly at their producers.
-func (s *Selector) Subgraph(ctx context.Context, roots []core.VertexID, include Predicate) *Graph {
-	vertices := make(map[core.VertexID]core.Vertex)
-	reverse := make(map[core.VertexID]map[core.VertexID]struct{})
+// Roots returns the DAG's root vertex IDs.
+func (s *Selector) Roots() []core.VertexID { return s.d.Roots() }
 
-	tr := NewTraversal(s.g)
-	tr.DFS(roots, func(id core.VertexID, v core.Vertex, _ int) bool {
-		if include == nil || include(id, v) {
-			vertices[id] = v
-			for consumerID := range s.g.reverse[id] {
-				if _, exists := reverse[id]; !exists {
-					reverse[id] = make(map[core.VertexID]struct{})
-				}
-				reverse[id][consumerID] = struct{}{}
-			}
+// Leaves returns vertex IDs that have no inputs (source ops).
+func (s *Selector) Leaves() []core.VertexID {
+	s.d.mu.RLock()
+	defer s.d.mu.RUnlock()
+	var out []core.VertexID
+	for id, v := range s.d.vertices {
+		if len(v.Inputs()) == 0 {
+			out = append(out, id)
 		}
-		return true
-	})
-	return FromVertices(vertices, reverse, roots)
+	}
+	return out
 }

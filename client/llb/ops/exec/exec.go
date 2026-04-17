@@ -1,18 +1,18 @@
-// Package exec provides the exec (container run) operation for llbx.
+// Package exec provides the BuildKit exec (container run) operation.
 //
 // Example
 //
-//	rootfs := image.Must(image.WithRef("alpine:3.20")).Output()
-//
-//	op := exec.New(
-//	    exec.WithCommand("sh", "-c", "echo hello > /out/hello"),
+//	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+//	op, _ := exec.New(
+//	    exec.WithRootMount(alpine.Output(), true),
+//	    exec.WithCommand("sh", "-c", "echo hello"),
 //	    exec.WithWorkingDir("/"),
 //	    exec.WithMount(exec.Mount{
-//	        Target: "/out",
-//	        Source: scratch.Output(),
-//	        ReadOnly: false,
+//	        Target: "/cache",
+//	        Type:   exec.MountTypeCache,
+//	        CacheID: "my-cache",
+//	        CacheSharing: exec.CacheSharingShared,
 //	    }),
-//	    exec.WithRootMount(rootfs, false),
 //	)
 package exec
 
@@ -28,60 +28,27 @@ import (
 	digest "github.com/opencontainers/go-digest"
 )
 
-// ─── Mount ────────────────────────────────────────────────────────────────────
+// ─── Mount types ─────────────────────────────────────────────────────────────
 
 // MountType identifies how a mount is backed.
 type MountType int
 
 const (
-	MountTypeBind   MountType = iota // standard bind mount from a vertex output
-	MountTypeCache                   // persistent cache directory
-	MountTypeTmpfs                   // in-memory tmpfs
-	MountTypeSecret                  // secret file
-	MountTypeSSH                     // SSH agent socket
+	MountTypeBind    MountType = iota // bind from a vertex output
+	MountTypeCache                    // persistent cache directory
+	MountTypeTmpfs                    // in-memory filesystem
+	MountTypeSecret                   // injected secret file
+	MountTypeSSH                      // forwarded SSH agent socket
 )
 
-// CacheSharingMode controls how a cache mount is shared across concurrent builds.
+// CacheSharingMode controls concurrent access to a cache mount.
 type CacheSharingMode int
 
 const (
-	CacheSharingShared  CacheSharingMode = iota // multiple builds share simultaneously
-	CacheSharingPrivate                         // each build gets its own copy
-	CacheSharingLocked                          // serialised access (exclusive)
+	CacheSharingShared  CacheSharingMode = iota // concurrent build access
+	CacheSharingPrivate                         // one copy per build
+	CacheSharingLocked                          // serialised exclusive access
 )
-
-// Mount describes a filesystem mount within the exec container.
-type Mount struct {
-	// Target is the absolute path inside the container.
-	Target string
-
-	// Source is the vertex output providing the mount's contents.
-	// Nil for tmpfs and cache mounts.
-	Source core.Output
-
-	// ReadOnly prevents writes to the mount.
-	ReadOnly bool
-
-	// Selector is a sub-path within Source to expose at Target.
-	Selector string
-
-	// Type selects the mount backing.
-	Type MountType
-
-	// CacheID identifies a persistent cache volume (Type == MountTypeCache).
-	CacheID string
-	// CacheSharing controls concurrent access to the cache volume.
-	CacheSharing CacheSharingMode
-
-	// TmpfsSize limits the tmpfs size in bytes (0 = unlimited).
-	TmpfsSize int64
-
-	// NoOutput marks the mount as write-only (output ignored by downstream).
-	NoOutput bool
-
-	// ContentCache controls the content-addressable cache for bind mounts.
-	ContentCache ContentCacheMode
-}
 
 // ContentCacheMode controls content-addressed caching for bind mounts.
 type ContentCacheMode int
@@ -92,109 +59,96 @@ const (
 	ContentCacheModeOff
 )
 
-// ─── Secret / SSH ─────────────────────────────────────────────────────────────
+// ─── Mount ───────────────────────────────────────────────────────────────────
+
+// Mount describes a filesystem mount inside the exec container.
+type Mount struct {
+	Target       string           // absolute path inside the container
+	Source       core.Output      // backing vertex output (nil for tmpfs/cache)
+	ReadOnly     bool
+	Selector     string           // sub-path within Source
+	Type         MountType
+	CacheID      string           // identifies a persistent cache volume
+	CacheSharing CacheSharingMode
+	TmpfsSize    int64            // bytes; 0 = unlimited
+	NoOutput     bool             // write-only; output ignored downstream
+	ContentCache ContentCacheMode
+}
+
+// ─── SecretMount ─────────────────────────────────────────────────────────────
 
 // SecretMount describes a BuildKit secret available inside the container.
 type SecretMount struct {
-	// SecretID is the secret identifier registered with the daemon.
-	SecretID string
-	// TargetPath is the file path inside the container (nil = env var only).
-	TargetPath *string
-	// EnvVarName is the environment variable name (nil = file mount only).
-	EnvVarName *string
-	// UID/GID/Mode control the mounted secret file's ownership and permissions.
-	UID, GID int
-	Mode     int
+	SecretID   string  // identifier registered with the daemon
+	TargetPath *string // file path inside the container (nil = env-var only)
+	EnvVarName *string // environment variable name (nil = file only)
+	UID, GID   int
+	Mode       int
+	Optional   bool
+}
+
+// ─── SSHSocket ───────────────────────────────────────────────────────────────
+
+// SSHSocket describes a forwarded SSH agent socket.
+type SSHSocket struct {
+	SocketID         string // BuildKit SSH agent identifier
+	Target           string // socket path inside the container
+	UID, GID, Mode   int
+	Optional         bool
+}
+
+// ─── CDIDevice ───────────────────────────────────────────────────────────────
+
+// CDIDevice describes a Container Device Interface device to expose.
+type CDIDevice struct {
+	Name     string
 	Optional bool
 }
 
-// SSHSocket describes an SSH agent socket forwarded into the container.
-type SSHSocket struct {
-	// SocketID identifies the SSH agent registered with the daemon.
-	SocketID string
-	// Target is the socket path inside the container.
-	// Defaults to "/run/buildkit/ssh_agent.<N>".
-	Target         string
-	UID, GID, Mode int
-	Optional       bool
-}
+// ─── ProxyEnv ────────────────────────────────────────────────────────────────
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-// Config holds all parameters for an exec (run) op.
-type Config struct {
-	// Command is the argument vector (argv[0] … argv[N]).
-	Command []string
-
-	// Environment variables in "KEY=VALUE" format.
-	// Use the Env builder methods rather than populating directly.
-	Environment []string
-
-	// WorkingDir is the process working directory inside the container.
-	WorkingDir string
-
-	// User is the username or UID:GID that the process runs as.
-	User string
-
-	// Hostname sets the container hostname (requires CapExecMetaHostname).
-	Hostname string
-
-	// CgroupParent sets the parent cgroup path.
-	CgroupParent string
-
-	// Network mode (unset = sandbox).
-	Network pb.NetMode
-
-	// Security mode (sandbox by default).
-	Security pb.SecurityMode
-
-	// Mounts are the ordered list of filesystem mounts.
-	// The root mount (at "/") is always present; additional mounts are appended.
-	Mounts []Mount
-
-	// Secrets are secret mounts injected into the container.
-	Secrets []SecretMount
-
-	// SSHSockets are SSH agent sockets forwarded into the container.
-	SSHSockets []SSHSocket
-
-	// ValidExitCodes is the set of exit codes considered successful (nil = {0}).
-	ValidExitCodes []int
-
-	// ProxyEnv carries HTTP proxy environment variables injected by the daemon.
-	ProxyEnv *ProxyEnv
-
-	// ReadOnlyRoot makes the root filesystem read-only.
-	ReadOnlyRoot bool
-
-	// Constraints are per-vertex LLB constraints.
-	Constraints core.Constraints
-}
-
-// ProxyEnv carries proxy variables injected by the BuildKit daemon.
+// ProxyEnv carries HTTP proxy variables injected by the daemon.
 type ProxyEnv struct {
 	HTTPProxy, HTTPSProxy, FTPProxy, NoProxy, AllProxy string
 }
 
-// ─── Option ───────────────────────────────────────────────────────────────────
+// ─── Config ──────────────────────────────────────────────────────────────────
 
-// Option is a functional option for Config.
+// Config holds all parameters for an exec op.
+type Config struct {
+	Command        []string   // argv[0]…argv[N]; required
+	Environment    []string   // KEY=VALUE pairs
+	WorkingDir     string     // required; defaults to "/"
+	User           string
+	Hostname       string
+	CgroupParent   string
+	Network        pb.NetMode
+	Security       pb.SecurityMode
+	Mounts         []Mount
+	Secrets        []SecretMount
+	SSHSockets     []SSHSocket
+	CDIDevices     []CDIDevice
+	ValidExitCodes []int
+	ProxyEnv       *ProxyEnv
+	ReadOnlyRoot   bool
+	Constraints    core.Constraints
+}
+
+// ─── Options ─────────────────────────────────────────────────────────────────
+
 type Option func(*Config)
 
-// WithCommand sets the command and arguments.
-func WithCommand(args ...string) Option {
-	return func(c *Config) { c.Command = args }
-}
+func WithCommand(args ...string) Option { return func(c *Config) { c.Command = args } }
+func WithShlex(cmd string) Option       { return func(c *Config) { c.Command = shlexSplit(cmd) } }
+func WithWorkingDir(dir string) Option  { return func(c *Config) { c.WorkingDir = dir } }
+func WithUser(u string) Option          { return func(c *Config) { c.User = u } }
+func WithHostname(h string) Option      { return func(c *Config) { c.Hostname = h } }
+func WithCgroupParent(cp string) Option { return func(c *Config) { c.CgroupParent = cp } }
+func WithNetworkMode(m pb.NetMode) Option { return func(c *Config) { c.Network = m } }
+func WithSecurityMode(m pb.SecurityMode) Option { return func(c *Config) { c.Security = m } }
+func WithReadOnlyRoot() Option          { return func(c *Config) { c.ReadOnlyRoot = true } }
+func WithProxyEnv(p ProxyEnv) Option    { return func(c *Config) { c.ProxyEnv = &p } }
 
-// WithShell parses a shell command string using shlex.
-func WithShlex(cmd string) Option {
-	return func(c *Config) {
-		// Simple shlex split: split on spaces, honour single/double quotes.
-		c.Command = shlexSplit(cmd)
-	}
-}
-
-// WithEnv appends an environment variable.
 func WithEnv(key, value string) Option {
 	return func(c *Config) {
 		for i, e := range c.Environment {
@@ -207,43 +161,16 @@ func WithEnv(key, value string) Option {
 	}
 }
 
-// WithWorkingDir sets the working directory.
-func WithWorkingDir(dir string) Option {
-	return func(c *Config) { c.WorkingDir = dir }
-}
+func WithMount(m Mount) Option          { return func(c *Config) { c.Mounts = append(c.Mounts, m) } }
+func WithSecret(s SecretMount) Option   { return func(c *Config) { c.Secrets = append(c.Secrets, s) } }
+func WithSSHSocket(s SSHSocket) Option  { return func(c *Config) { c.SSHSockets = append(c.SSHSockets, s) } }
+func WithCDIDevice(d CDIDevice) Option  { return func(c *Config) { c.CDIDevices = append(c.CDIDevices, d) } }
+func WithValidExitCodes(codes ...int) Option { return func(c *Config) { c.ValidExitCodes = codes } }
 
-// WithUser sets the container user.
-func WithUser(user string) Option { return func(c *Config) { c.User = user } }
-
-// WithHostname sets the container hostname.
-func WithHostname(h string) Option { return func(c *Config) { c.Hostname = h } }
-
-// WithCgroupParent sets the cgroup parent path.
-func WithCgroupParent(cp string) Option { return func(c *Config) { c.CgroupParent = cp } }
-
-// WithNetworkMode sets the network isolation mode.
-func WithNetworkMode(mode pb.NetMode) Option { return func(c *Config) { c.Network = mode } }
-
-// WithSecurityMode sets the security mode.
-func WithSecurityMode(mode pb.SecurityMode) Option { return func(c *Config) { c.Security = mode } }
-
-// WithReadOnlyRoot makes the root filesystem read-only.
-func WithReadOnlyRoot() Option { return func(c *Config) { c.ReadOnlyRoot = true } }
-
-// WithMount appends a filesystem mount.
-func WithMount(m Mount) Option {
-	return func(c *Config) { c.Mounts = append(c.Mounts, m) }
-}
-
-// WithRootMount sets the root ("/") filesystem mount.
+// WithRootMount sets the root ("/") mount. Replaces any existing root mount.
 func WithRootMount(source core.Output, readOnly bool) Option {
 	return func(c *Config) {
-		root := Mount{
-			Target:   pb.RootMount,
-			Source:   source,
-			ReadOnly: readOnly,
-		}
-		// Replace existing root mount if present.
+		root := Mount{Target: pb.RootMount, Source: source, ReadOnly: readOnly}
 		for i, m := range c.Mounts {
 			if m.Target == pb.RootMount {
 				c.Mounts[i] = root
@@ -254,43 +181,19 @@ func WithRootMount(source core.Output, readOnly bool) Option {
 	}
 }
 
-// WithSecret appends a secret mount.
-func WithSecret(s SecretMount) Option {
-	return func(c *Config) { c.Secrets = append(c.Secrets, s) }
-}
-
-// WithSSHSocket appends an SSH agent socket forward.
-func WithSSHSocket(s SSHSocket) Option {
-	return func(c *Config) { c.SSHSockets = append(c.SSHSockets, s) }
-}
-
-// WithValidExitCodes sets the exit codes considered successful.
-func WithValidExitCodes(codes ...int) Option {
-	return func(c *Config) { c.ValidExitCodes = codes }
-}
-
-// WithProxyEnv sets the HTTP proxy environment.
-func WithProxyEnv(p ProxyEnv) Option { return func(c *Config) { c.ProxyEnv = &p } }
-
-// WithConstraintsOption applies a core.ConstraintsOption.
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }
 
-// ─── Vertex ───────────────────────────────────────────────────────────────────
+// ─── Vertex ──────────────────────────────────────────────────────────────────
 
-// Vertex is the llbx implementation of the exec op.
-// It is immutable; use New() or WithOption() to construct variants.
+// Vertex is the llbx exec op implementation.
 type Vertex struct {
 	config Config
 	cache  marshal.Cache
-
-	// inputs mirrors config.Mounts in sorted order for stable digests.
-	// Populated lazily in Marshal.
-	sortedMounts []Mount
 }
 
-// New constructs an exec Vertex from options.
+// New constructs an exec vertex.
 func New(opts ...Option) (*Vertex, error) {
 	cfg := Config{
 		WorkingDir: "/",
@@ -304,20 +207,17 @@ func New(opts ...Option) (*Vertex, error) {
 		return nil, fmt.Errorf("exec.New: Command is required")
 	}
 	if cfg.WorkingDir == "" {
-		return nil, fmt.Errorf("exec.New: WorkingDir must not be empty")
+		cfg.WorkingDir = "/"
 	}
-	v := &Vertex{config: cfg}
-	return v, nil
+	return &Vertex{config: cfg}, nil
 }
 
-// ─── core.Vertex ──────────────────────────────────────────────────────────────
+// ─── core.Vertex ─────────────────────────────────────────────────────────────
 
 func (v *Vertex) Type() core.VertexType { return core.VertexTypeExec }
 
-// Inputs returns the deduplicated source outputs of all bind mounts,
-// in the same sorted order as Marshal uses.
 func (v *Vertex) Inputs() []core.Edge {
-	sorted := v.sortMounts()
+	sorted := v.sortedMounts()
 	seen := map[core.Output]struct{}{}
 	var out []core.Edge
 	for _, m := range sorted {
@@ -328,25 +228,19 @@ func (v *Vertex) Inputs() []core.Edge {
 			continue
 		}
 		seen[m.Source] = struct{}{}
-		out = append(out, core.Edge{Vertex: nil /* placeholder */, Index: 0})
-		// Note: edge.Vertex is resolved dynamically in Marshal via m.Source.Vertex().
-		// The inputs list here is used by graph.walk for traversal.
-		_ = m.Source // suppress lint
+		out = append(out, core.Edge{Vertex: m.Source.Vertex(context.Background(), nil), Index: 0})
 	}
 	return out
 }
 
 func (v *Vertex) Outputs() []core.OutputSlot {
-	sorted := v.sortMounts()
+	sorted := v.sortedMounts()
 	var slots []core.OutputSlot
-	outIdx := 0
+	idx := 0
 	for _, m := range sorted {
 		if !m.ReadOnly && m.Type == MountTypeBind && m.CacheID == "" && !m.NoOutput {
-			slots = append(slots, core.OutputSlot{
-				Index:       outIdx,
-				Description: m.Target,
-			})
-			outIdx++
+			slots = append(slots, core.OutputSlot{Index: idx, Description: m.Target})
+			idx++
 		}
 	}
 	return slots
@@ -363,12 +257,11 @@ func (v *Vertex) Validate(_ context.Context, _ *core.Constraints) error {
 }
 
 func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.MarshaledVertex, error) {
-	h := marshal.Acquire(&v.cache)
+	h := v.cache.Acquire()
 	defer h.Release()
 	if dgst, bytes, meta, srcs, err := h.Load(c); err == nil {
 		return &core.MarshaledVertex{Digest: dgst, Bytes: bytes, Metadata: meta, SourceLocations: srcs}, nil
 	}
-
 	if err := v.Validate(ctx, c); err != nil {
 		return nil, err
 	}
@@ -414,12 +307,18 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 		peo.Meta.ValidExitCodes = codes
 		core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecValidExitCode)
 	}
-
+	if len(cfg.CDIDevices) > 0 {
+		cd := make([]*pb.CDIDevice, len(cfg.CDIDevices))
+		for i, d := range cfg.CDIDevices {
+			cd[i] = &pb.CDIDevice{Name: d.Name, Optional: d.Optional}
+		}
+		peo.CdiDevices = cd
+		core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecMetaCDI)
+	}
 	core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecMetaBase)
 
-	// Collect and sort mounts.
-	sorted := v.sortMounts()
-
+	// Build mounts.
+	sorted := v.sortedMounts()
 	outIndex := 0
 	for _, m := range sorted {
 		var inputIndex pb.InputIndex
@@ -438,9 +337,8 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 			} else {
 				inp, err := m.Source.ToInput(ctx, c)
 				if err != nil {
-					return nil, fmt.Errorf("exec.Vertex.Marshal mount %q: %w", m.Target, err)
+					return nil, fmt.Errorf("exec.Marshal: mount %q: %w", m.Target, err)
 				}
-				// Dedup inputs.
 				found := false
 				for i, existing := range pop.Inputs {
 					if existing.Digest == inp.Digest && existing.Index == inp.Index {
@@ -462,7 +360,6 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 			outputIndex = pb.OutputIndex(outIndex)
 			outIndex++
 		}
-
 		if m.Selector != "" {
 			core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecMountSelector)
 		}
@@ -474,7 +371,7 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 			Output:   int64(outputIndex),
 			Selector: m.Selector,
 		}
-		if m.Type == MountTypeCache {
+		if m.Type == MountTypeCache && m.CacheID != "" {
 			pm.MountType = pb.MountType_CACHE
 			pm.CacheOpt = &pb.CacheOpt{ID: m.CacheID}
 			switch m.CacheSharing {
@@ -490,34 +387,30 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 			pm.MountType = pb.MountType_TMPFS
 			pm.TmpfsOpt = &pb.TmpfsOpt{Size: m.TmpfsSize}
 		}
-		if m.ContentCache != ContentCacheModeDefault {
-			switch m.ContentCache {
-			case ContentCacheModeOn:
-				pm.ContentCache = pb.MountContentCache_ON
-			case ContentCacheModeOff:
-				pm.ContentCache = pb.MountContentCache_OFF
-			}
+		switch m.ContentCache {
+		case ContentCacheModeOn:
+			pm.ContentCache = pb.MountContentCache_ON
+			core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecMountContentCache)
+		case ContentCacheModeOff:
+			pm.ContentCache = pb.MountContentCache_OFF
 			core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecMountContentCache)
 		}
 		peo.Mounts = append(peo.Mounts, pm)
 	}
 
-	// Secret mounts.
+	// Secrets.
 	if len(cfg.Secrets) > 0 {
 		core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecMountSecret)
 		for _, s := range cfg.Secrets {
 			if s.EnvVarName != nil {
 				peo.Secretenv = append(peo.Secretenv, &pb.SecretEnv{
-					ID:       s.SecretID,
-					Name:     *s.EnvVarName,
-					Optional: s.Optional,
+					ID: s.SecretID, Name: *s.EnvVarName, Optional: s.Optional,
 				})
 				core.ConstraintsAddCap(&cfg.Constraints, pb.CapExecSecretEnv)
 			}
 			if s.TargetPath != nil {
 				peo.Mounts = append(peo.Mounts, &pb.Mount{
-					Input:     int64(pb.Empty),
-					Dest:      *s.TargetPath,
+					Input: int64(pb.Empty), Dest: *s.TargetPath,
 					MountType: pb.MountType_SECRET,
 					SecretOpt: &pb.SecretOpt{
 						ID:       s.SecretID,
@@ -540,8 +433,7 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 				target = fmt.Sprintf("/run/buildkit/ssh_agent.%d", i)
 			}
 			peo.Mounts = append(peo.Mounts, &pb.Mount{
-				Input:     int64(pb.Empty),
-				Dest:      target,
+				Input: int64(pb.Empty), Dest: target,
 				MountType: pb.MountType_SSH,
 				SSHOpt: &pb.SSHOpt{
 					ID:       s.SocketID,
@@ -555,27 +447,19 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 	}
 
 	pop.Op = &pb.Op_Exec{Exec: peo}
-
 	bytes, err := marshal.DeterministicMarshal(pop)
 	if err != nil {
-		return nil, fmt.Errorf("exec.Vertex.Marshal: %w", err)
+		return nil, fmt.Errorf("exec.Marshal: %w", err)
 	}
-
 	dgst, bytes, meta, srcs, _ := h.Store(bytes, md, c.SourceLocations, c)
 	return &core.MarshaledVertex{Digest: dgst, Bytes: bytes, Metadata: meta, SourceLocations: srcs}, nil
 }
 
-// ─── MutatingVertex ───────────────────────────────────────────────────────────
-
 func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
-	// For exec ops, inputs correspond to the source outputs of bind mounts.
-	// We rebuild the mount list with the new inputs.
-	sorted := v.sortMounts()
+	sorted := v.sortedMounts()
+	newMounts := slices.Clone(v.config.Mounts)
 	bindIdx := 0
-	newMounts := make([]Mount, len(v.config.Mounts))
-	copy(newMounts, v.config.Mounts)
-
-	for i, m := range sorted {
+	for _, m := range sorted {
 		if m.Source == nil || m.Type != MountTypeBind {
 			continue
 		}
@@ -586,28 +470,24 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 				Want:       fmt.Sprintf("at least %d", bindIdx+1),
 			}
 		}
-		// Find the corresponding mount in the unsorted list and update its Source.
 		for j := range newMounts {
-			if newMounts[j].Target == sorted[i].Target {
+			if newMounts[j].Target == m.Target {
 				newMounts[j].Source = &edgeOutput{edge: inputs[bindIdx]}
 				break
 			}
 		}
 		bindIdx++
 	}
-
 	newCfg := v.config
 	newCfg.Mounts = newMounts
-	nv := &Vertex{config: newCfg}
-	return nv, nil
+	return &Vertex{config: newCfg}, nil
 }
 
-// ─── Output accessors ─────────────────────────────────────────────────────────
+// ─── Output accessors ────────────────────────────────────────────────────────
 
 // OutputFor returns the core.Output for a specific mount target path.
-// Returns nil if the mount is not found or is read-only/tmpfs/cache.
 func (v *Vertex) OutputFor(mountTarget string) core.Output {
-	sorted := v.sortMounts()
+	sorted := v.sortedMounts()
 	outIdx := 0
 	for _, m := range sorted {
 		if !m.NoOutput && !m.ReadOnly && m.Type == MountTypeBind && m.CacheID == "" {
@@ -623,7 +503,6 @@ func (v *Vertex) OutputFor(mountTarget string) core.Output {
 // RootOutput returns the core.Output for the root ("/") mount.
 func (v *Vertex) RootOutput() core.Output {
 	if v.config.ReadOnlyRoot {
-		// root is read-only; look up its source
 		for _, m := range v.config.Mounts {
 			if m.Target == pb.RootMount {
 				return m.Source
@@ -634,22 +513,20 @@ func (v *Vertex) RootOutput() core.Output {
 	return v.OutputFor(pb.RootMount)
 }
 
-// Config returns a copy of the vertex's configuration.
 func (v *Vertex) Config() Config { return v.config }
 
-// WithOption returns a new Vertex with the option applied. Cache is invalidated.
 func (v *Vertex) WithOption(opt Option) (*Vertex, error) {
 	newCfg := v.config
 	opt(&newCfg)
 	if len(newCfg.Command) == 0 {
-		return nil, fmt.Errorf("exec.Vertex.WithOption: Command is required")
+		return nil, fmt.Errorf("exec.WithOption: Command is required")
 	}
 	return &Vertex{config: newCfg}, nil
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── internal helpers ─────────────────────────────────────────────────────────
 
-func (v *Vertex) sortMounts() []Mount {
+func (v *Vertex) sortedMounts() []Mount {
 	sorted := slices.Clone(v.config.Mounts)
 	slices.SortFunc(sorted, func(a, b Mount) int {
 		return strings.Compare(a.Target, b.Target)
@@ -657,7 +534,6 @@ func (v *Vertex) sortMounts() []Mount {
 	return sorted
 }
 
-// mountOutput is a core.Output referencing a specific exec output slot.
 type mountOutput struct {
 	vertex *Vertex
 	index  int
@@ -672,12 +548,9 @@ func (o *mountOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Inp
 	return &pb.Input{Digest: string(mv.Digest), Index: int64(o.index)}, nil
 }
 
-// edgeOutput wraps a core.Edge as a core.Output, used during reparenting.
 type edgeOutput struct{ edge core.Edge }
 
-func (e *edgeOutput) Vertex(ctx context.Context, c *core.Constraints) core.Vertex {
-	return e.edge.Vertex
-}
+func (e *edgeOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return e.edge.Vertex }
 func (e *edgeOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
 	mv, err := e.edge.Vertex.Marshal(ctx, c)
 	if err != nil {
@@ -686,9 +559,7 @@ func (e *edgeOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Inpu
 	return &pb.Input{Digest: string(mv.Digest), Index: int64(e.edge.Index)}, nil
 }
 
-// shlexSplit is a minimal shell-word splitter.
 func shlexSplit(s string) []string {
-	// Minimal shlex: space-separated, respects double and single quotes.
 	var args []string
 	var cur strings.Builder
 	inSingle, inDouble := false, false
@@ -726,11 +597,9 @@ func shlexSplit(s string) []string {
 	return args
 }
 
-// Compile-time checks.
+var _ = digest.Digest("")
+
 var (
 	_ core.Vertex         = (*Vertex)(nil)
 	_ core.MutatingVertex = (*Vertex)(nil)
 )
-
-// Unused import guard.
-var _ = digest.Digest("")

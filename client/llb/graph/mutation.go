@@ -10,181 +10,172 @@ import (
 
 // ─── Mutator ─────────────────────────────────────────────────────────────────
 
-// Mutator performs structural transformations on a Graph. Every method returns
-// a *new* Graph; the receiver is never modified. Each successful mutation also
-// emits appropriate GraphEvents on the shared bus.
-type Mutator struct {
-	g *Graph
-}
+// Mutator performs structural transformations on a DAG. Every method returns
+// a new *DAG; the receiver is never modified.
+type Mutator struct{ d *DAG }
 
-// NewMutator wraps g for mutation.
-func NewMutator(g *Graph) *Mutator { return &Mutator{g: g} }
+// NewMutator wraps d for mutation.
+func NewMutator(d *DAG) *Mutator { return &Mutator{d: d} }
 
 // ─── Replace ──────────────────────────────────────────────────────────────────
 
-// Replace substitutes all occurrences of targetID with replacement throughout
-// the graph, then re-digests every affected descendant.
+// Replace substitutes every occurrence of targetID with replacement, then
+// re-digests all affected descendants.
 //
-// Compatibility rules:
-//   - replacement.Outputs() must be a superset of the output slots consumed by
-//     targetID's consumers (so existing consumers remain satisfiable).
+// Compatibility:
+//   - replacement must expose at least as many output slots as targetID's
+//     consumers require.
 //   - replacement.Validate() must succeed.
 func (m *Mutator) Replace(
 	ctx context.Context,
 	targetID core.VertexID,
 	replacement core.Vertex,
 	c *core.Constraints,
-) (*Graph, error) {
-	if _, err := m.g.Vertex(targetID); err != nil {
+) (*DAG, error) {
+	if _, err := m.d.Vertex(targetID); err != nil {
 		return nil, fmt.Errorf("Replace: %w", err)
 	}
-
 	if err := replacement.Validate(ctx, c); err != nil {
-		return nil, fmt.Errorf("Replace: replacement validation: %w", err)
+		return nil, fmt.Errorf("Replace: validate replacement: %w", err)
 	}
 
-	// Verify output slot compatibility.
-	maxConsumerIdx := m.maxConsumedOutputIndex(targetID)
-	if maxConsumerIdx >= len(replacement.Outputs()) {
+	// Output-slot compatibility check.
+	maxIdx := m.maxConsumedOutputIndex(targetID)
+	if maxIdx >= len(replacement.Outputs()) {
 		return nil, &core.IncompatibleInputsError{
 			VertexType: replacement.Type(),
 			Got:        len(replacement.Outputs()),
-			Want:       fmt.Sprintf("at least %d", maxConsumerIdx+1),
-			Detail:     "replacement has fewer output slots than required by consumers",
+			Want:       fmt.Sprintf("at least %d", maxIdx+1),
+			Detail:     "replacement has fewer output slots than consumers require",
 		}
 	}
 
-	ng := m.g.clone()
-	if err := ng.propagateDigestChange(ctx, targetID, replacement, c); err != nil {
+	nd := m.d.clone()
+	if err := nd.propagateDigest(ctx, targetID, replacement, c); err != nil {
 		return nil, fmt.Errorf("Replace: propagate: %w", err)
 	}
-
-	ng.emit(reactive.GraphEvent{
-		Kind:       reactive.EventKindVertexReplaced,
-		AffectedID: targetID,
-	})
-	return ng, nil
+	nd.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexReplaced, AffectedID: targetID})
+	return nd, nil
 }
 
 // ─── Reparent ─────────────────────────────────────────────────────────────────
 
 // Reparent changes the input edges of targetID to newInputs, re-digests the
-// vertex, and propagates the digest change to all consumers.
+// vertex, and propagates the change to all consumers.
 //
-// Compatibility rules:
-//   - The new edges must satisfy the vertex's input requirements
-//     (checked via MutatingVertex.WithInputs).
-//   - Every edge in newInputs must reference a vertex present in the graph.
+// Every edge in newInputs must reference a vertex present in the DAG.
 func (m *Mutator) Reparent(
 	ctx context.Context,
 	targetID core.VertexID,
 	newInputs []core.Edge,
 	c *core.Constraints,
-) (*Graph, error) {
-	target, err := m.g.Vertex(targetID)
+) (*DAG, error) {
+	target, err := m.d.Vertex(targetID)
 	if err != nil {
 		return nil, fmt.Errorf("Reparent: %w", err)
 	}
 
-	// Verify all input vertices exist.
+	// Verify all new input vertices exist in the DAG.
 	for i, edge := range newInputs {
 		emv, err := edge.Vertex.Marshal(ctx, c)
 		if err != nil {
 			return nil, fmt.Errorf("Reparent: marshal input[%d]: %w", i, err)
 		}
-		if _, err := m.g.Vertex(emv.Digest); err != nil {
-			return nil, fmt.Errorf("Reparent: input[%d] not in graph: %w", i, err)
+		if _, err := m.d.Vertex(emv.Digest); err != nil {
+			return nil, fmt.Errorf("Reparent: input[%d] not in DAG: %w", i, err)
 		}
 	}
 
 	mut, ok := target.(core.MutatingVertex)
 	if !ok {
-		return nil, fmt.Errorf("Reparent: vertex type %q does not support reparenting", target.Type())
+		return nil, fmt.Errorf("Reparent: vertex type %q does not implement MutatingVertex", target.Type())
 	}
-
 	updated, err := mut.WithInputs(newInputs)
 	if err != nil {
 		return nil, fmt.Errorf("Reparent: %w", err)
 	}
 
-	ng := m.g.clone()
-	if err := ng.propagateDigestChange(ctx, targetID, updated, c); err != nil {
+	nd := m.d.clone()
+	if err := nd.propagateDigest(ctx, targetID, updated, c); err != nil {
 		return nil, fmt.Errorf("Reparent: propagate: %w", err)
 	}
-
-	ng.emit(reactive.GraphEvent{
-		Kind:       reactive.EventKindVertexReparented,
-		AffectedID: targetID,
-	})
-	return ng, nil
+	nd.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexReparented, AffectedID: targetID})
+	return nd, nil
 }
 
 // ─── InsertBefore ────────────────────────────────────────────────────────────
 
-// InsertBefore inserts newVertex between all producers of targetID and targetID
-// itself. After the mutation:
+// InsertBefore inserts newVertex between targetID's current producers and
+// targetID itself:
 //
 //	producers → targetID   becomes   producers → newVertex → targetID
 //
-// newVertex must accept exactly the same inputs that targetID currently has.
+// newVertex receives the same inputs targetID currently has.
 func (m *Mutator) InsertBefore(
 	ctx context.Context,
 	targetID core.VertexID,
 	newVertex core.Vertex,
 	c *core.Constraints,
-) (*Graph, error) {
-	target, err := m.g.Vertex(targetID)
+) (*DAG, error) {
+	target, err := m.d.Vertex(targetID)
 	if err != nil {
 		return nil, fmt.Errorf("InsertBefore: %w", err)
 	}
 
-	// newVertex gets the same inputs as target currently has.
 	newMV, err := newVertex.Marshal(ctx, c)
 	if err != nil {
 		return nil, fmt.Errorf("InsertBefore: marshal new vertex: %w", err)
 	}
+	newID := newMV.Digest
 
-	// target's new inputs are the outputs of newVertex.
-	newInputs := make([]core.Edge, len(target.Inputs()))
-	for i := range target.Inputs() {
-		newInputs[i] = core.Edge{Vertex: newVertex, Index: i}
+	// Re-wire targetID's inputs to point at newVertex's outputs.
+	originalInputs := target.Inputs()
+	newTargetInputs := make([]core.Edge, len(originalInputs))
+	for i := range originalInputs {
+		newTargetInputs[i] = core.Edge{Vertex: newVertex, Index: i}
 	}
 
 	mut, ok := target.(core.MutatingVertex)
 	if !ok {
-		return nil, fmt.Errorf("InsertBefore: target vertex type %q does not support reparenting", target.Type())
+		return nil, fmt.Errorf("InsertBefore: target type %q does not implement MutatingVertex", target.Type())
 	}
-	updatedTarget, err := mut.WithInputs(newInputs)
+	updatedTarget, err := mut.WithInputs(newTargetInputs)
 	if err != nil {
 		return nil, fmt.Errorf("InsertBefore: rewire target: %w", err)
 	}
 
-	ng := m.g.clone()
-	// Add the new vertex.
-	ng.vertices[newMV.Digest] = newVertex
-	// Re-wire existing producers to point at newVertex (handled inside propagate).
-	if err := ng.propagateDigestChange(ctx, targetID, updatedTarget, c); err != nil {
-		return nil, fmt.Errorf("InsertBefore: propagate: %w", err)
+	nd := m.d.clone()
+	// Register the new vertex.
+	nd.vertices[newID] = newVertex
+	// Build reverse edges from newVertex's own inputs.
+	for _, edge := range originalInputs {
+		emv, err := edge.Vertex.Marshal(ctx, c)
+		if err != nil {
+			return nil, err
+		}
+		if nd.reverse[emv.Digest] == nil {
+			nd.reverse[emv.Digest] = make(map[core.VertexID]struct{})
+		}
+		nd.reverse[emv.Digest][newID] = struct{}{}
 	}
 
-	ng.emit(reactive.GraphEvent{
-		Kind:       reactive.EventKindVertexAdded,
-		AffectedID: newMV.Digest,
-	})
-	return ng, nil
+	if err := nd.propagateDigest(ctx, targetID, updatedTarget, c); err != nil {
+		return nil, fmt.Errorf("InsertBefore: propagate: %w", err)
+	}
+	nd.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded, AffectedID: newID})
+	return nd, nil
 }
 
 // ─── Bypass ───────────────────────────────────────────────────────────────────
 
-// Bypass removes targetID from the graph and connects its consumers directly
-// to its producers. The vertex must have exactly one input (otherwise the
-// bypass is ambiguous).
+// Bypass removes targetID and connects its consumers directly to its single
+// producer. Fails if the vertex has ≠1 input (ambiguous bypass).
 func (m *Mutator) Bypass(
 	ctx context.Context,
 	targetID core.VertexID,
 	c *core.Constraints,
-) (*Graph, error) {
-	target, err := m.g.Vertex(targetID)
+) (*DAG, error) {
+	target, err := m.d.Vertex(targetID)
 	if err != nil {
 		return nil, fmt.Errorf("Bypass: %w", err)
 	}
@@ -194,108 +185,156 @@ func (m *Mutator) Bypass(
 	}
 
 	upstream := inputs[0].Vertex
-	ng := m.g.clone()
+	nd := m.d.clone()
 
-	// Rewire each consumer to point at upstream instead of target.
-	consumers := ng.reverse[targetID]
-	for consumerID := range consumers {
-		consumer, ok := ng.vertices[consumerID]
+	for consID := range nd.reverse[targetID] {
+		cons, ok := nd.vertices[consID]
 		if !ok {
 			continue
 		}
-		mut, ok := consumer.(core.MutatingVertex)
+		mut, ok := cons.(core.MutatingVertex)
 		if !ok {
-			return nil, fmt.Errorf("Bypass: consumer %q does not support reparenting", consumerID)
+			return nil, fmt.Errorf("Bypass: consumer %q does not implement MutatingVertex", consID)
 		}
-		newInputs := make([]core.Edge, len(consumer.Inputs()))
-		for i, edge := range consumer.Inputs() {
+		newConsInputs := make([]core.Edge, len(cons.Inputs()))
+		for i, edge := range cons.Inputs() {
 			emv, err := edge.Vertex.Marshal(ctx, c)
 			if err != nil {
 				return nil, err
 			}
 			if emv.Digest == targetID {
-				newInputs[i] = core.Edge{Vertex: upstream, Index: edge.Index}
+				newConsInputs[i] = core.Edge{Vertex: upstream, Index: edge.Index}
 			} else {
-				newInputs[i] = edge
+				newConsInputs[i] = edge
 			}
 		}
-		updated, err := mut.WithInputs(newInputs)
+		updated, err := mut.WithInputs(newConsInputs)
 		if err != nil {
 			return nil, fmt.Errorf("Bypass: rewire consumer: %w", err)
 		}
-		if err := ng.propagateDigestChange(ctx, consumerID, updated, c); err != nil {
+		if err := nd.propagateDigest(ctx, consID, updated, c); err != nil {
 			return nil, fmt.Errorf("Bypass: propagate: %w", err)
 		}
 	}
 
-	// Remove target.
-	delete(ng.vertices, targetID)
-	delete(ng.reverse, targetID)
+	// Remove the bypassed vertex.
+	delete(nd.vertices, targetID)
+	delete(nd.reverse, targetID)
 
-	ng.emit(reactive.GraphEvent{
-		Kind:       reactive.EventKindVertexRemoved,
-		AffectedID: targetID,
-	})
-	return ng, nil
+	nd.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexRemoved, AffectedID: targetID})
+	return nd, nil
 }
 
 // ─── Append ───────────────────────────────────────────────────────────────────
 
-// Append chains newVertex after afterID, making afterID's output the sole
-// input of newVertex. Consumers of afterID are *not* automatically rewired;
-// use the returned new graph's root to build further state.
+// Append chains newVertex after afterID (uses afterID as its sole input) and
+// adds it as a new root in the DAG.
 func (m *Mutator) Append(
 	ctx context.Context,
 	afterID core.VertexID,
 	newVertex core.Vertex,
 	c *core.Constraints,
-) (*Graph, error) {
-	if _, err := m.g.Vertex(afterID); err != nil {
+) (*DAG, error) {
+	if _, err := m.d.Vertex(afterID); err != nil {
 		return nil, fmt.Errorf("Append: %w", err)
 	}
 	if err := newVertex.Validate(ctx, c); err != nil {
-		return nil, fmt.Errorf("Append: new vertex invalid: %w", err)
+		return nil, fmt.Errorf("Append: %w", err)
 	}
 	newMV, err := newVertex.Marshal(ctx, c)
 	if err != nil {
 		return nil, fmt.Errorf("Append: marshal: %w", err)
 	}
+	newID := newMV.Digest
 
-	ng := m.g.clone()
-	ng.vertices[newMV.Digest] = newVertex
-
-	// Register reverse edge: afterID → newMV.Digest.
-	if ng.reverse[afterID] == nil {
-		ng.reverse[afterID] = make(map[core.VertexID]struct{})
+	nd := m.d.clone()
+	nd.vertices[newID] = newVertex
+	if nd.reverse[afterID] == nil {
+		nd.reverse[afterID] = make(map[core.VertexID]struct{})
 	}
-	ng.reverse[afterID][newMV.Digest] = struct{}{}
+	nd.reverse[afterID][newID] = struct{}{}
+	nd.roots = append(nd.roots, newID)
 
-	// newVertex is a new root.
-	ng.roots = append(ng.roots, newMV.Digest)
-
-	ng.emit(reactive.GraphEvent{
-		Kind:       reactive.EventKindVertexAdded,
-		AffectedID: newMV.Digest,
-	})
-	return ng, nil
+	nd.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded, AffectedID: newID})
+	return nd, nil
 }
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── Prune ────────────────────────────────────────────────────────────────────
 
-// maxConsumedOutputIndex returns the highest output slot index of targetID
-// that any consumer references, or -1 if there are no consumers.
+// Prune removes all vertices not reachable from the given root IDs (or from
+// the DAG's existing roots if rootIDs is empty). Returns the pruned DAG and
+// the count of removed vertices.
+func (m *Mutator) Prune(
+	ctx context.Context,
+	c *core.Constraints,
+	rootIDs ...core.VertexID,
+) (*DAG, int, error) {
+	roots := rootIDs
+	if len(roots) == 0 {
+		roots = m.d.Roots()
+	}
+
+	reachable := m.d.reachable(ctx, roots, c)
+	removed := 0
+
+	nd := m.d.clone()
+	for id := range nd.vertices {
+		if _, ok := reachable[id]; !ok {
+			delete(nd.vertices, id)
+			delete(nd.reverse, id)
+			delete(nd.labels, id)
+			removed++
+		}
+	}
+	// Re-filter roots.
+	newRoots := make([]core.VertexID, 0, len(roots))
+	for _, r := range roots {
+		if _, ok := nd.vertices[r]; ok {
+			newRoots = append(newRoots, r)
+		}
+	}
+	nd.roots = newRoots
+
+	nd.emit(reactive.GraphEvent{
+		Kind:  reactive.EventKindDAGPruned,
+		Count: removed,
+	})
+	return nd, removed, nil
+}
+
+// ─── UpdateField ─────────────────────────────────────────────────────────────
+
+// UpdateField replaces a vertex with a new one built by applying fn to its
+// current value, then propagates the digest change.
+// fn receives the current vertex and must return a new, valid vertex.
+// This is a convenience wrapper around Replace.
+func (m *Mutator) UpdateField(
+	ctx context.Context,
+	targetID core.VertexID,
+	fn func(ctx context.Context, current core.Vertex) (core.Vertex, error),
+	c *core.Constraints,
+) (*DAG, error) {
+	current, err := m.d.Vertex(targetID)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateField: %w", err)
+	}
+	replacement, err := fn(ctx, current)
+	if err != nil {
+		return nil, fmt.Errorf("UpdateField: %w", err)
+	}
+	return m.Replace(ctx, targetID, replacement, c)
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 func (m *Mutator) maxConsumedOutputIndex(targetID core.VertexID) int {
 	max := -1
-	for consumerID := range m.g.reverse[targetID] {
-		consumer, ok := m.g.vertices[consumerID]
+	for consID := range m.d.reverse[targetID] {
+		cons, ok := m.d.vertices[consID]
 		if !ok {
 			continue
 		}
-		for _, edge := range consumer.Inputs() {
-			// We need to identify which edge points at targetID. Since edges carry
-			// a Vertex pointer we do an identity comparison on the marshaled digest.
-			// We skip the marshal here because this is a read-only scan; we use the
-			// vertex pointer stored in the graph instead.
+		for _, edge := range cons.Inputs() {
 			if edge.Index > max {
 				max = edge.Index
 			}

@@ -1,12 +1,4 @@
-// Package local provides the local-directory source operation for llbx.
-//
-// Example
-//
-//	src := local.New(
-//	    local.WithName("context"),
-//	    local.WithIncludePatterns([]string{"*.go", "go.mod"}),
-//	    local.WithExcludePatterns([]string{"vendor/", "_test.go"}),
-//	)
+// Package local provides the local-directory source operation.
 package local
 
 import (
@@ -19,118 +11,47 @@ import (
 	"github.com/moby/buildkit/solver/pb"
 )
 
-// ─── DiffType controls file comparison strategy ───────────────────────────────
-
-// DiffType specifies the file-comparison strategy used when syncing the local
-// directory to the BuildKit daemon.
 type DiffType string
 
 const (
-	// DiffNone retransmits all files without comparison.
-	DiffNone DiffType = pb.AttrLocalDifferNone
-	// DiffMetadata compares size, mtime, mode, owner (default BuildKit behaviour).
+	DiffNone     DiffType = pb.AttrLocalDifferNone
 	DiffMetadata DiffType = pb.AttrLocalDifferMetadata
 )
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-// Config holds all parameters for a local source op.
 type Config struct {
-	// Name is the logical name of the local directory (e.g., "context").
-	// Required.
-	Name string
-
-	// SessionID pins the local source to a specific build session. Usually
-	// set automatically by the BuildKit client.
-	SessionID string
-
-	// IncludePatterns is the list of glob patterns to include.
-	// An empty list means "include everything".
-	IncludePatterns []string
-
-	// ExcludePatterns is the list of glob patterns to exclude.
-	ExcludePatterns []string
-
-	// FollowPaths is a list of paths to follow regardless of include patterns.
-	FollowPaths []string
-
-	// SharedKeyHint aids cross-build cache reuse by providing a stable key.
-	SharedKeyHint string
-
-	// Differ controls the file-comparison strategy.
-	Differ DiffType
-
-	// DifferRequired requires the daemon to support the chosen differ mode.
-	DifferRequired bool
-
-	// MetadataOnly enables metadata-only transfer (experimental).
-	MetadataOnly bool
-	// MetadataExceptions are paths exempt from MetadataOnly transfer.
+	Name               string   // required
+	SessionID          string
+	IncludePatterns    []string
+	ExcludePatterns    []string
+	FollowPaths        []string
+	SharedKeyHint      string
+	Differ             DiffType
+	DifferRequired     bool
+	MetadataOnly       bool
 	MetadataExceptions []string
-
-	// Constraints are per-vertex LLB constraints.
-	Constraints core.Constraints
+	Constraints        core.Constraints
 }
 
-// ─── Option ───────────────────────────────────────────────────────────────────
-
-// Option is a functional option for Config.
 type Option func(*Config)
 
-// WithName sets the logical directory name.
-func WithName(name string) Option { return func(c *Config) { c.Name = name } }
-
-// WithSessionID pins the source to a build session.
-func WithSessionID(id string) Option { return func(c *Config) { c.SessionID = id } }
-
-// WithIncludePatterns sets the include glob patterns.
-func WithIncludePatterns(patterns []string) Option {
-	return func(c *Config) { c.IncludePatterns = patterns }
-}
-
-// WithExcludePatterns sets the exclude glob patterns.
-func WithExcludePatterns(patterns []string) Option {
-	return func(c *Config) { c.ExcludePatterns = patterns }
-}
-
-// WithFollowPaths sets paths to always include.
-func WithFollowPaths(paths []string) Option {
-	return func(c *Config) { c.FollowPaths = paths }
-}
-
-// WithSharedKeyHint sets the shared cache key hint.
-func WithSharedKeyHint(hint string) Option {
-	return func(c *Config) { c.SharedKeyHint = hint }
-}
-
-// WithDiffer sets the file-comparison strategy.
-func WithDiffer(t DiffType, required bool) Option {
-	return func(c *Config) { c.Differ = t; c.DifferRequired = required }
-}
-
-// WithMetadataOnly enables metadata-only transfer with optional exceptions.
-func WithMetadataOnly(exceptions []string) Option {
-	return func(c *Config) {
-		c.MetadataOnly = true
-		c.MetadataExceptions = exceptions
-	}
-}
-
-// WithConstraintsOption applies a core.ConstraintsOption.
+func WithName(name string) Option             { return func(c *Config) { c.Name = name } }
+func WithSessionID(id string) Option          { return func(c *Config) { c.SessionID = id } }
+func WithIncludePatterns(p []string) Option   { return func(c *Config) { c.IncludePatterns = p } }
+func WithExcludePatterns(p []string) Option   { return func(c *Config) { c.ExcludePatterns = p } }
+func WithFollowPaths(p []string) Option       { return func(c *Config) { c.FollowPaths = p } }
+func WithSharedKeyHint(h string) Option       { return func(c *Config) { c.SharedKeyHint = h } }
+func WithDiffer(t DiffType, req bool) Option  { return func(c *Config) { c.Differ = t; c.DifferRequired = req } }
+func WithMetadataOnly(exc []string) Option    { return func(c *Config) { c.MetadataOnly = true; c.MetadataExceptions = exc } }
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }
 
-// ─── Vertex ───────────────────────────────────────────────────────────────────
-
-// Vertex is the llbx implementation of the local-directory source op.
 type Vertex struct {
 	config Config
 	cache  marshal.Cache
 	attrs  map[string]string
 }
 
-// New constructs a local source Vertex.
 func New(opts ...Option) (*Vertex, error) {
 	cfg := Config{}
 	for _, o := range opts {
@@ -147,7 +68,6 @@ func New(opts ...Option) (*Vertex, error) {
 func (v *Vertex) buildAttrs() {
 	cfg := &v.config
 	attrs := make(map[string]string)
-
 	if cfg.SessionID != "" {
 		attrs[pb.AttrLocalSessionID] = cfg.SessionID
 		core.ConstraintsAddCap(&cfg.Constraints, pb.CapSourceLocalSessionID)
@@ -193,8 +113,6 @@ func (v *Vertex) buildAttrs() {
 	v.attrs = attrs
 }
 
-// ─── core.Vertex ──────────────────────────────────────────────────────────────
-
 func (v *Vertex) Type() core.VertexType { return core.VertexTypeSource }
 func (v *Vertex) Inputs() []core.Edge   { return nil }
 func (v *Vertex) Outputs() []core.OutputSlot {
@@ -209,7 +127,7 @@ func (v *Vertex) Validate(_ context.Context, _ *core.Constraints) error {
 }
 
 func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.MarshaledVertex, error) {
-	h := marshal.Acquire(&v.cache)
+	h := v.cache.Acquire()
 	defer h.Release()
 	if dgst, bytes, meta, srcs, err := h.Load(c); err == nil {
 		return &core.MarshaledVertex{Digest: dgst, Bytes: bytes, Metadata: meta, SourceLocations: srcs}, nil
@@ -220,7 +138,6 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 	for k, val := range v.attrs {
 		attrs[k] = val
 	}
-	// LocalUniqueID is resolved at marshal time from the Constraints.
 	if _, hasSession := attrs[pb.AttrLocalSessionID]; !hasSession {
 		uid := cfg.Constraints.LocalUniqueID
 		if uid == "" {
@@ -236,10 +153,9 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 		Identifier: "local://" + cfg.Name,
 		Attrs:      attrs,
 	}}
-
 	bytes, err := marshal.DeterministicMarshal(pop)
 	if err != nil {
-		return nil, fmt.Errorf("local.Vertex.Marshal: %w", err)
+		return nil, fmt.Errorf("local.Marshal: %w", err)
 	}
 	dgst, bytes, meta, srcs, _ := h.Store(bytes, md, c.SourceLocations, c)
 	return &core.MarshaledVertex{Digest: dgst, Bytes: bytes, Metadata: meta, SourceLocations: srcs}, nil
@@ -252,17 +168,14 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	return v, nil
 }
 
-// Config returns a copy of the vertex's configuration.
 func (v *Vertex) Config() Config { return v.config }
+func (v *Vertex) Output() core.Output { return &localOutput{v: v} }
 
-// Output returns a core.Output referencing output slot 0.
-func (v *Vertex) Output() core.Output { return &vertexOutput{vertex: v} }
+type localOutput struct{ v *Vertex }
 
-type vertexOutput struct{ vertex *Vertex }
-
-func (o *vertexOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return o.vertex }
-func (o *vertexOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := o.vertex.Marshal(ctx, c)
+func (o *localOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return o.v }
+func (o *localOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
+	mv, err := o.v.Marshal(ctx, c)
 	if err != nil {
 		return nil, err
 	}
