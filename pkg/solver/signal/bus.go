@@ -1,6 +1,7 @@
-// Package signal provides an event bus for reactive notifications during
-// solve sessions. It enables subscribers to observe vertex state transitions
-// without coupling the scheduler to consumers.
+// Package signal provides a non-blocking event bus for reactive notifications
+// during solve sessions. It enables subscribers to observe vertex state
+// transitions without coupling the scheduler to consumers, matching
+// BuildKit's progress/event reporting philosophy.
 package signal
 
 import (
@@ -17,23 +18,17 @@ type EventType int
 const (
 	// VertexQueued is emitted when a vertex is added to the scheduler queue.
 	VertexQueued EventType = iota + 1
-
 	// VertexStarted is emitted when a vertex begins execution.
 	VertexStarted
-
 	// CacheHit is emitted when a vertex's result is found in cache.
 	CacheHit
-
-	// CacheMiss is emitted when no cached result exists for a vertex.
+	// CacheMiss is emitted when no cached result exists.
 	CacheMiss
-
 	// VertexCompleted is emitted when a vertex finishes successfully.
 	VertexCompleted
-
 	// VertexFailed is emitted when a vertex execution fails.
 	VertexFailed
-
-	// VertexCanceled is emitted when a vertex is canceled via context.
+	// VertexCanceled is emitted when a vertex is cancelled via context.
 	VertexCanceled
 )
 
@@ -59,7 +54,7 @@ func (t EventType) String() string {
 	}
 }
 
-// Event represents a solver event.
+// Event represents a single solver lifecycle event.
 type Event struct {
 	Type      EventType
 	Vertex    digest.Digest
@@ -69,8 +64,12 @@ type Event struct {
 	ResultID  string
 }
 
-// Bus is a non-blocking event bus. Publishers never block; slow
-// subscribers drop events rather than causing back-pressure.
+// ─── Bus ──────────────────────────────────────────────────────────────────────
+
+// Bus is a non-blocking, fan-out event bus. Publishers are never blocked: if a
+// subscriber's channel is full the event is dropped for that subscriber and the
+// drop counter is incremented. This prevents slow consumers from degrading
+// build throughput.
 type Bus struct {
 	mu          sync.RWMutex
 	subscribers []*Subscription
@@ -78,12 +77,10 @@ type Bus struct {
 }
 
 // NewBus creates a new event bus.
-func NewBus() *Bus {
-	return &Bus{}
-}
+func NewBus() *Bus { return &Bus{} }
 
-// Publish sends an event to all active subscribers. Non-blocking: if a
-// subscriber's channel is full, the event is dropped for that subscriber.
+// Publish sends evt to all active subscribers that match their filter.
+// Non-blocking: events are dropped (not queued) for slow subscribers.
 func (b *Bus) Publish(evt Event) {
 	if b.closed.Load() {
 		return
@@ -92,8 +89,9 @@ func (b *Bus) Publish(evt Event) {
 		evt.Timestamp = time.Now()
 	}
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-	for _, sub := range b.subscribers {
+	subs := b.subscribers // snapshot; safe because we never mutate after assignment
+	b.mu.RUnlock()
+	for _, sub := range subs {
 		if sub.closed.Load() {
 			continue
 		}
@@ -103,15 +101,14 @@ func (b *Bus) Publish(evt Event) {
 		select {
 		case sub.ch <- evt:
 		default:
-			// Drop: subscriber is slow.
 			sub.dropped.Add(1)
 		}
 	}
 }
 
-// Subscribe creates a new subscription with an optional filter.
-// The channel buffer size controls how many events can be buffered
-// before dropping.
+// Subscribe creates a new subscription. bufSize is the event channel buffer;
+// filter (if non-nil) restricts which events are delivered.
+// The caller must consume from sub.Events() promptly or events will be dropped.
 func (b *Bus) Subscribe(bufSize int, filter func(Event) bool) *Subscription {
 	if bufSize < 1 {
 		bufSize = 64
@@ -126,20 +123,22 @@ func (b *Bus) Subscribe(bufSize int, filter func(Event) bool) *Subscription {
 	return sub
 }
 
-// Close closes the bus and all subscriptions.
+// Close closes the bus and all subscriptions. Idempotent.
 func (b *Bus) Close() {
 	if !b.closed.CompareAndSwap(false, true) {
 		return
 	}
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	for _, sub := range b.subscribers {
 		sub.Close()
 	}
 	b.subscribers = nil
+	b.mu.Unlock()
 }
 
-// Subscription receives events from the bus.
+// ─── Subscription ─────────────────────────────────────────────────────────────
+
+// Subscription receives events from a Bus.
 type Subscription struct {
 	ch      chan Event
 	filter  func(Event) bool
@@ -147,31 +146,27 @@ type Subscription struct {
 	dropped atomic.Int64
 }
 
-// Events returns the channel of events for this subscription.
-func (s *Subscription) Events() <-chan Event {
-	return s.ch
-}
+// Events returns the read-only event channel.
+func (s *Subscription) Events() <-chan Event { return s.ch }
 
 // Dropped returns the number of events dropped due to a full buffer.
-func (s *Subscription) Dropped() int64 {
-	return s.dropped.Load()
-}
+func (s *Subscription) Dropped() int64 { return s.dropped.Load() }
 
-// Close closes this subscription's channel.
+// Close closes this subscription. Idempotent.
 func (s *Subscription) Close() {
 	if s.closed.CompareAndSwap(false, true) {
 		close(s.ch)
 	}
 }
 
-// ForVertex returns a filter that matches events for a specific vertex.
+// ─── Filter constructors ──────────────────────────────────────────────────────
+
+// ForVertex returns a filter that only passes events for the given vertex.
 func ForVertex(dgst digest.Digest) func(Event) bool {
-	return func(evt Event) bool {
-		return evt.Vertex == dgst
-	}
+	return func(evt Event) bool { return evt.Vertex == dgst }
 }
 
-// ForTypes returns a filter that matches specific event types.
+// ForTypes returns a filter that only passes specific event types.
 func ForTypes(types ...EventType) func(Event) bool {
 	set := make(map[EventType]struct{}, len(types))
 	for _, t := range types {
@@ -181,4 +176,29 @@ func ForTypes(types ...EventType) func(Event) bool {
 		_, ok := set[evt.Type]
 		return ok
 	}
+}
+
+// ForVertexTypes composes ForVertex and ForTypes into a single filter.
+// Useful for watching specific lifecycle events of one vertex.
+func ForVertexTypes(dgst digest.Digest, types ...EventType) func(Event) bool {
+	byVertex := ForVertex(dgst)
+	byType := ForTypes(types...)
+	return func(evt Event) bool {
+		return byVertex(evt) && byType(evt)
+	}
+}
+
+// And combines two filters with logical AND.
+func And(a, b func(Event) bool) func(Event) bool {
+	return func(evt Event) bool { return a(evt) && b(evt) }
+}
+
+// Or combines two filters with logical OR.
+func Or(a, b func(Event) bool) func(Event) bool {
+	return func(evt Event) bool { return a(evt) || b(evt) }
+}
+
+// Not negates a filter.
+func Not(f func(Event) bool) func(Event) bool {
+	return func(evt Event) bool { return !f(evt) }
 }

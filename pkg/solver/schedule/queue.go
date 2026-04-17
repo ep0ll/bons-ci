@@ -1,6 +1,5 @@
-// Package schedule provides priority-based scheduling for solver vertex
-// execution. It uses dependency-distance aware ordering to prioritize
-// deeper (more expensive) branches first.
+// Package schedule provides priority-based, dependency-distance-aware
+// scheduling for solver vertex execution.
 package schedule
 
 import (
@@ -12,41 +11,39 @@ import (
 
 // Task represents a unit of work to be scheduled.
 type Task struct {
-	// VertexDigest uniquely identifies the vertex.
+	// VertexDigest uniquely identifies the vertex being executed.
 	VertexDigest digest.Digest
 
-	// Name is a human-readable label for progress reporting.
+	// Name is a human-readable label for progress/logging.
 	Name string
 
-	// Priority determines execution order. Lower values execute first.
-	// For critical-path scheduling, this is (maxDepth - vertexDepth).
+	// Priority determines execution order: LOWER values run FIRST.
+	// For CriticalPath scheduling: Priority = maxDepth - vertexDepth.
 	Priority int
 
-	// Depth is the vertex's distance from the deepest root.
+	// Depth is the vertex's dependency distance from the deepest root.
 	Depth int
 
-	// EstimatedCost is an optional hint from the vertex options.
+	// EstimatedCost is an optional cost hint from VertexOptions.EstimatedCost.
 	EstimatedCost float64
 
-	// Fn is the work function to execute.
+	// Fn is the work function. It must respect context cancellation.
 	Fn func() error
 
-	// index is the heap index, managed by container/heap.
+	// index is managed by container/heap. Do not touch.
 	index int
 }
 
-// PriorityQueue implements a min-heap of Tasks, ordered by priority.
+// PriorityQueue is a thread-safe min-heap of Tasks ordered by priority.
 // Lower priority values are dequeued first (critical-path-first).
-// It is safe for concurrent use.
 type PriorityQueue struct {
-	mu   sync.Mutex
-	cond *sync.Cond
-	h    taskHeap
-
+	mu     sync.Mutex
+	cond   *sync.Cond
+	h      taskHeap
 	closed bool
 }
 
-// NewPriorityQueue creates a new priority queue.
+// NewPriorityQueue creates a ready-to-use priority queue.
 func NewPriorityQueue() *PriorityQueue {
 	pq := &PriorityQueue{
 		h: make(taskHeap, 0, 64),
@@ -56,7 +53,7 @@ func NewPriorityQueue() *PriorityQueue {
 	return pq
 }
 
-// Push adds a task to the queue.
+// Push adds a task to the queue and wakes one blocked Pop caller.
 func (pq *PriorityQueue) Push(t *Task) {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
@@ -67,8 +64,8 @@ func (pq *PriorityQueue) Push(t *Task) {
 	pq.cond.Signal()
 }
 
-// Pop removes and returns the highest-priority task. Blocks if the queue
-// is empty. Returns nil if the queue is closed.
+// Pop removes and returns the highest-priority (lowest value) task.
+// Blocks if the queue is empty. Returns nil if the queue is closed.
 func (pq *PriorityQueue) Pop() *Task {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
@@ -81,8 +78,7 @@ func (pq *PriorityQueue) Pop() *Task {
 	return heap.Pop(&pq.h).(*Task)
 }
 
-// TryPop returns the highest-priority task without blocking.
-// Returns nil if the queue is empty.
+// TryPop returns the highest-priority task without blocking, or nil if empty.
 func (pq *PriorityQueue) TryPop() *Task {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
@@ -92,39 +88,45 @@ func (pq *PriorityQueue) TryPop() *Task {
 	return heap.Pop(&pq.h).(*Task)
 }
 
-// Len returns the number of tasks in the queue.
+// Len returns the number of tasks currently in the queue.
 func (pq *PriorityQueue) Len() int {
 	pq.mu.Lock()
-	defer pq.mu.Unlock()
-	return pq.h.Len()
+	n := pq.h.Len()
+	pq.mu.Unlock()
+	return n
 }
 
-// Close closes the queue and wakes any blocked Pop callers.
+// Close marks the queue as closed and wakes all blocked Pop callers.
+// After Close, Push is a no-op and Pop returns nil once the queue is drained.
 func (pq *PriorityQueue) Close() {
 	pq.mu.Lock()
 	defer pq.mu.Unlock()
-	pq.closed = true
-	pq.cond.Broadcast()
+	if !pq.closed {
+		pq.closed = true
+		pq.cond.Broadcast()
+	}
 }
 
-// taskHeap implements heap.Interface for Task pointers.
+// ─── heap.Interface implementation ────────────────────────────────────────────
+
 type taskHeap []*Task
 
 func (h taskHeap) Len() int { return len(h) }
 
+// Less defines the ordering. Priority is the primary sort key (lower = first).
+// EstimatedCost breaks ties (higher cost = more urgent = first).
+// VertexDigest provides a final deterministic tiebreaker.
 func (h taskHeap) Less(i, j int) bool {
-	// Primary: lower priority value first (critical path).
 	if h[i].Priority != h[j].Priority {
 		return h[i].Priority < h[j].Priority
 	}
-	// Secondary: higher estimated cost first.
 	if h[i].EstimatedCost != h[j].EstimatedCost {
-		return h[i].EstimatedCost > h[j].EstimatedCost
+		return h[i].EstimatedCost > h[j].EstimatedCost // higher cost runs first
 	}
-	// Tertiary: deterministic by digest.
 	return h[i].VertexDigest < h[j].VertexDigest
 }
 
+// Swap must also update the index field used by Fix/Remove.
 func (h taskHeap) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 	h[i].index = i
@@ -141,8 +143,8 @@ func (h *taskHeap) Pop() any {
 	old := *h
 	n := len(old)
 	t := old[n-1]
-	old[n-1] = nil // avoid memory leak
-	t.index = -1
+	old[n-1] = nil // prevent memory leak
+	t.index = -1   // mark as removed
 	*h = old[:n-1]
 	return t
 }

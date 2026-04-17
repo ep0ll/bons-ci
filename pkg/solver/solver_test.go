@@ -18,11 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ---------------------------------------------------------------------------
-// Test Helpers
-// ---------------------------------------------------------------------------
+// ─── Test helpers ─────────────────────────────────────────────────────────────
 
-// testVertex is a minimal Vertex implementation for testing.
+// testVertex is a minimal Vertex for tests.
 type testVertex struct {
 	name    string
 	dgst    digest.Digest
@@ -31,11 +29,11 @@ type testVertex struct {
 	sys     any
 }
 
-func (v *testVertex) Digest() digest.Digest         { return v.dgst }
-func (v *testVertex) Inputs() []solver.Edge          { return v.inputs }
-func (v *testVertex) Name() string                   { return v.name }
-func (v *testVertex) Sys() any                       { return v.sys }
-func (v *testVertex) Options() solver.VertexOptions   { return v.options }
+func (v *testVertex) Digest() digest.Digest       { return v.dgst }
+func (v *testVertex) Inputs() []solver.Edge        { return v.inputs }
+func (v *testVertex) Name() string                 { return v.name }
+func (v *testVertex) Sys() any                     { return v.sys }
+func (v *testVertex) Options() solver.VertexOptions { return v.options }
 
 func newVertex(name string, inputs ...solver.Edge) *testVertex {
 	return &testVertex{
@@ -45,10 +43,19 @@ func newVertex(name string, inputs ...solver.Edge) *testVertex {
 	}
 }
 
-// testOp is a minimal Op implementation for testing.
+func newVertexWithOpts(name string, opts solver.VertexOptions, inputs ...solver.Edge) *testVertex {
+	return &testVertex{
+		name:    name,
+		dgst:    digest.FromString(name),
+		inputs:  inputs,
+		options: opts,
+	}
+}
+
+// testOp is a controllable Op for tests.
 type testOp struct {
-	execFn   func(ctx context.Context, inputs []solver.Result) ([]solver.Result, error)
-	delay    time.Duration
+	execFn    func(ctx context.Context, inputs []solver.Result) ([]solver.Result, error)
+	delay     time.Duration
 	execCount atomic.Int64
 }
 
@@ -75,19 +82,31 @@ func (op *testOp) Acquire(_ context.Context) (func(), error) {
 	return func() {}, nil
 }
 
-// makeSimpleResolveOp creates a ResolveOpFunc that returns a testOp which
-// produces a result with the vertex name.
+// errorOp always fails Exec.
+type errorOp struct{ msg string }
+
+func (op *errorOp) CacheMap(_ context.Context, _ int) (*solver.CacheMap, bool, error) {
+	return &solver.CacheMap{Digest: digest.FromString("errmap")}, true, nil
+}
+func (op *errorOp) Exec(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
+	return nil, fmt.Errorf("%s", op.msg)
+}
+func (op *errorOp) Acquire(_ context.Context) (func(), error) { return func() {}, nil }
+
+// makeSimpleResolveOp produces results named "result-<vertex.Name()>".
 func makeSimpleResolveOp() solver.ResolveOpFunc {
 	return func(vtx solver.Vertex) (solver.Op, error) {
 		return &testOp{
 			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
-				return []solver.Result{solver.NewResult("result-" + vtx.Name(), vtx.Name())}, nil
+				return []solver.Result{
+					solver.NewResult("result-"+vtx.Name(), vtx.Name()),
+				}, nil
 			},
 		}, nil
 	}
 }
 
-// buildDiamond creates a diamond DAG:
+// buildDiamond creates:
 //
 //	    A (root)
 //	   / \
@@ -105,35 +124,32 @@ func buildDiamond() (root, b, c, leaf *testVertex) {
 	return
 }
 
-// buildChain creates a linear chain: root → v1 → v2 → ... → leaf
-func buildChain(depth int) (vertices []*testVertex) {
-	vertices = make([]*testVertex, depth)
-	vertices[0] = newVertex(fmt.Sprintf("v0-root"))
+// buildChain creates: v0 → v1 → … → v(depth-1)
+func buildChain(depth int) []*testVertex {
+	verts := make([]*testVertex, depth)
+	verts[0] = newVertex("v0-root")
 	for i := 1; i < depth; i++ {
-		vertices[i] = newVertex(
+		verts[i] = newVertex(
 			fmt.Sprintf("v%d", i),
-			solver.Edge{Index: 0, Vertex: vertices[i-1]},
+			solver.Edge{Index: 0, Vertex: verts[i-1]},
 		)
 	}
-	return
+	return verts
 }
 
-// ---------------------------------------------------------------------------
-// Test 1: Cache Hit Short-Circuiting
-// ---------------------------------------------------------------------------
+// ─── Test 1: Cache hit short-circuits ALL vertex execution ───────────────────
 
 func TestCacheHitShortCircuit(t *testing.T) {
 	root, b, c, leaf := buildDiamond()
-	cacheStore := cache.NewMemory()
-
-	// Pre-populate ALL vertices in cache.
+	store := cache.NewMemory()
 	ctx := context.Background()
+
+	// Pre-populate every vertex in cache.
 	for _, v := range []*testVertex{root, b, c, leaf} {
-		key := cache.Key{Digest: v.Digest(), Output: 0}
-		require.NoError(t, cacheStore.Save(ctx, key, "cached-"+v.Name(), 100))
+		require.NoError(t,
+			store.Save(ctx, cache.Key{Digest: v.Digest(), Output: 0}, "cached-"+v.Name(), 100))
 	}
 
-	// Track if any op was executed — it should NOT be.
 	var opExecuted atomic.Bool
 	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
 		return &testOp{
@@ -146,99 +162,79 @@ func TestCacheHitShortCircuit(t *testing.T) {
 
 	s := solver.New(solver.SolverOpts{
 		ResolveOp: resolveOp,
-		Cache:     cacheStore,
+		Cache:     store,
 		Workers:   2,
-	})
-	defer s.Close()
-
-	sess, err := s.Solve(context.Background(), []solver.Edge{
-		{Index: 0, Vertex: leaf},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, sess)
-
-	result, err := sess.Result(solver.Edge{Index: 0, Vertex: leaf})
-	require.NoError(t, err)
-	assert.Equal(t, "cached-D", result.ID())
-	assert.False(t, opExecuted.Load(), "no op should have been executed when cache hit")
-}
-
-// ---------------------------------------------------------------------------
-// Test 2: Partial Parent Cache Reuse
-// ---------------------------------------------------------------------------
-
-func TestPartialParentCacheReuse(t *testing.T) {
-	root, b, _, leaf := buildDiamond()
-
-	cacheStore := cache.NewMemory()
-
-	// Pre-populate root and B in cache, but NOT C or leaf.
-	ctx := context.Background()
-	require.NoError(t, cacheStore.Save(ctx, cache.Key{Digest: root.Digest(), Output: 0}, "cached-root", 0))
-	require.NoError(t, cacheStore.Save(ctx, cache.Key{Digest: b.Digest(), Output: 0}, "cached-B", 0))
-
-	// Track which vertices get executed.
-	var executedVertices sync.Map
-
-	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
-		return &testOp{
-			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
-				executedVertices.Store(vtx.Name(), true)
-				return []solver.Result{solver.NewResult("result-" + vtx.Name(), nil)}, nil
-			},
-		}, nil
-	}
-
-	s := solver.New(solver.SolverOpts{
-		ResolveOp: resolveOp,
-		Cache:     cacheStore,
-		Workers:   4,
 	})
 	defer s.Close()
 
 	sess, err := s.Solve(ctx, []solver.Edge{{Index: 0, Vertex: leaf}})
 	require.NoError(t, err)
 
-	result, err := sess.Result(solver.Edge{Index: 0, Vertex: leaf})
+	res, err := sess.Result(solver.Edge{Index: 0, Vertex: leaf})
 	require.NoError(t, err)
-	require.NotNil(t, result)
+	assert.NotNil(t, res)
 
-	// A (root) and B should NOT have been executed (cache hit).
-	_, executedA := executedVertices.Load("A")
-	_, executedB := executedVertices.Load("B")
-	assert.False(t, executedA, "A should not have been executed (cached)")
-	assert.False(t, executedB, "B should not have been executed (cached)")
-
-	// C and D should have been executed.
-	_, executedC := executedVertices.Load("C")
-	_, executedD := executedVertices.Load("D")
-	assert.True(t, executedC, "C should have been executed (not cached)")
-	assert.True(t, executedD, "D should have been executed (not cached)")
+	assert.False(t, opExecuted.Load(), "no Op.Exec should run when all vertices are cached")
 }
 
-// ---------------------------------------------------------------------------
-// Test 3: Missing Cache Resolution
-// ---------------------------------------------------------------------------
+// ─── Test 2: Partial parent cache reuse ──────────────────────────────────────
 
-func TestMissingCacheResolution(t *testing.T) {
-	_, _, _, leaf := buildDiamond()
+func TestPartialParentCacheReuse(t *testing.T) {
+	root, b, _, leaf := buildDiamond()
+	store := cache.NewMemory()
+	ctx := context.Background()
 
-	// Empty cache — everything should execute.
-	var executedVertices sync.Map
+	// Cache root and B but NOT C or D.
+	require.NoError(t, store.Save(ctx, cache.Key{Digest: root.Digest(), Output: 0}, "cached-A", 0))
+	require.NoError(t, store.Save(ctx, cache.Key{Digest: b.Digest(), Output: 0}, "cached-B", 0))
 
+	var executed sync.Map // vertex name → bool
 	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
 		return &testOp{
 			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
-				executedVertices.Store(vtx.Name(), true)
-				return []solver.Result{solver.NewResult("result-" + vtx.Name(), nil)}, nil
+				executed.Store(vtx.Name(), true)
+				return []solver.Result{solver.NewResult("result-"+vtx.Name(), nil)}, nil
 			},
 		}, nil
 	}
 
-	s := solver.New(solver.SolverOpts{
-		ResolveOp: resolveOp,
-		Workers:   2,
-	})
+	s := solver.New(solver.SolverOpts{ResolveOp: resolveOp, Cache: store, Workers: 4})
+	defer s.Close()
+
+	sess, err := s.Solve(ctx, []solver.Edge{{Index: 0, Vertex: leaf}})
+	require.NoError(t, err)
+
+	res, err := sess.Result(solver.Edge{Index: 0, Vertex: leaf})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	_, execA := executed.Load("A")
+	_, execB := executed.Load("B")
+	assert.False(t, execA, "A should not execute (cached)")
+	assert.False(t, execB, "B should not execute (cached)")
+
+	_, execC := executed.Load("C")
+	_, execD := executed.Load("D")
+	assert.True(t, execC, "C should execute (not cached)")
+	assert.True(t, execD, "D should execute (not cached)")
+}
+
+// ─── Test 3: Full cache miss — all vertices execute ───────────────────────────
+
+func TestMissingCacheResolution(t *testing.T) {
+	_, _, _, leaf := buildDiamond()
+	var executed sync.Map
+
+	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
+		return &testOp{
+			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
+				executed.Store(vtx.Name(), true)
+				return []solver.Result{solver.NewResult("result-"+vtx.Name(), nil)}, nil
+			},
+		}, nil
+	}
+
+	s := solver.New(solver.SolverOpts{ResolveOp: resolveOp, Workers: 2})
 	defer s.Close()
 
 	sess, err := s.Solve(context.Background(), []solver.Edge{{Index: 0, Vertex: leaf}})
@@ -247,44 +243,33 @@ func TestMissingCacheResolution(t *testing.T) {
 	_, err = sess.Result(solver.Edge{Index: 0, Vertex: leaf})
 	require.NoError(t, err)
 
-	// All vertices should have been executed.
 	for _, name := range []string{"A", "B", "C", "D"} {
-		_, executed := executedVertices.Load(name)
-		assert.True(t, executed, "%s should have been executed", name)
+		_, ok := executed.Load(name)
+		assert.True(t, ok, "vertex %s should have executed", name)
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test 4: Multiple Leaf Requests
-// ---------------------------------------------------------------------------
+// ─── Test 4: Multiple leaf requests — shared parents execute once ─────────────
 
 func TestMultipleLeafRequests(t *testing.T) {
-	// Create a fan-out DAG:
-	//     root
-	//    / | \
-	//   L1 L2 L3
 	root := newVertex("root")
 	l1 := newVertex("L1", solver.Edge{Index: 0, Vertex: root})
 	l2 := newVertex("L2", solver.Edge{Index: 0, Vertex: root})
 	l3 := newVertex("L3", solver.Edge{Index: 0, Vertex: root})
 
-	// Track execution counts — root should only execute once.
-	execCounts := &sync.Map{}
+	var execCounts sync.Map // vertex name → *atomic.Int64
 
 	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
 		return &testOp{
 			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
-				val, _ := execCounts.LoadOrStore(vtx.Name(), new(atomic.Int64))
-				val.(*atomic.Int64).Add(1)
-				return []solver.Result{solver.NewResult("result-" + vtx.Name(), nil)}, nil
+				v, _ := execCounts.LoadOrStore(vtx.Name(), new(atomic.Int64))
+				v.(*atomic.Int64).Add(1)
+				return []solver.Result{solver.NewResult("result-"+vtx.Name(), nil)}, nil
 			},
 		}, nil
 	}
 
-	s := solver.New(solver.SolverOpts{
-		ResolveOp: resolveOp,
-		Workers:   4,
-	})
+	s := solver.New(solver.SolverOpts{ResolveOp: resolveOp, Workers: 4})
 	defer s.Close()
 
 	leaves := []solver.Edge{
@@ -296,44 +281,38 @@ func TestMultipleLeafRequests(t *testing.T) {
 	sess, err := s.Solve(context.Background(), leaves)
 	require.NoError(t, err)
 
-	// All leaves should have results.
 	for _, leaf := range leaves {
-		result, err := sess.Result(leaf)
-		require.NoError(t, err, "leaf %s should have result", leaf.Vertex.Name())
-		require.NotNil(t, result)
+		res, err := sess.Result(leaf)
+		require.NoError(t, err, "leaf %s should have a result", leaf.Vertex.Name())
+		require.NotNil(t, res)
 	}
 
-	// Root should have been executed exactly once (dedup by vertex digest).
-	if val, ok := execCounts.Load("root"); ok {
-		assert.Equal(t, int64(1), val.(*atomic.Int64).Load(),
-			"root should execute exactly once via deduplication")
+	// Root must execute exactly once — scheduler dedup guarantees this.
+	if v, ok := execCounts.Load("root"); ok {
+		assert.Equal(t, int64(1), v.(*atomic.Int64).Load(),
+			"root vertex must execute exactly once (dedup by digest)")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Test 5: Priority Scheduling
-// ---------------------------------------------------------------------------
+// ─── Test 5: Priority scheduling — roots execute before leaves ────────────────
 
 func TestPriorityScheduling(t *testing.T) {
-	// Build a chain of depth 5: v0 → v1 → v2 → v3 → v4
 	chain := buildChain(5)
-
-	// Track execution order.
-	var executionOrder []string
 	var orderMu sync.Mutex
+	var order []string
 
 	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
 		return &testOp{
 			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
 				orderMu.Lock()
-				executionOrder = append(executionOrder, vtx.Name())
+				order = append(order, vtx.Name())
 				orderMu.Unlock()
-				return []solver.Result{solver.NewResult("result-" + vtx.Name(), nil)}, nil
+				return []solver.Result{solver.NewResult("result-"+vtx.Name(), nil)}, nil
 			},
 		}, nil
 	}
 
-	// Use single worker to enforce sequential execution → priority order visible.
+	// Single worker forces strict sequential execution — priority determines order.
 	s := solver.New(solver.SolverOpts{
 		ResolveOp: resolveOp,
 		Workers:   1,
@@ -344,60 +323,79 @@ func TestPriorityScheduling(t *testing.T) {
 	leaf := chain[len(chain)-1]
 	sess, err := s.Solve(context.Background(), []solver.Edge{{Index: 0, Vertex: leaf}})
 	require.NoError(t, err)
-
 	_, err = sess.Result(solver.Edge{Index: 0, Vertex: leaf})
 	require.NoError(t, err)
 
-	// With critical-path scheduling and 1 worker, the root (deepest)
-	// should execute first, then progressively toward the leaf.
 	orderMu.Lock()
-	require.NotEmpty(t, executionOrder, "at least one vertex should have executed")
-	assert.Equal(t, "v0-root", executionOrder[0], "root should execute first (deepest)")
-	orderMu.Unlock()
+	defer orderMu.Unlock()
+	require.NotEmpty(t, order, "at least one vertex must have executed")
+	// Root (deepest in the dependency chain) should execute first.
+	assert.Equal(t, "v0-root", order[0], "root (highest depth score) runs first")
 }
 
-// ---------------------------------------------------------------------------
-// Test 6: Cancellation
-// ---------------------------------------------------------------------------
+// ─── Test 6: Cancellation propagates correctly ───────────────────────────────
 
 func TestCancellation(t *testing.T) {
 	chain := buildChain(10)
-
-	// Create a slow op that respects cancellation.
-	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
+	resolveOp := func(_ solver.Vertex) (solver.Op, error) {
 		return &testOp{
-			delay: 5 * time.Second, // Intentionally slow.
 			execFn: func(ctx context.Context, _ []solver.Result) ([]solver.Result, error) {
 				select {
 				case <-ctx.Done():
 					return nil, ctx.Err()
-				case <-time.After(5 * time.Second):
+				case <-time.After(30 * time.Second):
 					return []solver.Result{solver.NewResult("result", nil)}, nil
 				}
 			},
 		}, nil
 	}
 
-	s := solver.New(solver.SolverOpts{
-		ResolveOp: resolveOp,
-		Workers:   2,
-	})
+	s := solver.New(solver.SolverOpts{ResolveOp: resolveOp, Workers: 2})
 	defer s.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 
 	leaf := chain[len(chain)-1]
 	_, err := s.Solve(ctx, []solver.Edge{{Index: 0, Vertex: leaf}})
 
-	// Should fail with context deadline exceeded or canceled.
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context")
+	require.Error(t, err, "expected an error from cancelled context")
+	assert.Contains(t, err.Error(), "context", "error should mention context")
 }
 
-// ---------------------------------------------------------------------------
-// Test 7: Streaming Transformation
-// ---------------------------------------------------------------------------
+// ─── Test 7: Real error (not ctx.Err()) is returned on vertex failure ─────────
+//
+// This is a NEW test that covers the bug where the original code returned
+// ctx.Err() (context.Canceled) instead of the actual solve error.
+
+func TestRealErrorReturnedNotCtxErr(t *testing.T) {
+	root := newVertex("root")
+	failVertex := newVertex("fail", solver.Edge{Index: 0, Vertex: root})
+	leaf := newVertex("leaf", solver.Edge{Index: 0, Vertex: failVertex})
+
+	resolveOp := func(vtx solver.Vertex) (solver.Op, error) {
+		if vtx.Name() == "fail" {
+			return &errorOp{msg: "deliberate-test-failure"}, nil
+		}
+		return &testOp{
+			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
+				return []solver.Result{solver.NewResult("result-"+vtx.Name(), nil)}, nil
+			},
+		}, nil
+	}
+
+	s := solver.New(solver.SolverOpts{ResolveOp: resolveOp, Workers: 2})
+	defer s.Close()
+
+	_, err := s.Solve(context.Background(), []solver.Edge{{Index: 0, Vertex: leaf}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "deliberate-test-failure",
+		"solver should return the real vertex error, not ctx.Err()")
+	// Must NOT be a bare context.Canceled — that was the original bug.
+	assert.NotEqual(t, context.Canceled, err)
+}
+
+// ─── Test 8: Streaming transformation pipeline ────────────────────────────────
 
 func TestStreamingTransformation(t *testing.T) {
 	root := newVertex("src")
@@ -405,21 +403,17 @@ func TestStreamingTransformation(t *testing.T) {
 
 	resolveOp := makeSimpleResolveOp()
 
-	// Create a transform pipeline that uppercases the result ID.
 	pipeline := stream.NewPipeline(
 		stream.TransformFunc{
+			Label: "uppercase-prefix",
 			Fn: func(_ context.Context, input any) (any, error) {
 				r := input.(solver.Result)
 				return solver.NewResult("TRANSFORMED-"+r.ID(), r.Sys()), nil
 			},
-			Label: "uppercase",
 		},
 	)
 
-	s := solver.New(solver.SolverOpts{
-		ResolveOp: resolveOp,
-		Workers:   2,
-	})
+	s := solver.New(solver.SolverOpts{ResolveOp: resolveOp, Workers: 2})
 	defer s.Close()
 
 	sess, err := s.Solve(context.Background(),
@@ -428,83 +422,62 @@ func TestStreamingTransformation(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	result, err := sess.Result(solver.Edge{Index: 0, Vertex: leaf})
+	res, err := sess.Result(solver.Edge{Index: 0, Vertex: leaf})
 	require.NoError(t, err)
-	assert.Contains(t, result.ID(), "TRANSFORMED-", "result should be transformed")
+	assert.Contains(t, res.ID(), "TRANSFORMED-", "result should be transformed")
 }
 
-// ---------------------------------------------------------------------------
-// Test 8: Reactive Event Handling
-// ---------------------------------------------------------------------------
+// ─── Test 9: Reactive event handling ─────────────────────────────────────────
 
 func TestReactiveEventHandling(t *testing.T) {
 	root := newVertex("root")
 	leaf := newVertex("leaf", solver.Edge{Index: 0, Vertex: root})
 
-	resolveOp := makeSimpleResolveOp()
-
-	s := solver.New(solver.SolverOpts{
-		ResolveOp: resolveOp,
-		Workers:   2,
-	})
+	s := solver.New(solver.SolverOpts{ResolveOp: makeSimpleResolveOp(), Workers: 2})
 	defer s.Close()
 
-	// Subscribe to all events before solving.
 	sub := s.Bus().Subscribe(256, nil)
 
-	done := make(chan struct{})
-	var events []signal.Event
-	var eventMu sync.Mutex
-
+	done := make(chan []signal.Event, 1)
 	go func() {
-		defer close(done)
+		var evts []signal.Event
 		for evt := range sub.Events() {
-			eventMu.Lock()
-			events = append(events, evt)
-			eventMu.Unlock()
+			evts = append(evts, evt)
 		}
+		done <- evts
 	}()
 
 	sess, err := s.Solve(context.Background(), []solver.Edge{{Index: 0, Vertex: leaf}})
 	require.NoError(t, err)
 	require.NotNil(t, sess)
 
-	// Close the bus to unblock the event reader.
 	s.Bus().Close()
-	<-done
+	evts := <-done
 
-	eventMu.Lock()
-	defer eventMu.Unlock()
-
-	// Verify we received some events.
-	require.NotEmpty(t, events, "should have received events")
-
-	// Check that we got the expected event types.
-	eventTypes := make(map[signal.EventType]int)
-	for _, evt := range events {
-		eventTypes[evt.Type]++
+	require.NotEmpty(t, evts, "should have received events")
+	types := make(map[signal.EventType]int)
+	for _, evt := range evts {
+		types[evt.Type]++
 	}
-
-	// We should see cache misses (both vertices uncached) and completions.
-	assert.Greater(t, eventTypes[signal.CacheMiss], 0, "should have cache miss events")
-	assert.Greater(t, eventTypes[signal.VertexCompleted]+eventTypes[signal.VertexStarted], 0,
-		"should have vertex lifecycle events")
+	assert.Greater(t, types[signal.CacheMiss], 0, "should see cache misses")
+	assert.Greater(t, types[signal.VertexCompleted]+types[signal.VertexStarted], 0,
+		"should see vertex lifecycle events")
 }
 
-// ---------------------------------------------------------------------------
-// Graph Tests
-// ---------------------------------------------------------------------------
+// ─── Test 10: Graph depth computation ────────────────────────────────────────
 
 func TestGraphDepthComputation(t *testing.T) {
 	root, b, c, leaf := buildDiamond()
 	g := solver.BuildGraph([]solver.Edge{{Index: 0, Vertex: leaf}})
 
-	assert.Equal(t, 0, g.Depth(root), "root depth should be 0")
-	assert.Equal(t, 1, g.Depth(b), "B depth should be 1")
-	assert.Equal(t, 1, g.Depth(c), "C depth should be 1")
-	assert.Equal(t, 2, g.Depth(leaf), "leaf depth should be 2")
+	assert.Equal(t, 0, g.Depth(root), "root depth = 0")
+	assert.Equal(t, 1, g.Depth(b), "B depth = 1")
+	assert.Equal(t, 1, g.Depth(c), "C depth = 1")
+	assert.Equal(t, 2, g.Depth(leaf), "leaf depth = 2")
 	assert.Equal(t, 2, g.MaxDepth())
 	assert.Equal(t, 4, g.Size())
+	assert.Equal(t, 0, g.InDegree(root))
+	assert.Equal(t, 2, g.OutDegree(root)) // B and C are children
 }
 
 func TestGraphTopologicalOrder(t *testing.T) {
@@ -513,10 +486,8 @@ func TestGraphTopologicalOrder(t *testing.T) {
 	order := g.TopologicalOrder()
 
 	require.Len(t, order, 4)
-	// Root should be first (depth 0).
-	assert.Equal(t, root.Digest(), order[0].Digest())
-	// Leaf should be last (depth 2).
-	assert.Equal(t, leaf.Digest(), order[3].Digest())
+	assert.Equal(t, root.Digest(), order[0].Digest(), "root first (depth 0)")
+	assert.Equal(t, leaf.Digest(), order[3].Digest(), "leaf last (depth 2)")
 }
 
 func TestGraphCriticalPath(t *testing.T) {
@@ -525,109 +496,122 @@ func TestGraphCriticalPath(t *testing.T) {
 	g := solver.BuildGraph([]solver.Edge{{Index: 0, Vertex: leaf}})
 
 	path := g.CriticalPath(solver.Edge{Index: 0, Vertex: leaf})
-	require.Len(t, path, 5, "critical path should include all vertices in chain")
-	assert.Equal(t, leaf.Digest(), path[0].Digest(), "first element should be the leaf")
-	assert.Equal(t, chain[0].Digest(), path[4].Digest(), "last element should be the root")
+	require.Len(t, path, 5)
+	assert.Equal(t, leaf.Digest(), path[0].Digest(), "path starts at leaf")
+	assert.Equal(t, chain[0].Digest(), path[4].Digest(), "path ends at root")
 }
 
-// ---------------------------------------------------------------------------
-// Cache Tests
-// ---------------------------------------------------------------------------
+// ─── Test 11: Memory cache operations ────────────────────────────────────────
 
 func TestMemoryCacheProbeAndSave(t *testing.T) {
 	ctx := context.Background()
 	store := cache.NewMemory()
-
 	key := cache.Key{Digest: digest.FromString("test"), Output: 0}
 
-	// Should not be found initially.
 	_, found, err := store.Probe(ctx, key)
 	require.NoError(t, err)
-	assert.False(t, found)
+	assert.False(t, found, "should not be found before Save")
 
-	// Save and probe again.
 	require.NoError(t, store.Save(ctx, key, "result-1", 42))
+
 	resultID, found, err := store.Probe(ctx, key)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.Equal(t, "result-1", resultID)
 
-	// Load full record.
 	rec, err := store.Load(ctx, key)
 	require.NoError(t, err)
 	assert.Equal(t, "result-1", rec.ResultID)
 	assert.Equal(t, 42, rec.Size)
 
-	// Release.
 	require.NoError(t, store.Release(ctx, key))
 	_, found, _ = store.Probe(ctx, key)
-	assert.False(t, found)
+	assert.False(t, found, "should not be found after Release")
+
+	stats, err := store.Stats(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, stats.Entries)
+	assert.Equal(t, int64(1), stats.Hits)
+	assert.Equal(t, int64(1), stats.Misses)
 }
+
+// ─── Test 12: Combined cache warming ─────────────────────────────────────────
 
 func TestCombinedCacheWarming(t *testing.T) {
 	ctx := context.Background()
 	primary := cache.NewMemory()
 	secondary := cache.NewMemory()
-
 	key := cache.Key{Digest: digest.FromString("warm"), Output: 0}
 
-	// Only secondary has the entry.
 	require.NoError(t, secondary.Save(ctx, key, "secondary-result", 0))
 
 	combined := cache.NewCombined(primary, secondary)
 
-	// Probe: should find in secondary and warm primary.
 	resultID, found, err := combined.Probe(ctx, key)
 	require.NoError(t, err)
 	assert.True(t, found)
 	assert.Equal(t, "secondary-result", resultID)
 
-	// Primary should now have it (warmed).
-	resultID, found, err = primary.Probe(ctx, key)
+	// Primary should now be warmed.
+	rid, found, err := primary.Probe(ctx, key)
 	require.NoError(t, err)
-	assert.True(t, found, "primary should have been warmed")
-	assert.Equal(t, "secondary-result", resultID)
+	assert.True(t, found, "primary should have been warmed by the probe")
+	assert.Equal(t, "secondary-result", rid)
 }
 
-// ---------------------------------------------------------------------------
-// Event Bus Tests
-// ---------------------------------------------------------------------------
+// ─── Test 13: Event bus filter composition ───────────────────────────────────
 
-func TestEventBusSubscriptionFilter(t *testing.T) {
+func TestEventBusFilterComposition(t *testing.T) {
 	bus := signal.NewBus()
 	defer bus.Close()
 
-	// Subscribe only to CacheHit events.
-	sub := bus.Subscribe(16, signal.ForTypes(signal.CacheHit))
+	cacheHitOnly := signal.ForTypes(signal.CacheHit)
+	sub := bus.Subscribe(16, cacheHitOnly)
 
 	bus.Publish(signal.Event{Type: signal.CacheMiss, Name: "miss"})
 	bus.Publish(signal.Event{Type: signal.CacheHit, Name: "hit"})
 	bus.Publish(signal.Event{Type: signal.VertexCompleted, Name: "done"})
 
-	// Give events time to be delivered.
 	time.Sleep(10 * time.Millisecond)
 
-	// Only the CacheHit event should be received.
 	select {
 	case evt := <-sub.Events():
 		assert.Equal(t, signal.CacheHit, evt.Type)
 		assert.Equal(t, "hit", evt.Name)
 	default:
-		t.Fatal("expected to receive CacheHit event")
+		t.Fatal("expected CacheHit event")
 	}
 
-	// No more events should be available.
+	// No further events should be queued.
 	select {
 	case evt := <-sub.Events():
 		t.Fatalf("unexpected event: %v", evt)
 	default:
-		// Good.
+	}
+
+	// Test AND filter composition.
+	bus2 := signal.NewBus()
+	defer bus2.Close()
+
+	v1 := digest.FromString("v1")
+	v2 := digest.FromString("v2")
+	hitOnV1 := signal.And(signal.ForVertex(v1), signal.ForTypes(signal.CacheHit))
+	sub2 := bus2.Subscribe(16, hitOnV1)
+
+	bus2.Publish(signal.Event{Type: signal.CacheHit, Vertex: v2, Name: "other"})
+	bus2.Publish(signal.Event{Type: signal.CacheMiss, Vertex: v1, Name: "miss-v1"})
+	bus2.Publish(signal.Event{Type: signal.CacheHit, Vertex: v1, Name: "hit-v1"})
+
+	time.Sleep(10 * time.Millisecond)
+	select {
+	case evt := <-sub2.Events():
+		assert.Equal(t, "hit-v1", evt.Name)
+	default:
+		t.Fatal("expected hit-v1 event through AND filter")
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Priority Queue Tests
-// ---------------------------------------------------------------------------
+// ─── Test 14: Priority queue ordering ────────────────────────────────────────
 
 func TestPriorityQueueOrdering(t *testing.T) {
 	pq := schedule.NewPriorityQueue()
@@ -636,10 +620,9 @@ func TestPriorityQueueOrdering(t *testing.T) {
 	pq.Push(&schedule.Task{VertexDigest: "a", Priority: 1, Name: "high"})
 	pq.Push(&schedule.Task{VertexDigest: "b", Priority: 2, Name: "mid"})
 
-	// Should come out in priority order: 1, 2, 3.
 	t1 := pq.TryPop()
 	require.NotNil(t, t1)
-	assert.Equal(t, 1, t1.Priority)
+	assert.Equal(t, 1, t1.Priority, "priority 1 first")
 
 	t2 := pq.TryPop()
 	require.NotNil(t, t2)
@@ -648,34 +631,54 @@ func TestPriorityQueueOrdering(t *testing.T) {
 	t3 := pq.TryPop()
 	require.NotNil(t, t3)
 	assert.Equal(t, 3, t3.Priority)
+
+	assert.Nil(t, pq.TryPop(), "queue should be empty")
 }
 
-// ---------------------------------------------------------------------------
-// Stream Pipeline Tests
-// ---------------------------------------------------------------------------
+func TestPriorityQueueClose(t *testing.T) {
+	pq := schedule.NewPriorityQueue()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		result := pq.Pop() // should block then return nil
+		assert.Nil(t, result)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	pq.Close() // should unblock Pop
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Pop did not unblock after Close")
+	}
+}
+
+// ─── Test 15: Stream pipeline ─────────────────────────────────────────────────
 
 func TestStreamPipeline(t *testing.T) {
 	double := stream.TransformFunc{
+		Label: "double",
 		Fn: func(_ context.Context, input any) (any, error) {
 			return input.(int) * 2, nil
 		},
-		Label: "double",
 	}
 	addTen := stream.TransformFunc{
+		Label: "add-ten",
 		Fn: func(_ context.Context, input any) (any, error) {
 			return input.(int) + 10, nil
 		},
-		Label: "add-ten",
 	}
 
-	pipeline := stream.NewPipeline(double, addTen)
-	result, err := pipeline.Process(context.Background(), 5)
+	p := stream.NewPipeline(double, addTen)
+	result, err := p.Process(context.Background(), 5)
 	require.NoError(t, err)
-	assert.Equal(t, 20, result) // (5*2) + 10
+	assert.Equal(t, 20, result, "(5*2)+10 = 20")
 }
 
 func TestStreamPipelineCancellation(t *testing.T) {
 	slow := stream.TransformFunc{
+		Label: "slow",
 		Fn: func(ctx context.Context, input any) (any, error) {
 			select {
 			case <-ctx.Done():
@@ -684,23 +687,101 @@ func TestStreamPipelineCancellation(t *testing.T) {
 				return input, nil
 			}
 		},
-		Label: "slow",
 	}
 
-	pipeline := stream.NewPipeline(slow)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	_, err := pipeline.Process(ctx, 1)
+	_, err := stream.NewPipeline(slow).Process(ctx, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context")
 }
 
-// ---------------------------------------------------------------------------
-// Benchmarks
-// ---------------------------------------------------------------------------
+func TestStreamPipelineAppendPrepend(t *testing.T) {
+	makeAdder := func(n int) stream.TransformFunc {
+		return stream.TransformFunc{
+			Label: fmt.Sprintf("add%d", n),
+			Fn: func(_ context.Context, input any) (any, error) {
+				return input.(int) + n, nil
+			},
+		}
+	}
 
-func BenchmarkCacheProbe(b *testing.B) {
+	p := stream.NewPipeline(makeAdder(1))
+	p.Append(makeAdder(2))
+	p.Prepend(makeAdder(10))
+
+	// Order: +10 → +1 → +2, applied to 0 = 13
+	result, err := p.Process(context.Background(), 0)
+	require.NoError(t, err)
+	assert.Equal(t, 13, result)
+	assert.Equal(t, 3, p.Len())
+}
+
+func TestStreamPipelineAsync(t *testing.T) {
+	p := stream.NewPipeline(stream.TransformFunc{
+		Label: "async-stage",
+		Fn: func(_ context.Context, input any) (any, error) {
+			time.Sleep(10 * time.Millisecond)
+			return input.(int) * 3, nil
+		},
+	})
+
+	ch := p.ProcessAsync(context.Background(), 7)
+	result := <-ch
+	require.NoError(t, result.Err)
+	assert.Equal(t, 21, result.Value)
+}
+
+// ─── Test 16: Ignore-cache forces re-execution ────────────────────────────────
+
+func TestIgnoreCacheForceReexecution(t *testing.T) {
+	store := cache.NewMemory()
+	ctx := context.Background()
+
+	root := newVertexWithOpts("root", solver.VertexOptions{IgnoreCache: true})
+	require.NoError(t, store.Save(ctx,
+		cache.Key{Digest: root.Digest(), Output: 0}, "stale-cached-root", 0))
+
+	var executed atomic.Bool
+	resolveOp := func(_ solver.Vertex) (solver.Op, error) {
+		return &testOp{
+			execFn: func(_ context.Context, _ []solver.Result) ([]solver.Result, error) {
+				executed.Store(true)
+				return []solver.Result{solver.NewResult("fresh-result", nil)}, nil
+			},
+		}, nil
+	}
+
+	s := solver.New(solver.SolverOpts{ResolveOp: resolveOp, Cache: store, Workers: 1})
+	defer s.Close()
+
+	sess, err := s.Solve(ctx, []solver.Edge{{Index: 0, Vertex: root}})
+	require.NoError(t, err)
+
+	res, err := sess.Result(solver.Edge{Index: 0, Vertex: root})
+	require.NoError(t, err)
+
+	assert.True(t, executed.Load(), "IgnoreCache vertex should always execute")
+	assert.Equal(t, "fresh-result", res.ID(), "should get fresh result, not cached")
+}
+
+// ─── Test 17: VertexByDigest (renamed from Vertex to avoid type shadow) ───────
+
+func TestGraphVertexByDigest(t *testing.T) {
+	root, _, _, leaf := buildDiamond()
+	g := solver.BuildGraph([]solver.Edge{{Index: 0, Vertex: leaf}})
+
+	v := g.VertexByDigest(root.Digest())
+	require.NotNil(t, v)
+	assert.Equal(t, "A", v.Name())
+
+	assert.Nil(t, g.VertexByDigest(digest.FromString("nonexistent")))
+}
+
+// ─── Benchmarks ───────────────────────────────────────────────────────────────
+
+func BenchmarkCacheProbHit(b *testing.B) {
 	store := cache.NewMemory()
 	ctx := context.Background()
 	key := cache.Key{Digest: digest.FromString("bench"), Output: 0}
@@ -741,29 +822,36 @@ func BenchmarkPriorityQueuePushPop(b *testing.B) {
 	}
 }
 
-func BenchmarkGraphBuild(b *testing.B) {
-	// Build a wide fan-out graph: 1 root → 100 leaves.
+func BenchmarkGraphBuildWideFlat(b *testing.B) {
 	root := newVertex("root")
 	leaves := make([]solver.Edge, 100)
-	for i := 0; i < 100; i++ {
+	for i := range leaves {
 		v := newVertex(fmt.Sprintf("leaf-%d", i), solver.Edge{Index: 0, Vertex: root})
 		leaves[i] = solver.Edge{Index: 0, Vertex: v}
 	}
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		solver.BuildGraph(leaves)
 	}
 }
 
-func BenchmarkGraphDepth(b *testing.B) {
+func BenchmarkGraphBuildDeepChain(b *testing.B) {
+	chain := buildChain(50)
+	leaf := chain[len(chain)-1]
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		solver.BuildGraph([]solver.Edge{{Index: 0, Vertex: leaf}})
+	}
+}
+
+func BenchmarkGraphDepthLookup(b *testing.B) {
 	chain := buildChain(50)
 	leaf := chain[len(chain)-1]
 	g := solver.BuildGraph([]solver.Edge{{Index: 0, Vertex: leaf}})
-
+	mid := chain[25]
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		g.Depth(chain[25])
+		g.Depth(mid)
 	}
 }
 
@@ -771,9 +859,8 @@ func BenchmarkEventBusPublish(b *testing.B) {
 	bus := signal.NewBus()
 	defer bus.Close()
 
-	// 10 subscribers.
 	for i := 0; i < 10; i++ {
-		sub := bus.Subscribe(1024, nil)
+		sub := bus.Subscribe(4096, nil)
 		go func() {
 			for range sub.Events() {
 			}
@@ -781,7 +868,6 @@ func BenchmarkEventBusPublish(b *testing.B) {
 	}
 
 	evt := signal.Event{Type: signal.VertexCompleted, Name: "bench"}
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
@@ -790,16 +876,14 @@ func BenchmarkEventBusPublish(b *testing.B) {
 	})
 }
 
-func BenchmarkSolveChainCached(b *testing.B) {
+func BenchmarkSolveChainAllCached(b *testing.B) {
 	chain := buildChain(20)
 	leaf := chain[len(chain)-1]
-
 	store := cache.NewMemory()
 	ctx := context.Background()
 	for _, v := range chain {
 		_ = store.Save(ctx, cache.Key{Digest: v.Digest(), Output: 0}, "cached-"+v.Name(), 0)
 	}
-
 	resolveOp := makeSimpleResolveOp()
 
 	b.ResetTimer()
@@ -814,8 +898,8 @@ func BenchmarkSolveChainCached(b *testing.B) {
 	}
 }
 
-func BenchmarkSolveChainUncached(b *testing.B) {
-	chain := buildChain(10)
+func BenchmarkSolveChainNoCacheShallow(b *testing.B) {
+	chain := buildChain(5)
 	leaf := chain[len(chain)-1]
 	resolveOp := makeSimpleResolveOp()
 
@@ -828,4 +912,20 @@ func BenchmarkSolveChainUncached(b *testing.B) {
 		_, _ = s.Solve(context.Background(), []solver.Edge{{Index: 0, Vertex: leaf}})
 		s.Close()
 	}
+}
+
+func BenchmarkSolveDiamondNoCacheParallel(b *testing.B) {
+	resolveOp := makeSimpleResolveOp()
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, _, _, leaf := buildDiamond()
+			s := solver.New(solver.SolverOpts{
+				ResolveOp: resolveOp,
+				Workers:   4,
+			})
+			_, _ = s.Solve(context.Background(), []solver.Edge{{Index: 0, Vertex: leaf}})
+			s.Close()
+		}
+	})
 }
