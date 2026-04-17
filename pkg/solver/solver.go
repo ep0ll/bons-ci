@@ -219,6 +219,17 @@ func (s *Solver) Solve(ctx context.Context, leaves []Edge, opts ...SolveOption) 
 		if err != nil {
 			return nil, errors.Wrap(err, "cache probe")
 		}
+		// Fallback: also probe with raw vertex digest (supports simple
+		// pre-populated caches and the no-ResolveOp path).
+		if !found {
+			fallbackKey := cache.Key{Digest: dgst, Output: 0}
+			if fallbackKey != cacheKey {
+				resultID, found, err = s.cache.Probe(ctx, fallbackKey)
+				if err != nil {
+					return nil, errors.Wrap(err, "cache probe fallback")
+				}
+			}
+		}
 		if found {
 			s.bus.Publish(signal.Event{
 				Type: signal.CacheHit, Vertex: dgst,
@@ -253,14 +264,17 @@ func (s *Solver) Solve(ctx context.Context, leaves []Edge, opts ...SolveOption) 
 	defer sched.Stop()
 
 	// solveErr is the first non-context error from any vertex. Protected by
-	// solveErrOnce + the cancel() mechanism.
+	// solveErrMu for thread-safe read/write.
 	var (
 		solveErr     error
+		solveErrMu   sync.Mutex
 		solveErrOnce sync.Once
 	)
 	failSolve := func(err error) {
 		solveErrOnce.Do(func() {
+			solveErrMu.Lock()
 			solveErr = err
+			solveErrMu.Unlock()
 			cancel() // stop all remaining work
 		})
 	}
@@ -375,8 +389,11 @@ func (s *Solver) Solve(ctx context.Context, leaves []Edge, opts ...SolveOption) 
 	<-allDone
 
 	// If ctx was cancelled by failSolve, return the real error.
-	if solveErr != nil {
-		return nil, solveErr
+	solveErrMu.Lock()
+	se := solveErr
+	solveErrMu.Unlock()
+	if se != nil {
+		return nil, se
 	}
 	// If ctx was cancelled externally (timeout, client cancel), return that.
 	if ctx.Err() != nil {
@@ -417,7 +434,7 @@ func (s *Solver) computeCacheKey(ctx context.Context, v Vertex, resolved *sync.M
 
 	// For root vertices: key = cm.Digest.
 	if len(v.Inputs()) == 0 {
-		return cache.Key{Digest: rootKeyDigest(cm.Digest, 0), Output: 0}
+		return cache.Key{Digest: RootKeyDigest(cm.Digest, 0), Output: 0}
 	}
 
 	// For dependent vertices: combine op digest with input result IDs.

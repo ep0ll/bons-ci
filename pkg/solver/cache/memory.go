@@ -3,130 +3,300 @@ package cache
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
-// Memory is a thread-safe in-memory cache store optimised for the
-// read-heavy probe pattern. It uses a RWMutex so concurrent probes proceed
-// without contention; writes acquire an exclusive lock only.
-//
-// Memory implements Store.
-type Memory struct {
-	mu      sync.RWMutex
-	entries map[Key]*Record
+// ─── In-Memory Key Storage ──────────────────────────────────────────────────
 
-	// Instrumentation counters — safe to read without mu.
-	hits   atomic.Int64
-	misses atomic.Int64
+// inMemoryKey holds per-key state: associated results, forward links, and backlinks.
+type inMemoryKey struct {
+	id        string
+	results   map[string]CacheResult
+	links     map[CacheInfoLink]map[string]struct{}
+	backlinks map[string]struct{}
 }
 
-// NewMemory creates a new in-memory cache store.
-func NewMemory() *Memory {
-	return &Memory{
-		entries: make(map[Key]*Record),
+func newInMemoryKey(id string) *inMemoryKey {
+	return &inMemoryKey{
+		id:        id,
+		results:   map[string]CacheResult{},
+		links:     map[CacheInfoLink]map[string]struct{}{},
+		backlinks: map[string]struct{}{},
 	}
 }
 
-// Probe checks for a cached result. This is the hot path — uses a read lock.
-func (m *Memory) Probe(_ context.Context, key Key) (string, bool, error) {
-	m.mu.RLock()
-	rec, ok := m.entries[key]
-	m.mu.RUnlock()
-	if !ok {
-		m.misses.Add(1)
-		return "", false, nil
-	}
-	m.hits.Add(1)
-	return rec.ResultID, true, nil
+// InMemoryKeyStorage implements KeyStorage with an in-memory link/backlink graph.
+// This matches BuildKit's memorycachestorage.go.
+type InMemoryKeyStorage struct {
+	mu       sync.RWMutex
+	byID     map[string]*inMemoryKey
+	byResult map[string]map[string]struct{} // resultID → set of key IDs
 }
 
-// Save stores a result under the given key. Overwrites any existing entry.
-func (m *Memory) Save(_ context.Context, key Key, resultID string, size int) error {
-	m.mu.Lock()
-	m.entries[key] = &Record{
-		Key:       key,
-		ResultID:  resultID,
-		Size:      size,
-		CreatedAt: time.Now(),
+// NewInMemoryKeyStorage creates a new in-memory key storage.
+func NewInMemoryKeyStorage() *InMemoryKeyStorage {
+	return &InMemoryKeyStorage{
+		byID:     map[string]*inMemoryKey{},
+		byResult: map[string]map[string]struct{}{},
 	}
-	m.mu.Unlock()
-	return nil
 }
 
-// SaveWithPriority stores a result with an explicit priority value.
-func (m *Memory) SaveWithPriority(_ context.Context, key Key, resultID string, size, priority int) error {
-	m.mu.Lock()
-	m.entries[key] = &Record{
-		Key:       key,
-		ResultID:  resultID,
-		Size:      size,
-		CreatedAt: time.Now(),
-		Priority:  priority,
+func (s *InMemoryKeyStorage) Exists(id string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if k, ok := s.byID[id]; ok {
+		return len(k.links) > 0 || len(k.results) > 0
 	}
-	m.mu.Unlock()
-	return nil
+	return false
 }
 
-// Load retrieves the full Record for a key.
-func (m *Memory) Load(_ context.Context, key Key) (Record, error) {
-	m.mu.RLock()
-	rec, ok := m.entries[key]
-	m.mu.RUnlock()
-	if !ok {
-		return Record{}, &ErrNotFound{Key: key}
+func (s *InMemoryKeyStorage) Walk(fn func(string) error) error {
+	s.mu.RLock()
+	ids := make([]string, 0, len(s.byID))
+	for id := range s.byID {
+		ids = append(ids, id)
 	}
-	return *rec, nil
-}
-
-// Release removes an entry. Silently succeeds if absent.
-func (m *Memory) Release(_ context.Context, key Key) error {
-	m.mu.Lock()
-	delete(m.entries, key)
-	m.mu.Unlock()
-	return nil
-}
-
-// Walk iterates over all entries. It snapshots the map under a read lock and
-// then calls fn without holding the lock, so the store can be safely modified
-// concurrently during iteration.
-func (m *Memory) Walk(_ context.Context, fn func(Record) error) error {
-	m.mu.RLock()
-	snapshot := make([]Record, 0, len(m.entries))
-	for _, rec := range m.entries {
-		snapshot = append(snapshot, *rec)
-	}
-	m.mu.RUnlock()
-
-	for _, rec := range snapshot {
-		if err := fn(rec); err != nil {
+	s.mu.RUnlock()
+	for _, id := range ids {
+		if err := fn(id); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Stats returns current hit/miss counters and entry count.
-func (m *Memory) Stats(_ context.Context) (Stats, error) {
-	m.mu.RLock()
-	n := len(m.entries)
-	var total int64
-	for _, r := range m.entries {
-		total += int64(r.Size)
+func (s *InMemoryKeyStorage) WalkResults(id string, fn func(CacheResult) error) error {
+	s.mu.RLock()
+	k, ok := s.byID[id]
+	if !ok {
+		s.mu.RUnlock()
+		return nil
 	}
-	m.mu.RUnlock()
-	return Stats{
-		Entries:   n,
-		TotalSize: total,
-		Hits:      m.hits.Load(),
-		Misses:    m.misses.Load(),
-	}, nil
+	results := make([]CacheResult, 0, len(k.results))
+	for _, res := range k.results {
+		results = append(results, res)
+	}
+	s.mu.RUnlock()
+	for _, res := range results {
+		if err := fn(res); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-// Len returns the number of entries without allocating a snapshot.
-func (m *Memory) Len() int {
-	m.mu.RLock()
-	n := len(m.entries)
-	m.mu.RUnlock()
-	return n
+func (s *InMemoryKeyStorage) Load(id string, resultID string) (CacheResult, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	k, ok := s.byID[id]
+	if !ok {
+		return CacheResult{}, ErrNotFound
+	}
+	r, ok := k.results[resultID]
+	if !ok {
+		return CacheResult{}, ErrNotFound
+	}
+	return r, nil
+}
+
+func (s *InMemoryKeyStorage) AddResult(id string, res CacheResult) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k, ok := s.byID[id]
+	if !ok {
+		k = newInMemoryKey(id)
+		s.byID[id] = k
+	}
+	k.results[res.ID] = res
+	m, ok := s.byResult[res.ID]
+	if !ok {
+		m = map[string]struct{}{}
+		s.byResult[res.ID] = m
+	}
+	m[id] = struct{}{}
+	return nil
+}
+
+func (s *InMemoryKeyStorage) WalkIDsByResult(resultID string, fn func(string) error) error {
+	s.mu.Lock()
+	ids := map[string]struct{}{}
+	for id := range s.byResult[resultID] {
+		ids[id] = struct{}{}
+	}
+	s.mu.Unlock()
+	for id := range ids {
+		if err := fn(id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *InMemoryKeyStorage) Release(resultID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids, ok := s.byResult[resultID]
+	if !ok {
+		return nil
+	}
+	for id := range ids {
+		k, ok := s.byID[id]
+		if !ok {
+			continue
+		}
+		delete(k.results, resultID)
+		delete(s.byResult[resultID], id)
+		if len(s.byResult[resultID]) == 0 {
+			delete(s.byResult, resultID)
+		}
+		s.emptyBranchWithParents(k)
+	}
+	return nil
+}
+
+// emptyBranchWithParents cascades cleanup: if a key has no results and no
+// forward links, remove it and clean up its parents. This matches BuildKit's
+// emptyBranchWithParents.
+func (s *InMemoryKeyStorage) emptyBranchWithParents(k *inMemoryKey) {
+	if len(k.results) != 0 || len(k.links) != 0 {
+		return
+	}
+	for id := range k.backlinks {
+		p, ok := s.byID[id]
+		if !ok {
+			continue
+		}
+		for l := range p.links {
+			delete(p.links[l], k.id)
+			if len(p.links[l]) == 0 {
+				delete(p.links, l)
+			}
+		}
+		s.emptyBranchWithParents(p)
+	}
+	delete(s.byID, k.id)
+}
+
+func (s *InMemoryKeyStorage) AddLink(id string, link CacheInfoLink, target string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k, ok := s.byID[id]
+	if !ok {
+		k = newInMemoryKey(id)
+		s.byID[id] = k
+	}
+	k2, ok := s.byID[target]
+	if !ok {
+		k2 = newInMemoryKey(target)
+		s.byID[target] = k2
+	}
+	m, ok := k.links[link]
+	if !ok {
+		m = map[string]struct{}{}
+		k.links[link] = m
+	}
+	k2.backlinks[id] = struct{}{}
+	m[target] = struct{}{}
+	return nil
+}
+
+func (s *InMemoryKeyStorage) WalkLinks(id string, link CacheInfoLink, fn func(id string) error) error {
+	s.mu.RLock()
+	k, ok := s.byID[id]
+	if !ok {
+		s.mu.RUnlock()
+		return nil
+	}
+	var links []string
+	for target := range k.links[link] {
+		links = append(links, target)
+	}
+	s.mu.RUnlock()
+	for _, t := range links {
+		if err := fn(t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *InMemoryKeyStorage) HasLink(id string, link CacheInfoLink, target string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if k, ok := s.byID[id]; ok {
+		if v, ok := k.links[link]; ok {
+			_, ok := v[target]
+			return ok
+		}
+	}
+	return false
+}
+
+func (s *InMemoryKeyStorage) WalkBacklinks(id string, fn func(id string, link CacheInfoLink) error) error {
+	s.mu.RLock()
+	k, ok := s.byID[id]
+	if !ok {
+		s.mu.RUnlock()
+		return nil
+	}
+	type backlink struct {
+		id   string
+		link CacheInfoLink
+	}
+	var out []backlink
+	for bid := range k.backlinks {
+		b, ok := s.byID[bid]
+		if !ok {
+			continue
+		}
+		for l, m := range b.links {
+			if _, ok := m[id]; !ok {
+				continue
+			}
+			out = append(out, backlink{id: bid, link: l})
+		}
+	}
+	s.mu.RUnlock()
+	for _, bl := range out {
+		if err := fn(bl.id, bl.link); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ─── In-Memory Result Storage ───────────────────────────────────────────────
+
+// InMemoryResultStorage implements ResultStorage with an in-memory map.
+type InMemoryResultStorage struct {
+	mu sync.RWMutex
+	m  map[string]any
+}
+
+// NewInMemoryResultStorage creates a new in-memory result storage.
+func NewInMemoryResultStorage() *InMemoryResultStorage {
+	return &InMemoryResultStorage{m: map[string]any{}}
+}
+
+func (s *InMemoryResultStorage) Save(id string, createdAt time.Time) (CacheResult, error) {
+	s.mu.Lock()
+	s.m[id] = struct{}{} // placeholder
+	s.mu.Unlock()
+	return CacheResult{ID: id, CreatedAt: createdAt}, nil
+}
+
+func (s *InMemoryResultStorage) Load(_ context.Context, res CacheResult) (any, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.m[res.ID]; !ok {
+		return nil, ErrNotFound
+	}
+	return res.ID, nil
+}
+
+func (s *InMemoryResultStorage) Exists(_ context.Context, id string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.m[id]
+	return ok
 }

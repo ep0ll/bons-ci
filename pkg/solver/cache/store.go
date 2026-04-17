@@ -1,97 +1,115 @@
-// Package cache provides pluggable cache stores for the solver. The Store
-// interface is intentionally minimal: probe, save, load, release, walk. More
-// sophisticated policies (eviction, replication, content-addressable linking)
-// are implemented in concrete types that embed or compose Store.
+// Package cache provides the cache storage interfaces and implementations
+// for the solver. It defines two storage levels matching BuildKit's design:
+//   - KeyStorage: manages cache key identities, links between them, and
+//     backlinks for cache chain walking (used by cache export)
+//   - ResultStorage: manages the actual result data persistence
 package cache
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	digest "github.com/opencontainers/go-digest"
+	"github.com/pkg/errors"
 )
 
-// Key uniquely identifies a cached result within a store. It is derived from
-// the CacheMap digest combined with all dependency cache keys — stable across
-// solver sessions.
+// ErrNotFound is returned when a cache key or result is not found.
+var ErrNotFound = errors.New("not found")
+
+// Index is a zero-based output index within a vertex.
+type Index int
+
+// Key is the primary lookup key for the simple Store interface.
 type Key struct {
-	// Digest is the content-addressable identifier.
 	Digest digest.Digest
-	// Output is the output index within the vertex.
 	Output int
 }
 
-// String returns a compact human-readable representation.
-func (k Key) String() string {
-	return fmt.Sprintf("%s[%d]", k.Digest, k.Output)
-}
-
-// Record represents a stored cache entry with associated metadata.
+// Record is the result of a cache lookup via the simple Store.
 type Record struct {
-	Key       Key
 	ResultID  string
 	Size      int
 	CreatedAt time.Time
-	// Priority is used when multiple records match: higher priority records
-	// are preferred. Analogous to BuildKit's CacheRecord.Priority.
-	Priority int
-	// TTL, when > 0, is the suggested time-to-live for this entry.
-	// Implementations may use this for eviction scheduling.
-	TTL time.Duration
 }
 
-// Store is the pluggable cache backend interface. All methods must be safe for
-// concurrent use. The interface maps directly onto BuildKit's CacheKeyStorage
-// + CacheResultStorage but simplified for readability.
+// Store is the simple cache interface used by the solver coordinator.
+// For advanced use cases (link walking, export), use KeyStorage + ResultStorage.
 type Store interface {
-	// Probe checks whether a result is cached for the given key.
-	// Returns (resultID, true, nil) on hit; ("", false, nil) on miss.
 	Probe(ctx context.Context, key Key) (resultID string, found bool, err error)
-
-	// Save stores a result under the given key. Idempotent.
 	Save(ctx context.Context, key Key, resultID string, size int) error
-
-	// Load retrieves the full Record. Returns ErrNotFound if absent.
-	Load(ctx context.Context, key Key) (Record, error)
-
-	// Release removes a cache entry and frees any associated resources.
-	// Silently succeeds if the entry does not exist.
+	Load(ctx context.Context, key Key) (*Record, error)
 	Release(ctx context.Context, key Key) error
-
-	// Walk iterates over all entries in an unspecified order. The callback
-	// receives a copy of each Record. Modifications to the store during
-	// Walk are permitted (walk operates on a snapshot).
-	Walk(ctx context.Context, fn func(Record) error) error
-
-	// Stats returns basic store metrics. Optional; may return zero values.
-	Stats(ctx context.Context) (Stats, error)
 }
 
-// Stats holds basic cache store metrics.
-type Stats struct {
-	// Entries is the current number of cached entries.
-	Entries int
-	// TotalSize is the sum of all record sizes in bytes.
-	TotalSize int64
-	// Hits and Misses track probe outcomes since creation.
-	Hits   int64
-	Misses int64
+// ─── Advanced storage interfaces (BuildKit parity) ───────────────────────────
+
+// CacheInfoLink describes a directed edge in the cache key graph.
+// It connects a parent cache key to a child via a specific input index,
+// op digest, and output index. Optional Selector narrows the match.
+type CacheInfoLink struct {
+	Input    Index
+	Digest   digest.Digest
+	Output   Index
+	Selector digest.Digest
 }
 
-// ─── Errors ───────────────────────────────────────────────────────────────────
-
-// ErrNotFound is returned by Load when a cache entry does not exist.
-type ErrNotFound struct {
-	Key Key
+// CacheResult is a lightweight value referencing an actual result.
+type CacheResult struct {
+	ID        string
+	CreatedAt time.Time
 }
 
-func (e *ErrNotFound) Error() string {
-	return "cache: entry not found: " + e.Key.String()
+// KeyStorage manages the cache key graph. It supports:
+//   - Key existence checks and enumeration
+//   - Result associations per key
+//   - Forward links (parent → child) and backlinks (child → parent)
+//   - Cascading cleanup when keys become empty
+//
+// This is equivalent to BuildKit's CacheKeyStorage interface.
+type KeyStorage interface {
+	// Exists returns true if the key has links or results.
+	Exists(id string) bool
+
+	// Walk enumerates all known key IDs.
+	Walk(fn func(id string) error) error
+
+	// WalkResults enumerates results associated with a key.
+	WalkResults(id string, fn func(CacheResult) error) error
+
+	// Load retrieves a specific result by key ID and result ID.
+	Load(id string, resultID string) (CacheResult, error)
+
+	// AddResult associates a result with a key.
+	AddResult(id string, res CacheResult) error
+
+	// Release removes a result and cleans up empty branches.
+	Release(resultID string) error
+
+	// AddLink adds a directed edge from id to target via the given link.
+	AddLink(id string, link CacheInfoLink, target string) error
+
+	// WalkLinks enumerates targets reachable from id via the given link.
+	WalkLinks(id string, link CacheInfoLink, fn func(id string) error) error
+
+	// HasLink checks if a specific link exists.
+	HasLink(id string, link CacheInfoLink, target string) bool
+
+	// WalkBacklinks enumerates parent keys that link to id.
+	WalkBacklinks(id string, fn func(id string, link CacheInfoLink) error) error
+
+	// WalkIDsByResult enumerates all key IDs associated with a result.
+	WalkIDsByResult(resultID string, fn func(string) error) error
 }
 
-// IsNotFound reports whether err is a cache miss.
-func IsNotFound(err error) bool {
-	_, ok := err.(*ErrNotFound)
-	return ok
+// ResultStorage manages the actual result data.
+// This is equivalent to BuildKit's CacheResultStorage.
+type ResultStorage interface {
+	// Save persists a result and returns a lightweight reference.
+	Save(id string, createdAt time.Time) (CacheResult, error)
+
+	// Load retrieves a result by its cache reference.
+	Load(ctx context.Context, res CacheResult) (any, error)
+
+	// Exists checks if a result exists.
+	Exists(ctx context.Context, id string) bool
 }

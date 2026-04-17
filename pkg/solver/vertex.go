@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	digest "github.com/opencontainers/go-digest"
@@ -158,7 +159,7 @@ type CacheKey struct {
 // NewCacheKey creates a root CacheKey (no dependency inputs).
 func NewCacheKey(dgst, vtx digest.Digest, output Index) *CacheKey {
 	return &CacheKey{
-		id:     rootKeyDigest(dgst, output).String(),
+		id:     RootKeyDigest(dgst, output).String(),
 		digest: dgst,
 		vtx:    vtx,
 		output: output,
@@ -180,7 +181,7 @@ func NewCacheKeyWithDeps(dgst, vtx digest.Digest, output Index, deps [][]CacheKe
 
 func (ck *CacheKey) computeID() string {
 	if len(ck.deps) == 0 {
-		return rootKeyDigest(ck.digest, ck.output).String()
+		return RootKeyDigest(ck.digest, ck.output).String()
 	}
 	// Combine op digest with all dependency identifiers deterministically.
 	h := digest.Canonical.Hash()
@@ -361,8 +362,177 @@ type CacheRecord struct {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// rootKeyDigest computes a deterministic digest from an op digest and output
-// index. Used for root (no-input) vertices.
-func rootKeyDigest(dgst digest.Digest, output Index) digest.Digest {
+// RootKeyDigest computes a deterministic digest from an op digest and output
+// index. Used for root (no-input) vertices. Exported for test use.
+func RootKeyDigest(dgst digest.Digest, output Index) digest.Digest {
 	return digest.FromString(fmt.Sprintf("%s@%d", dgst, output))
+}
+
+// ─── Reference-counted results ───────────────────────────────────────────────
+// These types implement BuildKit's SharedResult/splitResult pattern for safe
+// concurrent result sharing. A SharedResult can be Clone()'d multiple times;
+// Release() on the SharedResult releases the underlying result only once.
+// splitResult uses atomic counters to ensure the underlying result is released
+// only when both halves have been released.
+
+// SharedResult enables safe concurrent cloning of a result. Each Clone() call
+// returns a new reference; Release() releases the original.
+type SharedResult struct {
+	mu   sync.Mutex
+	main Result
+}
+
+// NewSharedResult wraps a result for safe concurrent sharing.
+func NewSharedResult(main Result) *SharedResult {
+	return &SharedResult{main: main}
+}
+
+// Clone creates a new reference to the same underlying result.
+// Both the original and the clone can be released independently.
+func (r *SharedResult) Clone() Result {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r1, r2 := dup(r.main)
+	r.main = r1
+	return r2
+}
+
+// Release releases the original reference.
+func (r *SharedResult) Release(ctx context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.main.Release(ctx)
+}
+
+// dup creates two split references from one result. The underlying result
+// is only released when BOTH split references have been released.
+func dup(res Result) (Result, Result) {
+	sem := int64(0)
+	return &splitResult{Result: res, sem: &sem}, &splitResult{Result: res, sem: &sem}
+}
+
+// splitResult is a reference-counted wrapper. Two splitResults share the same
+// semaphore; the underlying result is only released when both have called
+// Release(). This prevents double-release bugs in concurrent code.
+type splitResult struct {
+	released int64
+	sem      *int64
+	Result
+}
+
+// Release releases this half of the split reference. The underlying result
+// is only released when both halves have been released.
+func (r *splitResult) Release(ctx context.Context) error {
+	if atomic.AddInt64(&r.released, 1) > 1 {
+		return fmt.Errorf("releasing already released reference %s", r.ID())
+	}
+	if atomic.AddInt64(r.sem, 1) == 2 {
+		return r.Result.Release(ctx)
+	}
+	return nil
+}
+
+// SharedCachedResult combines SharedResult with CachedResult for types that
+// need both reference counting and cache key access.
+type SharedCachedResult struct {
+	*SharedResult
+	CachedResult
+}
+
+// NewSharedCachedResult wraps a CachedResult for shared concurrent access.
+func NewSharedCachedResult(res CachedResult) *SharedCachedResult {
+	return &SharedCachedResult{
+		SharedResult: NewSharedResult(res),
+		CachedResult: res,
+	}
+}
+
+// CloneCachedResult clones the result while preserving cache keys.
+func (r *SharedCachedResult) CloneCachedResult() CachedResult {
+	return &clonedCachedResult{Result: r.SharedResult.Clone(), cr: r.CachedResult}
+}
+
+// Clone returns the cloned result as a plain Result.
+func (r *SharedCachedResult) Clone() Result {
+	return r.CloneCachedResult()
+}
+
+// Release releases the shared result.
+func (r *SharedCachedResult) Release(ctx context.Context) error {
+	return r.SharedResult.Release(ctx)
+}
+
+type clonedCachedResult struct {
+	Result
+	cr CachedResult
+}
+
+func (ccr *clonedCachedResult) ID() string                      { return ccr.Result.ID() }
+func (ccr *clonedCachedResult) CacheKeys() []ExportableCacheKey { return ccr.cr.CacheKeys() }
+
+// ─── ResultProxy ──────────────────────────────────────────────────────────────
+// ResultProxy is a lazy reference to a result that may not have been computed
+// yet. This is equivalent to BuildKit's ResultProxy which wraps a future result.
+
+// ResultProxy is a lazy, releasable reference to a result.
+type ResultProxy interface {
+	Result(ctx context.Context) (CachedResult, error)
+	Release(ctx context.Context) error
+	Definition() any
+}
+
+// SplitResultProxy creates two independent references to a ResultProxy.
+// The underlying proxy is only released when both halves have been released.
+func SplitResultProxy(res ResultProxy) (ResultProxy, ResultProxy) {
+	sem := int64(0)
+	return &splitResultProxy{ResultProxy: res, sem: &sem},
+		&splitResultProxy{ResultProxy: res, sem: &sem}
+}
+
+type splitResultProxy struct {
+	released int64
+	sem      *int64
+	ResultProxy
+}
+
+func (r *splitResultProxy) Release(ctx context.Context) error {
+	if atomic.AddInt64(&r.released, 1) > 1 {
+		return fmt.Errorf("releasing already released result proxy")
+	}
+	if atomic.AddInt64(r.sem, 1) == 2 {
+		return r.ResultProxy.Release(ctx)
+	}
+	return nil
+}
+
+// ─── CacheManager interface ──────────────────────────────────────────────────
+// This is the full CacheManager contract matching BuildKit's types.go.
+
+// CacheManager provides query, load, and save operations for the solve cache.
+type CacheManager interface {
+	// ID returns a unique identifier for this cache manager.
+	ID() string
+
+	// Query looks up cache keys given dependency inputs and an op digest.
+	// This is the core of BuildKit's cache matching algorithm.
+	Query(deps []CacheKeyWithSelector, input Index, dgst digest.Digest, output Index) ([]*CacheKey, error)
+
+	// Records returns all loadable cache records for a given key.
+	Records(ctx context.Context, ck *CacheKey) ([]*CacheRecord, error)
+
+	// Load loads a result from a cache record.
+	Load(ctx context.Context, rec *CacheRecord) (Result, error)
+
+	// Save persists a result under the given cache key.
+	Save(key *CacheKey, result Result, createdAt time.Time) (*ExportableCacheKey, error)
+}
+
+// ResolverCache deduplicates concurrent Op resolutions for the same key.
+// When multiple goroutines try to resolve the same vertex, only one actually
+// does the work; others wait and receive the cached result.
+type ResolverCache interface {
+	// Lock acquires exclusive access for the given key. Returns previously
+	// cached values. The release function must be called when done, passing
+	// the new value (or nil if no value should be cached).
+	Lock(key any) (values []any, release func(any) error, err error)
 }
