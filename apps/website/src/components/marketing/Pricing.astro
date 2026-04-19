@@ -180,8 +180,8 @@ const faq = [
                   'Custom'
                 ) : (
                   <>
-                    <span class="price-monthly">${tier.price}</span>
-                    <span class="price-yearly hidden">${Math.round(tier.price * 0.8)}</span>
+                    <span class="price-monthly">${tier.price ?? 0}</span>
+                    <span class="price-yearly hidden">${Math.round((tier.price ?? 0) * 0.8)}</span>
                     <span class="text-sm font-normal text-forge-text-3">{tier.period}</span>
                   </>
                 )}

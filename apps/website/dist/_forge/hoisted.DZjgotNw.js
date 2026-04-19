@@ -1,0 +1,1 @@
+import"./BaseLayout.astro_astro_type_script_index_0_lang.BKQ29WDz.js";import"./hoisted.Dh0GKO6Y.js";document.querySelectorAll(".log-entry").forEach(t=>{const e=parseInt(t.style.getPropertyValue("--d")||"0",10);setTimeout(()=>{t.style.transition="opacity 0.3s",t.style.opacity="1"},e+600)});

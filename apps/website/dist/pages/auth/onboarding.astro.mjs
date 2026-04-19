@@ -1,0 +1,56 @@
+import { a as createComponent, r as renderComponent, b as renderTemplate, m as maybeRenderHead, F as Fragment, d as addAttribute } from '../../chunks/astro/server_CCu-t7dI.mjs';
+import 'kleur/colors';
+import { $ as $$AuthLayout } from '../../chunks/AuthLayout_YoIcWWLp.mjs';
+export { renderers } from '../../renderers.mjs';
+
+const $$Onboarding = createComponent(($$result, $$props, $$slots) => {
+  return renderTemplate`${renderComponent($$result, "AuthLayout", $$AuthLayout, { "title": "Get started \u2014 Forge CI" }, { "default": ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="max-w-sm w-full"> <div class="mb-8"> <div class="flex items-center gap-2.5 mb-6"> <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" fill="#FFEE00"></rect><path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#0A0A0A"></path><circle cx="24" cy="8" r="2.5" fill="#0A0A0A"></circle></svg> <span style="font-family:'Space Grotesk';font-weight:700;font-size:1.1rem;color:#F0F0F0">Forge<span style="color:#FFEE00">CI</span></span> </div> <!-- Step progress bar --> <div class="flex items-center gap-0 mb-6"> ${[1, 2, 3, 4].map((n, i) => renderTemplate`${renderComponent($$result2, "Fragment", Fragment, {}, { "default": ($$result3) => renderTemplate` <div class="onb-dot w-8 h-8 flex items-center justify-center text-xs font-mono font-bold border-2 flex-shrink-0 transition-all"${addAttribute(n, "data-n")}${addAttribute(n === 1 ? "background:#FFEE00;border-color:#FFEE00;color:#0A0A0A" : "background:#0A0A0A;border-color:#2C2C2C;color:#666666", "style")}> ${n} </div> ${i < 3 && renderTemplate`<div class="flex-1 h-0.5" style="background:#2C2C2C"${addAttribute(n, "data-line")}></div>`}` })}`)} </div> <h1 id="onb-title" style="font-family:'Space Grotesk';font-weight:700;font-size:1.5rem;letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0" class="mb-1">Connect your first repo</h1> <p id="onb-sub" class="text-xs font-mono" style="color:#666666">Step 1 of 4 — takes about 2 minutes total</p> </div> <!-- Step 1: Connect repo --> <div id="onb-1"> <p class="text-sm mb-4" style="color:#AAAAAA">Where does your code live?</p> <div class="space-y-2"> ${[
+    { p: "github", l: "GitHub", d: "github.com/your-org", svg: "M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" },
+    { p: "gitlab", l: "GitLab", d: "gitlab.com or self-hosted" },
+    { p: "bitbucket", l: "Bitbucket", d: "Bitbucket Cloud and Server" },
+    { p: "other", l: "Other Git", d: "Any HTTPS or SSH git remote" }
+  ].map((item) => renderTemplate`<button onclick="goOnb(2)" class="w-full flex items-center gap-4 px-4 py-3 border-2 text-left transition-all group" style="background:#111111;border-color:#2C2C2C;color:#F0F0F0" onmouseover="this.style.borderColor='#FFEE00'" onmouseout="this.style.borderColor='#2C2C2C'"> ${item.svg ? renderTemplate`<svg class="w-5 h-5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path${addAttribute(item.svg, "d")}></path></svg>` : renderTemplate`<div class="w-5 h-5 border-2 flex-shrink-0 flex items-center justify-center text-xs font-mono font-bold" style="border-color:#FFEE00;color:#FFEE00">${item.l[0]}</div>`} <div class="flex-1"> <div class="text-sm font-semibold">${item.l}</div> <div class="text-xs font-mono" style="color:#666666">${item.d}</div> </div> <svg class="w-4 h-4 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2" d="M9 5l7 7-7 7"></path></svg> </button>`)} </div> </div> <!-- Step 2: Select repo --> <div id="onb-2" class="hidden"> <p class="text-sm mb-4" style="color:#AAAAAA">Select a repository to enable builds on:</p> <div class="relative mb-3"> <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> <input type="search" class="input pl-9 text-sm" placeholder="Search repositories…"> </div> <div class="space-y-1.5 max-h-52 overflow-y-auto mb-4" style="border:2px solid #2C2C2C"> ${["acme-corp/api-service", "acme-corp/web-app", "acme-corp/mobile", "acme-corp/infra", "acme-corp/docs", "acme-corp/sdk-js"].map((r, i) => renderTemplate`<label class="flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border border-transparent" onmouseover="this.style.background='#1A1A1A'" onmouseout="this.style.background='transparent'"> <input type="radio" name="repo"${addAttribute(r, "value")} class="sr-only"${addAttribute(i === 0, "checked")}> <div class="w-4 h-4 border-2 flex-shrink-0 flex items-center justify-center transition-all"${addAttribute(i === 0 ? "border-color:#FFEE00;background:#FFEE00" : "border-color:#3C3C3C", "style")}> ${i === 0 && renderTemplate`<div class="w-2 h-2" style="background:#0A0A0A"></div>`} </div> <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"></path></svg> <code class="text-xs font-mono" style="color:#AAAAAA">${r}</code> </label>`)} </div> <div class="flex gap-3"> <button onclick="goOnb(1)" class="btn-secondary btn-md flex-shrink-0 px-4">←</button> <button onclick="goOnb(3)" class="btn-primary btn-md flex-1 justify-center">Continue →</button> </div> </div> <!-- Step 3: Pipeline config --> <div id="onb-3" class="hidden"> <p class="text-sm mb-4" style="color:#AAAAAA">We detected <strong style="color:#FFEE00">Node.js</strong>. Here's a starter pipeline — edit or use as-is:</p> <div class="terminal mb-4"> <div class="terminal-header"> <div class="terminal-dot" style="background:#FF5F57"></div> <div class="terminal-dot" style="background:#FFBD2E"></div> <div class="terminal-dot" style="background:#28C840"></div> <span class="text-xs font-mono ml-2" style="color:#666666">.forge/pipeline.yml</span> <button id="copy-yaml" class="ml-auto text-xs font-mono transition-colors" style="color:#FFEE00" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">copy</button> </div> <pre id="yaml-content" class="p-4 text-xs font-mono leading-relaxed overflow-x-auto" style="color:#AAAAAA">version: '2'
+pipelines:
+  default:
+    - step:
+        name: Install dependencies
+        caches: [node]
+        script:
+          - npm ci
+    - parallel:
+        - step:
+            name: Test
+            script:
+              - npm test
+        - step:
+            name: Lint &amp; type-check
+            script:
+              - npm run lint
+              - npm run typecheck
+    - step:
+        name: Build
+        script:
+          - npm run build
+        artifacts:
+          - dist/**</pre> </div> <div class="flex gap-3"> <button onclick="goOnb(2)" class="btn-secondary btn-md flex-shrink-0 px-4">←</button> <button onclick="goOnb(4)" class="btn-primary btn-md flex-1 justify-center">Use this pipeline →</button> </div> </div> <!-- Step 4: Done / first build --> <div id="onb-4" class="hidden"> <div class="card card-accent p-5 mb-5"> <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#FFEE00">◆ Everything is ready!</div> <div class="space-y-2"> ${[
+    { done: true, l: "GitHub connected", d: "acme-corp/api-service" },
+    { done: true, l: "Pipeline created", d: ".forge/pipeline.yml" },
+    { done: false, l: "Push a commit to trigger", d: 'Or click "Run build" below' }
+  ].map((item) => renderTemplate`<div class="flex items-center gap-3"> <div class="w-4 h-4 border-2 flex items-center justify-center flex-shrink-0"${addAttribute(item.done ? "border-color:#00FF88;background:#00FF88" : "border-color:#3C3C3C", "style")}> ${item.done && renderTemplate`<svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#0A0A0A"><path stroke-linecap="square" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>`} </div> <div> <div class="text-sm font-semibold"${addAttribute(item.done ? "color:#F0F0F0" : "color:#AAAAAA", "style")}>${item.l}</div> <div class="text-xs font-mono" style="color:#666666">${item.d}</div> </div> </div>`)} </div> </div> <div class="space-y-2"> <a href="/dashboard/builds" class="btn-primary btn-md w-full justify-center"> <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+Trigger first build
+</a> <a href="/dashboard" class="btn-secondary btn-md w-full justify-center">Go to dashboard →</a> </div> <div class="mt-4 text-center"> <a href="/docs/quickstart" class="text-xs font-mono transition-colors" style="color:#666666" onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#666666'">Read the quickstart guide →</a> </div> </div> </div> ` })} `;
+}, "/Users/sai/vscode/bons-ci/apps/website/src/pages/auth/onboarding.astro", void 0);
+
+const $$file = "/Users/sai/vscode/bons-ci/apps/website/src/pages/auth/onboarding.astro";
+const $$url = "/auth/onboarding";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Onboarding,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };

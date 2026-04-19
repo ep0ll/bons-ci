@@ -634,3 +634,59 @@ export interface CaseStudyResult {
   before: string;
   after: string;
 }
+
+// ── OTel / Tracing ────────────────────────────────────────
+export interface OtelSpan {
+  id: string;
+  parentId?: string;
+  traceId: string;
+  name: string;
+  startMs: number;       // ms offset from trace start
+  durationMs: number;
+  status: 'ok' | 'error' | 'unset';
+  attributes: Record<string, string | number | boolean>;
+  children?: OtelSpan[];
+}
+
+export interface OtelTrace {
+  traceId: string;
+  buildId: string;
+  rootSpan: OtelSpan;
+  totalMs: number;
+  startedAt: string;
+}
+
+// ── Changelog ────────────────────────────────────────────
+export type ChangelogEntryType = 'feature' | 'improvement' | 'fix' | 'breaking';
+
+export interface ChangelogItem {
+  type: ChangelogEntryType;
+  breaking: boolean;
+  title: string;
+  body: string;
+  tags: string[];
+}
+
+export interface ChangelogEntry {
+  version: string;
+  date: string;
+  highlight: boolean;
+  entries: ChangelogItem[];
+}
+
+// ── Docs ──────────────────────────────────────────────────
+export interface DocTocItem {
+  id: string;
+  label: string;
+  depth: number;
+}
+
+export interface DocPage {
+  slug: string;
+  title: string;
+  category: string;
+  order: number;
+  excerpt: string;
+  content: string;
+  toc: DocTocItem[];
+}

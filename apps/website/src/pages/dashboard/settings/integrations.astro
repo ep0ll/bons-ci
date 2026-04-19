@@ -1,6 +1,6 @@
 ---
-import DashboardLayout from '../../layouts/DashboardLayout.astro';
-import { MOCK_INTEGRATIONS } from '../../data/mock.ts';
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { MOCK_INTEGRATIONS } from '../../../data/mock.ts';
 const connected = MOCK_INTEGRATIONS.filter(i=>i.installed);
 const available = MOCK_INTEGRATIONS.filter(i=>!i.installed);
 const extraAvail = [

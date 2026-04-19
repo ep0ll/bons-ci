@@ -1,0 +1,1 @@
+import"./BaseLayout.astro_astro_type_script_index_0_lang.BKQ29WDz.js";import"./hoisted.Dh0GKO6Y.js";function c(o){const t=document.querySelector(`.faq-body-${o}`),n=document.querySelector(`.faq-icon-${o}`),e=!t.classList.contains("hidden");t.classList.toggle("hidden",e),n.style.transform=e?"":"rotate(180deg)"}window.toggleFaq=c;

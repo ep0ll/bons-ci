@@ -1,0 +1,85 @@
+import { a as createComponent, r as renderComponent, b as renderTemplate, m as maybeRenderHead, d as addAttribute } from '../chunks/astro/server_CCu-t7dI.mjs';
+import 'kleur/colors';
+import { $ as $$MarketingLayout } from '../chunks/MarketingLayout_tAfEjAWH.mjs';
+export { renderers } from '../renderers.mjs';
+
+const $$Integrations = createComponent(($$result, $$props, $$slots) => {
+  const allIntegrations = [
+    // VCS
+    { name: "GitHub", cat: "Version Control", official: true, installed: false, desc: "Connect repos, trigger builds on push, PR checks, and deploy on merge." },
+    { name: "GitLab", cat: "Version Control", official: true, desc: "Full GitLab CI/CD replacement with native merge request integration." },
+    { name: "Bitbucket", cat: "Version Control", official: true, desc: "Bitbucket Cloud and Bitbucket Server pipelines replacement." },
+    { name: "Azure Repos", cat: "Version Control", official: true, desc: "Microsoft Azure DevOps repositories with pull request status checks." },
+    { name: "Gitea", cat: "Version Control", official: false, desc: "Self-hosted Gitea webhook integration for build triggers." },
+    // Notifications
+    { name: "Slack", cat: "Notifications", official: true, desc: "Rich build notifications, failure alerts, and interactive build controls in Slack." },
+    { name: "PagerDuty", cat: "Notifications", official: true, desc: "Auto-create incidents on deploy failures to production branches." },
+    { name: "OpsGenie", cat: "Notifications", official: false, desc: "Alert routing for critical build failures and SLA breaches." },
+    { name: "Microsoft Teams", cat: "Notifications", official: true, desc: "Build status cards in Teams channels with actionable buttons." },
+    { name: "Discord", cat: "Notifications", official: false, desc: "Webhook-based build notifications to Discord channels." },
+    // Cloud
+    { name: "AWS", cat: "Cloud", official: true, desc: "OIDC-based auth, S3 artifact storage, ECR registry, EKS deploy targets." },
+    { name: "Google Cloud", cat: "Cloud", official: true, desc: "Workload identity federation, GCS storage, GKE, and Artifact Registry." },
+    { name: "Microsoft Azure", cat: "Cloud", official: true, desc: "Managed identity auth, Azure Container Registry, AKS deployments." },
+    { name: "Cloudflare", cat: "Cloud", official: true, desc: "Deploy to Cloudflare Workers, Pages, and R2 storage directly from pipelines." },
+    { name: "Fly.io", cat: "Cloud", official: true, desc: "Zero-config Fly.io deployments with rollback support." },
+    { name: "Railway", cat: "Cloud", official: false, desc: "Deploy services to Railway from any pipeline step." },
+    // Security
+    { name: "Okta", cat: "Security & Identity", official: true, desc: "SAML SSO and SCIM user provisioning via Okta." },
+    { name: "Auth0", cat: "Security & Identity", official: true, desc: "OAuth 2.0 SSO integration with Auth0 as identity provider." },
+    { name: "HashiCorp Vault", cat: "Security & Identity", official: true, desc: "Dynamic secrets injection directly from Vault \u2014 no secrets in env vars." },
+    { name: "Snyk", cat: "Security & Identity", official: true, desc: "Automatic vulnerability scanning of dependencies and container images." },
+    { name: "Trivy", cat: "Security & Identity", official: false, desc: "Open-source container and filesystem vulnerability scanner." },
+    { name: "SonarCloud", cat: "Security & Identity", official: false, desc: "Code quality and security analysis on every pull request." },
+    // Observability
+    { name: "Datadog", cat: "Observability", official: true, desc: "Stream build metrics and traces to Datadog. Pre-built forge-ci dashboard." },
+    { name: "Grafana Cloud", cat: "Observability", official: true, desc: "OpenTelemetry-native metric export to Grafana Cloud." },
+    { name: "Sentry", cat: "Observability", official: true, desc: "Link deployments to Sentry releases for error tracking and performance." },
+    { name: "New Relic", cat: "Observability", official: false, desc: "Pipeline telemetry export to New Relic One." },
+    { name: "Honeycomb", cat: "Observability", official: false, desc: "Distributed tracing for long-running build pipelines." },
+    // Project management
+    { name: "Jira", cat: "Project Management", official: true, desc: "Transition Jira issues automatically on successful deploys." },
+    { name: "Linear", cat: "Project Management", official: true, desc: "Link builds to Linear issues and auto-close on merge." },
+    { name: "GitHub Issues", cat: "Project Management", official: true, desc: "Auto-create issues for flaky tests and recurring failures." },
+    { name: "Notion", cat: "Project Management", official: false, desc: "Post deployment summaries to Notion pages." },
+    // Infra
+    { name: "Kubernetes", cat: "Infrastructure", official: true, desc: "Native kubectl, Helm, and Kustomize deploy actions with rollback." },
+    { name: "Terraform", cat: "Infrastructure", official: true, desc: "Run terraform plan and apply with state locking from pipelines." },
+    { name: "Pulumi", cat: "Infrastructure", official: false, desc: "Infrastructure as code deployments via Pulumi CLI." },
+    { name: "ArgoCD", cat: "Infrastructure", official: false, desc: "Trigger ArgoCD sync from a pipeline step for GitOps workflows." },
+    { name: "Helm", cat: "Infrastructure", official: true, desc: "Helm chart packaging and publishing to OCI registries." },
+    { name: "Anyscale", cat: "Infrastructure", official: true, desc: "Run Ray distributed workloads and training jobs on Anyscale." }
+  ];
+  const cats = ["All", ...new Set(allIntegrations.map((i) => i.cat))];
+  return renderTemplate`${renderComponent($$result, "MarketingLayout", $$MarketingLayout, { "title": "Integrations \u2014 Forge CI", "description": "600+ integrations. Connect Forge CI to GitHub, Slack, AWS, Datadog, Kubernetes, and your entire stack. Browse the full integration library." }, { "default": ($$result2) => renderTemplate`  ${maybeRenderHead()}<section class="relative pt-32 pb-16 text-center overflow-hidden"> <div class="absolute inset-0 bg-grid opacity-25 pointer-events-none" aria-hidden="true"></div> <div class="container-forge relative z-10"> <div class="section-label mb-6">Integrations & Plugins</div> <h1 class="section-title max-w-3xl mx-auto">
+Your stack,
+<span class="text-gradient"> fully connected.</span> </h1> <p class="section-subtitle mt-5 mx-auto text-center">
+600+ official and community integrations. If you use it, Forge CI probably already connects to it.
+</p> <!-- Search --> <div class="max-w-lg mx-auto mt-10"> <div class="relative"> <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path> </svg> <input type="search" id="integration-search" placeholder="Search integrations..." class="input !pl-11 !py-3.5 text-base" autocomplete="off"> </div> </div> </div> </section>  <section class="pb-24"> <div class="container-forge"> <!-- Filter tabs --> <div class="flex flex-wrap gap-2 mb-8" id="cat-filters"> ${cats.map((cat, i) => renderTemplate`<button${addAttribute(cat, "data-cat")}${addAttribute([
+    "px-4 py-2 rounded-full text-sm font-medium border transition-all duration-150",
+    i === 0 ? "border-forge-accent/40 bg-forge-accent-muted text-[#FFEE00]" : "border-[#2C2C2C] text-[#F0F0F0]-2 hover:border-[#2C2C2C]-2 hover:text-[#F0F0F0]"
+  ].join(" "), "class")}> ${cat} </button>`)} </div> <!-- Stats bar --> <div class="flex items-center justify-between mb-6"> <p class="text-sm text-[#F0F0F0]-3" id="count-label">
+Showing ${allIntegrations.length} integrations
+</p> <div class="flex items-center gap-2 text-xs text-[#F0F0F0]-3"> <div class="w-2 h-2 rounded-full bg-forge-success"></div>
+Official
+<div class="w-2 h-2 rounded-full bg-forge-border ml-2"></div>
+Community
+</div> </div> <!-- Integration grid --> <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="integration-grid"> ${allIntegrations.map((intg) => renderTemplate`<div class="card p-5 hover:border-[#2C2C2C]-2 hover:-translate-y-1 transition-all duration-200 cursor-pointer group"${addAttribute(intg.cat, "data-cat")}${addAttribute(intg.name.toLowerCase(), "data-name")}> <div class="flex items-start justify-between mb-3"> <!-- Icon placeholder --> <div class="w-10 h-10 rounded-none bg-[#111111]2 border border-[#2C2C2C] flex items-center justify-center text-xs font-mono font-bold text-[#F0F0F0]-2 group-hover:border-[rgba(255,238,0,0.3)] transition-colors"> ${intg.name.slice(0, 2).toUpperCase()} </div> <div class="flex items-center gap-1.5"> ${intg.official ? renderTemplate`<span class="badge-success text-2xs">Official</span>` : renderTemplate`<span class="badge-neutral text-2xs">Community</span>`} </div> </div> <h3 class="font-medium text-[#F0F0F0] mb-1 group-hover:text-[#FFEE00] transition-colors"> ${intg.name} </h3> <p class="text-2xs text-[#F0F0F0]-3 line-clamp-2">${intg.desc}</p> <div class="mt-3 text-2xs font-mono text-[#F0F0F0]-3">${intg.cat}</div> </div>`)} </div> <!-- Empty state --> <div id="empty-state" class="hidden text-center py-20"> <div class="text-4xl mb-4">🔍</div> <h3 class="font-bold text-xl text-[#F0F0F0] mb-2">No integrations found</h3> <p class="text-[#F0F0F0]-2 text-sm">Try a different search term or browse by category.</p> <a href="/docs/plugins" class="btn-secondary btn-md mt-6 inline-flex">Build your own integration →</a> </div> <!-- Build your own CTA --> <div class="mt-16 card p-8 text-center max-w-2xl mx-auto appear"> <div class="text-3xl mb-4">🔌</div> <h3 class="font-bold text-2xl text-[#F0F0F0] mb-3">Don't see what you need?</h3> <p class="text-[#F0F0F0]-2 mb-6 text-sm leading-relaxed">
+Build a custom integration with our Plugin SDK in a few hours.
+          Publish it to the marketplace and earn revenue when teams install it.
+</p> <div class="flex flex-col sm:flex-row gap-3 justify-center"> <a href="/docs/plugins" class="btn-primary btn-md">Read the Plugin SDK docs</a> <a href="/contact" class="btn-secondary btn-md">Request an integration</a> </div> </div> </div> </section> ` })} `;
+}, "/Users/sai/vscode/bons-ci/apps/website/src/pages/integrations.astro", void 0);
+
+const $$file = "/Users/sai/vscode/bons-ci/apps/website/src/pages/integrations.astro";
+const $$url = "/integrations";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Integrations,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };

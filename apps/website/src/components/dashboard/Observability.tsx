@@ -6,23 +6,23 @@
 
 // ─── Theme tokens (shared) ────────────────────────────────────
 export const BRUT = {
-  bg:        '#0A0A0A',
-  surface:   '#111111',
-  s2:        '#1A1A1A',
-  s3:        '#222222',
-  border:    '#2C2C2C',
-  border2:   '#3C3C3C',
-  accent:    '#FFEE00',
-  green:     '#00FF88',
-  red:       '#FF3333',
-  orange:    '#FF7700',
-  blue:      '#33AAFF',
-  cyan:      '#00EEFF',
-  purple:    '#CC44FF',
-  text:      '#F0F0F0',
-  t2:        '#AAAAAA',
-  t3:        '#666666',
-  t4:        '#3C3C3C',
+  bg: '#0A0A0A',
+  surface: '#111111',
+  s2: '#1A1A1A',
+  s3: '#222222',
+  border: '#2C2C2C',
+  border2: '#3C3C3C',
+  accent: '#FFEE00',
+  green: '#00FF88',
+  red: '#FF3333',
+  orange: '#FF7700',
+  blue: '#33AAFF',
+  cyan: '#00EEFF',
+  purple: '#CC44FF',
+  text: '#F0F0F0',
+  t2: '#AAAAAA',
+  t3: '#666666',
+  t4: '#3C3C3C',
 } as const;
 
 // ─── recharts: Build Metrics Line Chart ───────────────────────
@@ -36,13 +36,13 @@ import {
 interface MetricPoint { date: string; value: number; label?: string; }
 
 interface BuildMetricsChartProps {
-  data:     MetricPoint[];
-  color?:   string;
-  label?:   string;
-  type?:    'line' | 'area' | 'bar';
-  height?:  number;
+  data: MetricPoint[];
+  color?: string;
+  label?: string;
+  type?: 'line' | 'area' | 'bar';
+  height?: number;
   showGrid?: boolean;
-  unit?:    string;
+  unit?: string;
 }
 
 const CustomTooltip = ({ active, payload, label, unit }: any) => {
@@ -83,35 +83,35 @@ export function BuildMetricsChart({ data, color = BRUT.accent, label = 'Value', 
       {type === 'bar' ? (
         <BarChart {...commonProps}>
           {showGrid && <CartesianGrid {...gridStyle} />}
-          <XAxis dataKey="date" {...axisProps}/>
-          <YAxis {...axisProps}/>
-          <Tooltip content={<CustomTooltip unit={unit}/>}/>
+          <XAxis dataKey="date" {...axisProps} />
+          <YAxis {...axisProps} />
+          <Tooltip content={<CustomTooltip unit={unit} />} />
           <Bar dataKey="value" name={label} fill={color} radius={0} maxBarSize={20}
-               style={{ filter: `drop-shadow(0 0 4px ${color}40)` }}/>
+            style={{ filter: `drop-shadow(0 0 4px ${color}40)` }} />
         </BarChart>
       ) : type === 'area' ? (
         <AreaChart {...commonProps}>
           <defs>
             <linearGradient id={`grad-${label}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.2}/>
-              <stop offset="100%" stopColor={color} stopOpacity={0}/>
+              <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          {showGrid && <CartesianGrid {...gridStyle}/>}
-          <XAxis dataKey="date" {...axisProps}/>
-          <YAxis {...axisProps}/>
-          <Tooltip content={<CustomTooltip unit={unit}/>}/>
+          {showGrid && <CartesianGrid {...gridStyle} />}
+          <XAxis dataKey="date" {...axisProps} />
+          <YAxis {...axisProps} />
+          <Tooltip content={<CustomTooltip unit={unit} />} />
           <Area dataKey="value" name={label} stroke={color} fill={`url(#grad-${label})`}
-                strokeWidth={2} dot={false} activeDot={{ r: 3, fill: color, stroke: BRUT.bg, strokeWidth: 2 }}/>
+            strokeWidth={2} dot={false} activeDot={{ r: 3, fill: color, stroke: BRUT.bg, strokeWidth: 2 }} />
         </AreaChart>
       ) : (
         <LineChart {...commonProps}>
-          {showGrid && <CartesianGrid {...gridStyle}/>}
-          <XAxis dataKey="date" {...axisProps}/>
-          <YAxis {...axisProps}/>
-          <Tooltip content={<CustomTooltip unit={unit}/>}/>
+          {showGrid && <CartesianGrid {...gridStyle} />}
+          <XAxis dataKey="date" {...axisProps} />
+          <YAxis {...axisProps} />
+          <Tooltip content={<CustomTooltip unit={unit} />} />
           <Line dataKey="value" name={label} stroke={color} strokeWidth={2}
-                dot={false} activeDot={{ r: 3, fill: color }}/>
+            dot={false} activeDot={{ r: 3, fill: color }} />
         </LineChart>
       )}
     </ResponsiveContainer>
@@ -126,15 +126,15 @@ export function BuildDurationChart({ data, height = 200 }: { data: DurationSerie
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
-        <CartesianGrid stroke={BRUT.border} strokeDasharray="2 4"/>
-        <XAxis dataKey="name" tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false}/>
+        <CartesianGrid stroke={BRUT.border} strokeDasharray="2 4" />
+        <XAxis dataKey="name" tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false} />
         <YAxis tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false}
-               tickFormatter={(v: number) => v >= 60000 ? `${(v/60000).toFixed(0)}m` : `${(v/1000).toFixed(0)}s`}/>
-        <Tooltip content={<CustomTooltip unit="ms"/>}/>
-        <Legend wrapperStyle={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: BRUT.t3 }}/>
-        <Bar dataKey="p50" name="P50" fill={BRUT.green}   radius={0} maxBarSize={14}/>
-        <Bar dataKey="p90" name="P90" fill={BRUT.orange}  radius={0} maxBarSize={14}/>
-        <Bar dataKey="p99" name="P99" fill={BRUT.red}     radius={0} maxBarSize={14}/>
+          tickFormatter={(v: number) => v >= 60000 ? `${(v / 60000).toFixed(0)}m` : `${(v / 1000).toFixed(0)}s`} />
+        <Tooltip content={<CustomTooltip unit="ms" />} />
+        <Legend wrapperStyle={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: BRUT.t3 }} />
+        <Bar dataKey="p50" name="P50" fill={BRUT.green} radius={0} maxBarSize={14} />
+        <Bar dataKey="p90" name="P90" fill={BRUT.orange} radius={0} maxBarSize={14} />
+        <Bar dataKey="p99" name="P99" fill={BRUT.red} radius={0} maxBarSize={14} />
       </ComposedChart>
     </ResponsiveContainer>
   );
@@ -150,25 +150,25 @@ export function SuccessRateChart({ data, height = 160 }: { data: SuccessPoint[];
       <AreaChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
         <defs>
           <linearGradient id="rateGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={BRUT.green} stopOpacity={0.15}/>
-            <stop offset="100%" stopColor={BRUT.green} stopOpacity={0}/>
+            <stop offset="0%" stopColor={BRUT.green} stopOpacity={0.15} />
+            <stop offset="100%" stopColor={BRUT.green} stopOpacity={0} />
           </linearGradient>
           <linearGradient id="controlGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={BRUT.t4} stopOpacity={0.1}/>
-            <stop offset="100%" stopColor={BRUT.t4} stopOpacity={0}/>
+            <stop offset="0%" stopColor={BRUT.t4} stopOpacity={0.1} />
+            <stop offset="100%" stopColor={BRUT.t4} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke={BRUT.border} strokeDasharray="2 4"/>
-        <XAxis dataKey="date" tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false}/>
+        <CartesianGrid stroke={BRUT.border} strokeDasharray="2 4" />
+        <XAxis dataKey="date" tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false} />
         <YAxis tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false}
-               domain={[80, 100]} tickFormatter={(v: number) => `${v}%`}/>
-        <Tooltip content={<CustomTooltip unit="%"/>}/>
-        <ReferenceLine y={95} stroke={BRUT.orange} strokeDasharray="4 4" label={{ value: 'SLA', fill: BRUT.orange, fontSize: 10 }}/>
-        <Area dataKey="upper" name="Upper bound" stroke="none" fill={`url(#controlGrad)`} dot={false}/>
-        <Area dataKey="lower" name="Lower bound" stroke="none" fill={BRUT.bg} dot={false}/>
-        <Area dataKey="rate"  name="Success rate" stroke={BRUT.green} fill={`url(#rateGrad)`}
-              strokeWidth={2} dot={false} activeDot={{ r: 3, fill: BRUT.green }}/>
-        <Line dataKey="baseline" name="Baseline" stroke={BRUT.t4} strokeWidth={1} strokeDasharray="3 3" dot={false}/>
+          domain={[80, 100]} tickFormatter={(v: number) => `${v}%`} />
+        <Tooltip content={<CustomTooltip unit="%" />} />
+        <ReferenceLine y={95} stroke={BRUT.orange} strokeDasharray="4 4" label={{ value: 'SLA', fill: BRUT.orange, fontSize: 10 }} />
+        <Area dataKey="upper" name="Upper bound" stroke="none" fill={`url(#controlGrad)`} dot={false} />
+        <Area dataKey="lower" name="Lower bound" stroke="none" fill={BRUT.bg} dot={false} />
+        <Area dataKey="rate" name="Success rate" stroke={BRUT.green} fill={`url(#rateGrad)`}
+          strokeWidth={2} dot={false} activeDot={{ r: 3, fill: BRUT.green }} />
+        <Line dataKey="baseline" name="Baseline" stroke={BRUT.t4} strokeWidth={1} strokeDasharray="3 3" dot={false} />
       </AreaChart>
     </ResponsiveContainer>
   );
@@ -182,14 +182,14 @@ export function BuildVolumeBarChart({ data, height = 180 }: { data: VolumePoint[
   return (
     <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 4, right: 4, left: -16, bottom: 0 }} barCategoryGap="30%">
-        <CartesianGrid stroke={BRUT.border} strokeDasharray="2 4"/>
-        <XAxis dataKey="date" tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false}/>
-        <YAxis tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false}/>
-        <Tooltip content={<CustomTooltip/>}/>
-        <Legend wrapperStyle={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: BRUT.t3 }}/>
-        <Bar dataKey="success"   name="Passed"    stackId="a" fill={BRUT.green}  radius={0}/>
-        <Bar dataKey="failed"    name="Failed"    stackId="a" fill={BRUT.red}    radius={0}/>
-        <Bar dataKey="cancelled" name="Cancelled" stackId="a" fill={BRUT.border2} radius={0}/>
+        <CartesianGrid stroke={BRUT.border} strokeDasharray="2 4" />
+        <XAxis dataKey="date" tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false} />
+        <YAxis tick={tickStyle} axisLine={{ stroke: BRUT.border }} tickLine={false} />
+        <Tooltip content={<CustomTooltip />} />
+        <Legend wrapperStyle={{ fontFamily: '"JetBrains Mono", monospace', fontSize: 11, color: BRUT.t3 }} />
+        <Bar dataKey="success" name="Passed" stackId="a" fill={BRUT.green} radius={0} />
+        <Bar dataKey="failed" name="Failed" stackId="a" fill={BRUT.red} radius={0} />
+        <Bar dataKey="cancelled" name="Cancelled" stackId="a" fill={BRUT.border2} radius={0} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -199,20 +199,20 @@ export function BuildVolumeBarChart({ data, height = 180 }: { data: VolumePoint[
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, type Node, type Edge, type NodeProps } from '@xyflow/react';
 
 interface PipelineStep {
-  id:       string;
-  label:    string;
-  status:   'success' | 'failed' | 'running' | 'queued' | 'skipped';
+  id: string;
+  label: string;
+  status: 'success' | 'failed' | 'running' | 'queued' | 'skipped';
   duration?: string;
-  deps?:    string[];
+  deps?: string[];
   parallelGroup?: string;
 }
 
 const STATUS_COLOR: Record<string, { border: string; bg: string; text: string; dot: string }> = {
-  success: { border: BRUT.green,  bg: 'rgba(0,255,136,0.06)',  text: BRUT.green,  dot: BRUT.green },
-  failed:  { border: BRUT.red,    bg: 'rgba(255,51,51,0.06)',   text: BRUT.red,    dot: BRUT.red },
-  running: { border: BRUT.cyan,   bg: 'rgba(0,238,255,0.06)',   text: BRUT.cyan,   dot: BRUT.cyan },
-  queued:  { border: BRUT.t4,     bg: 'rgba(60,60,60,0.2)',     text: BRUT.t3,     dot: BRUT.t4 },
-  skipped: { border: BRUT.t4,     bg: 'rgba(44,44,44,0.1)',     text: BRUT.t4,     dot: BRUT.t4 },
+  success: { border: BRUT.green, bg: 'rgba(0,255,136,0.06)', text: BRUT.green, dot: BRUT.green },
+  failed: { border: BRUT.red, bg: 'rgba(255,51,51,0.06)', text: BRUT.red, dot: BRUT.red },
+  running: { border: BRUT.cyan, bg: 'rgba(0,238,255,0.06)', text: BRUT.cyan, dot: BRUT.cyan },
+  queued: { border: BRUT.t4, bg: 'rgba(60,60,60,0.2)', text: BRUT.t3, dot: BRUT.t4 },
+  skipped: { border: BRUT.t4, bg: 'rgba(44,44,44,0.1)', text: BRUT.t4, dot: BRUT.t4 },
 };
 
 function PipelineNode({ data }: NodeProps) {
@@ -223,22 +223,22 @@ function PipelineNode({ data }: NodeProps) {
       padding: '8px 12px', minWidth: 140, fontFamily: '"Space Grotesk", sans-serif',
       boxShadow: data.status === 'running' ? `0 0 12px ${s.dot}40` : `2px 2px 0 ${BRUT.border}`,
     }}>
-      <Handle type="target" position={Position.Left} style={{ background: s.border, border: 'none', borderRadius: 0, width: 6, height: 6 }}/>
+      <Handle type="target" position={Position.Left} style={{ background: s.border, border: 'none', borderRadius: 0, width: 6, height: 6 }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
         <div style={{
           width: 7, height: 7, borderRadius: '50%', background: s.dot, flexShrink: 0,
           animation: data.status === 'running' ? 'pulse 1s ease-in-out infinite' : undefined,
-        }}/>
+        }} />
         <span style={{ fontSize: 11, fontWeight: 700, color: s.text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           {data.label as string}
         </span>
       </div>
-      {data.duration && (
+      {data.duration != null && (
         <div style={{ fontSize: 10, color: BRUT.t3, fontFamily: '"JetBrains Mono", monospace', marginLeft: 13 }}>
-          {data.duration as string}
+          {String(data.duration)}
         </div>
       )}
-      <Handle type="source" position={Position.Right} style={{ background: s.border, border: 'none', borderRadius: 0, width: 6, height: 6 }}/>
+      <Handle type="source" position={Position.Right} style={{ background: s.border, border: 'none', borderRadius: 0, width: 6, height: 6 }} />
     </div>
   );
 }
@@ -275,8 +275,8 @@ function stepsToFlow(steps: PipelineStep[]): { nodes: Node[]; edges: Edge[] } {
     const group = byLevel[l];
     const idx = group.indexOf(s);
     return {
-      id:       s.id,
-      type:     'pipeline',
+      id: s.id,
+      type: 'pipeline',
       position: { x: l * LEVEL_WIDTH, y: idx * NODE_HEIGHT },
       data: { label: s.label, status: s.status, duration: s.duration },
     };
@@ -284,12 +284,12 @@ function stepsToFlow(steps: PipelineStep[]): { nodes: Node[]; edges: Edge[] } {
 
   const edges: Edge[] = steps.flatMap(s =>
     (s.deps ?? []).map(dep => ({
-      id:           `${dep}-${s.id}`,
-      source:       dep,
-      target:       s.id,
-      style:        { stroke: BRUT.border2, strokeWidth: 1.5 },
-      markerEnd:    { type: 'arrowclosed' as any, color: BRUT.border2, width: 12, height: 12 },
-      animated:     s.status === 'running',
+      id: `${dep}-${s.id}`,
+      source: dep,
+      target: s.id,
+      style: { stroke: BRUT.border2, strokeWidth: 1.5 },
+      markerEnd: { type: 'arrowclosed' as any, color: BRUT.border2, width: 12, height: 12 },
+      animated: s.status === 'running',
     }))
   );
 
@@ -297,7 +297,7 @@ function stepsToFlow(steps: PipelineStep[]): { nodes: Node[]; edges: Edge[] } {
 }
 
 interface PipelineDAGProps {
-  steps:  PipelineStep[];
+  steps: PipelineStep[];
   height?: number;
 }
 
@@ -315,11 +315,11 @@ export function PipelineDAG({ steps, height = 320 }: PipelineDAGProps) {
         proOptions={{ hideAttribution: true }}
         style={{ background: BRUT.bg }}
       >
-        <Background color={BRUT.border} gap={20} size={1}/>
+        <Background color={BRUT.border} gap={20} size={1} />
         <Controls style={{
           background: BRUT.s2, border: `1px solid ${BRUT.border}`, borderRadius: 0,
           color: BRUT.t2,
-        }}/>
+        }} />
         <MiniMap
           style={{ background: BRUT.s2, border: `1px solid ${BRUT.border}`, borderRadius: 0 }}
           nodeColor={(n) => STATUS_COLOR[(n.data as any).status ?? 'queued'].border}
@@ -332,20 +332,20 @@ export function PipelineDAG({ steps, height = 320 }: PipelineDAGProps) {
 
 // ─── Span Waterfall (pure React + CSS) ───────────────────────
 interface Span {
-  id:          string;
-  name:        string;
-  startMs:     number;
-  durationMs:  number;
-  status:      'success' | 'failed' | 'running' | 'skipped';
-  depth?:      number;
-  children?:   Span[];
+  id: string;
+  name: string;
+  startMs: number;
+  durationMs: number;
+  status: 'success' | 'failed' | 'running' | 'skipped';
+  depth?: number;
+  children?: Span[];
 }
 
 export function SpanWaterfall({ spans, totalMs, height = 320 }: { spans: Span[]; totalMs: number; height?: number }) {
   const [selected, setSelected] = useState<string | null>(null);
 
   function renderSpan(span: Span, depth = 0): React.ReactNode {
-    const leftPct  = (span.startMs / totalMs) * 100;
+    const leftPct = (span.startMs / totalMs) * 100;
     const widthPct = Math.max((span.durationMs / totalMs) * 100, 0.5);
     const col = STATUS_COLOR[span.status];
     const isSelected = selected === span.id;
@@ -353,7 +353,7 @@ export function SpanWaterfall({ spans, totalMs, height = 320 }: { spans: Span[];
     return (
       <div key={span.id}>
         <div style={{ display: 'flex', alignItems: 'center', height: 26, borderBottom: `1px solid ${BRUT.border}`, cursor: 'pointer' }}
-             onClick={() => setSelected(isSelected ? null : span.id)}>
+          onClick={() => setSelected(isSelected ? null : span.id)}>
           <div style={{
             flexShrink: 0, width: 180, paddingLeft: 8 + depth * 16,
             fontFamily: '"JetBrains Mono", monospace', fontSize: 10,
@@ -370,13 +370,13 @@ export function SpanWaterfall({ spans, totalMs, height = 320 }: { spans: Span[];
             }}>
               {widthPct > 5 && (
                 <span style={{ fontSize: 9, fontFamily: '"JetBrains Mono", monospace', color: col.text, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  {span.durationMs >= 1000 ? `${(span.durationMs/1000).toFixed(1)}s` : `${span.durationMs}ms`}
+                  {span.durationMs >= 1000 ? `${(span.durationMs / 1000).toFixed(1)}s` : `${span.durationMs}ms`}
                 </span>
               )}
             </div>
           </div>
           <div style={{ flexShrink: 0, width: 60, textAlign: 'right', paddingRight: 8, fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: BRUT.t4 }}>
-            {span.durationMs >= 1000 ? `${(span.durationMs/1000).toFixed(2)}s` : `${span.durationMs}ms`}
+            {span.durationMs >= 1000 ? `${(span.durationMs / 1000).toFixed(2)}s` : `${span.durationMs}ms`}
           </div>
         </div>
         {span.children?.map(c => renderSpan(c, depth + 1))}
@@ -389,7 +389,7 @@ export function SpanWaterfall({ spans, totalMs, height = 320 }: { spans: Span[];
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', height: 28, borderBottom: `2px solid ${BRUT.border2}`, background: BRUT.s2, position: 'sticky', top: 0 }}>
         <div style={{ flexShrink: 0, width: 180, paddingLeft: 8, fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: BRUT.t4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Name</div>
-        <div style={{ flex: 1, fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: BRUT.t4, textTransform: 'uppercase', letterSpacing: '0.1em', paddingLeft: 8 }}>Timeline (0 → {totalMs >= 60000 ? `${(totalMs/60000).toFixed(1)}m` : `${(totalMs/1000).toFixed(1)}s`})</div>
+        <div style={{ flex: 1, fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: BRUT.t4, textTransform: 'uppercase', letterSpacing: '0.1em', paddingLeft: 8 }}>Timeline (0 → {totalMs >= 60000 ? `${(totalMs / 60000).toFixed(1)}m` : `${(totalMs / 1000).toFixed(1)}s`})</div>
         <div style={{ flexShrink: 0, width: 60, textAlign: 'right', paddingRight: 8, fontFamily: '"JetBrains Mono", monospace', fontSize: 9, color: BRUT.t4 }}>Duration</div>
       </div>
       {spans.map(s => renderSpan(s))}
@@ -399,17 +399,17 @@ export function SpanWaterfall({ spans, totalMs, height = 320 }: { spans: Span[];
 
 // ─── D3 Flame Graph (SVG-based) ───────────────────────────────
 interface FlameNode {
-  name:      string;
-  value:     number;   // time in ms
+  name: string;
+  value: number;   // time in ms
   children?: FlameNode[];
-  color?:    string;
+  color?: string;
 }
 
 // Color scale for flame depth
-const FLAME_COLORS = ['#FF3333','#FF5500','#FF7700','#FF9900','#FFBB00','#FFEE00'];
+const FLAME_COLORS = ['#FF3333', '#FF5500', '#FF7700', '#FF9900', '#FFBB00', '#FFEE00'];
 
-function flattenFlame(node: FlameNode, startX: number, totalWidth: number, y: number, depth: number, result: Array<{x:number;w:number;y:number;d:number;name:string;value:number}> = []) {
-  const w = (node.value / (node.children ? node.children.reduce((s,c)=>s+c.value,0) : node.value)) * totalWidth;
+function flattenFlame(node: FlameNode, startX: number, totalWidth: number, y: number, depth: number, result: Array<{ x: number; w: number; y: number; d: number; name: string; value: number }> = []) {
+  const w = (node.value / (node.children ? node.children.reduce((s, c) => s + c.value, 0) : node.value)) * totalWidth;
   result.push({ x: startX, w, y, d: depth, name: node.name, value: node.value });
   let cx = startX;
   for (const child of node.children ?? []) {
@@ -443,9 +443,9 @@ export function FlameGraph({ root, width = 560, height = 200 }: { root: FlameNod
               />
               {cell.w > 30 && (
                 <text x={cell.x + 4} y={cell.y + 13}
-                      fill={isHov ? BRUT.bg : BRUT.bg} fontSize={9}
-                      fontFamily='"JetBrains Mono", monospace' fontWeight={700}
-                      clipPath={`inset(0 ${Math.max(0, cell.x + cell.w - (cell.x + cell.w - 4))}px 0 0)`}>
+                  fill={isHov ? BRUT.bg : BRUT.bg} fontSize={9}
+                  fontFamily='"JetBrains Mono", monospace' fontWeight={700}
+                  clipPath={`inset(0 ${Math.max(0, cell.x + cell.w - (cell.x + cell.w - 4))}px 0 0)`}>
                   <title>{cell.name} — {cell.value}ms</title>
                   {cell.name.length > cell.w / 8 ? cell.name.slice(0, Math.floor(cell.w / 8)) + '…' : cell.name}
                 </text>
@@ -465,21 +465,21 @@ export function FlameGraph({ root, width = 560, height = 200 }: { root: FlameNod
 
 // ─── Log Viewer Component ─────────────────────────────────────
 interface LogLine {
-  t:      string;   // timestamp
-  text:   string;
+  t: string;   // timestamp
+  text: string;
   level?: 'info' | 'warn' | 'error' | 'debug';
 }
 
 const LEVEL_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  error: { text: BRUT.red,    bg: 'rgba(255,51,51,0.06)',   border: BRUT.red },
-  warn:  { text: BRUT.orange, bg: 'rgba(255,119,0,0.06)',  border: BRUT.orange },
-  info:  { text: BRUT.t2,    bg: 'transparent',            border: 'transparent' },
-  debug: { text: BRUT.t4,    bg: 'transparent',            border: 'transparent' },
+  error: { text: BRUT.red, bg: 'rgba(255,51,51,0.06)', border: BRUT.red },
+  warn: { text: BRUT.orange, bg: 'rgba(255,119,0,0.06)', border: BRUT.orange },
+  info: { text: BRUT.t2, bg: 'transparent', border: 'transparent' },
+  debug: { text: BRUT.t4, bg: 'transparent', border: 'transparent' },
 };
 
 export function LogViewer({ lines, height = 400 }: { lines: LogLine[]; height?: number }) {
-  const [query, setQuery]   = useState('');
-  const [level, setLevel]   = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [level, setLevel] = useState<string | null>(null);
   const [showTs, setShowTs] = useState(true);
 
   const filtered = lines.filter(l => {
@@ -499,7 +499,7 @@ export function LogViewer({ lines, height = 400 }: { lines: LogLine[]; height?: 
           onChange={e => setQuery(e.target.value)}
           style={{ flex: 1, background: BRUT.bg, border: `1px solid ${BRUT.border2}`, color: BRUT.text, padding: '3px 8px', fontSize: 11, fontFamily: '"JetBrains Mono", monospace', borderRadius: 0, outline: 'none' }}
         />
-        {(['info','warn','error','debug'] as const).map(lvl => (
+        {(['info', 'warn', 'error', 'debug'] as const).map(lvl => (
           <button key={lvl}
             onClick={() => setLevel(level === lvl ? null : lvl)}
             style={{
@@ -521,7 +521,7 @@ export function LogViewer({ lines, height = 400 }: { lines: LogLine[]; height?: 
       <div style={{ height, overflowY: 'auto', fontFamily: '"JetBrains Mono", monospace', fontSize: 11, lineHeight: '20px' }}>
         {filtered.map((line, i) => {
           const lc = LEVEL_COLORS[line.level ?? 'info'];
-          const isMatch = query && (() => { try { return new RegExp(query,'i').test(line.text); } catch { return false; } })();
+          const isMatch = query && (() => { try { return new RegExp(query, 'i').test(line.text); } catch { return false; } })();
           return (
             <div key={i} style={{
               display: 'flex', gap: 12, padding: '1px 12px',
@@ -529,7 +529,7 @@ export function LogViewer({ lines, height = 400 }: { lines: LogLine[]; height?: 
             }}
               onMouseEnter={e => (e.currentTarget.style.background = BRUT.s2)}
               onMouseLeave={e => (e.currentTarget.style.background = lc.bg)}>
-              {showTs && <span style={{ color: BRUT.t4, flexShrink: 0, userSelect: 'none', width: 60 }}>{line.t.slice(11,19)}</span>}
+              {showTs && <span style={{ color: BRUT.t4, flexShrink: 0, userSelect: 'none', width: 60 }}>{line.t.slice(11, 19)}</span>}
               <span style={{ color: lc.text, wordBreak: 'break-all' }}>
                 {isMatch && query ? line.text.split(new RegExp(`(${query})`, 'gi')).map((part, j) =>
                   part.toLowerCase() === query.toLowerCase()

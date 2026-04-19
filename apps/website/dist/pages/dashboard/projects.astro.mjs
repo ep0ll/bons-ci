@@ -1,0 +1,128 @@
+import { a as createComponent, r as renderComponent, b as renderTemplate, m as maybeRenderHead, d as addAttribute } from '../../chunks/astro/server_CCu-t7dI.mjs';
+import 'kleur/colors';
+import { $ as $$DashboardLayout } from '../../chunks/DashboardLayout_CthgR4Bm.mjs';
+export { renderers } from '../../renderers.mjs';
+
+const $$Projects = createComponent(($$result, $$props, $$slots) => {
+  const projects = [
+    {
+      id: "api-service",
+      name: "api-service",
+      description: "Core REST API \u2014 Node.js + TypeScript + PostgreSQL",
+      vcs: "github",
+      repo: "acme-corp/api-service",
+      defaultBranch: "main",
+      language: "TypeScript",
+      lastBuild: { id: "1847", status: "success", branch: "main", ago: "2m ago" },
+      stats: { builds: 842, successRate: 97.4, avgDuration: "1m 24s", minutesUsed: 19724 },
+      runner: "linux-x64-medium",
+      parallelism: 10,
+      cacheEnabled: true,
+      tags: ["production", "api"],
+      members: 8
+    },
+    {
+      id: "web-app",
+      name: "web-app",
+      description: "Next.js customer-facing dashboard and marketing site",
+      vcs: "github",
+      repo: "acme-corp/web-app",
+      defaultBranch: "main",
+      language: "TypeScript",
+      lastBuild: { id: "1846", status: "running", branch: "feat/dashboard", ago: "now" },
+      stats: { builds: 634, successRate: 98.1, avgDuration: "1m 18s", minutesUsed: 13782 },
+      runner: "linux-x64-medium",
+      parallelism: 10,
+      cacheEnabled: true,
+      tags: ["production", "frontend"],
+      members: 6
+    },
+    {
+      id: "mobile",
+      name: "mobile",
+      description: "React Native iOS & Android mobile application",
+      vcs: "github",
+      repo: "acme-corp/mobile",
+      defaultBranch: "main",
+      language: "TypeScript",
+      lastBuild: { id: "1843", status: "success", branch: "release/2.4.0", ago: "41m ago" },
+      stats: { builds: 241, successRate: 95.8, avgDuration: "8m 12s", minutesUsed: 19722 },
+      runner: "macos-m2-large",
+      parallelism: 4,
+      cacheEnabled: true,
+      tags: ["production", "mobile"],
+      members: 5
+    },
+    {
+      id: "infra",
+      name: "infra",
+      description: "Terraform infrastructure as code \u2014 AWS + Cloudflare",
+      vcs: "github",
+      repo: "acme-corp/infra",
+      defaultBranch: "main",
+      language: "HCL",
+      lastBuild: { id: "1844", status: "success", branch: "main", ago: "22m ago" },
+      stats: { builds: 88, successRate: 99.9, avgDuration: "3m 44s", minutesUsed: 5502 },
+      runner: "linux-x64-small",
+      parallelism: 2,
+      cacheEnabled: false,
+      tags: ["infrastructure"],
+      members: 3
+    },
+    {
+      id: "docs",
+      name: "docs",
+      description: "Mintlify-powered developer documentation site",
+      vcs: "github",
+      repo: "acme-corp/docs",
+      defaultBranch: "main",
+      language: "MDX",
+      lastBuild: { id: "1840", status: "success", branch: "main", ago: "3h ago" },
+      stats: { builds: 112, successRate: 100, avgDuration: "0m 44s", minutesUsed: 1386 },
+      runner: "linux-x64-small",
+      parallelism: 1,
+      cacheEnabled: true,
+      tags: ["docs"],
+      members: 4
+    }
+  ];
+  const statusDot = {
+    success: "bg-forge-success",
+    running: "bg-forge-cyan animate-pulse",
+    failed: "bg-forge-danger",
+    queued: "bg-forge-text-3 animate-pulse"
+  };
+  const langColor = {
+    TypeScript: "text-[#33AAFF]  border-[rgba(51,170,255,0.3)]",
+    HCL: "text-[#FF7700]  border-[rgba(255,119,0,0.3)]",
+    MDX: "text-[#00FF88]  border-[rgba(0,255,136,0.3)]"
+  };
+  return renderTemplate`${renderComponent($$result, "DashboardLayout", $$DashboardLayout, { "title": "Projects", "activeNav": "projects", "breadcrumbs": [{ label: "Projects" }] }, { "default": ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5"> <!-- Header --> <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"> <div> <h1 class="font-bold text-2xl text-[#F0F0F0]">Projects</h1> <p class="text-[#F0F0F0]-3 text-sm mt-0.5"> ${projects.length} active projects in <strong class="text-[#F0F0F0]">acme-corp</strong> </p> </div> <div class="flex gap-2"> <div class="relative"> <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path> </svg> <input type="search" placeholder="Search projects…" class="input !pl-9 !py-2 !text-xs w-48" id="proj-search"> </div> <button id="new-project-btn" class="btn-primary btn-sm"> <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"></path> </svg>
+New project
+</button> </div> </div> <!-- Project grid --> <div class="grid lg:grid-cols-2 xl:grid-cols-3 gap-4" id="projects-grid"> ${projects.map((proj) => renderTemplate`<div class="card-hover p-0 overflow-hidden group project-card"${addAttribute(proj.name.toLowerCase(), "data-name")}${addAttribute(proj.description.toLowerCase(), "data-desc")}> <!-- Card header --> <div class="px-5 pt-5 pb-4 border-b border-[#2C2C2C]/50"> <div class="flex items-start justify-between gap-3 mb-3"> <!-- Project icon + name --> <div class="flex items-center gap-3"> <div class="w-9 h-9 rounded-none bg-[#111111]3 border border-[#2C2C2C] flex items-center justify-center text-sm font-bold text-[#FFEE00] font-display flex-shrink-0"> ${proj.name[0].toUpperCase()} </div> <div> <h2 class="font-bold text-base text-[#F0F0F0] group-hover:text-[#FFEE00] transition-colors"> ${proj.name} </h2> <div class="text-2xs text-[#F0F0F0]-3 font-mono">${proj.repo}</div> </div> </div> <!-- Last build status --> <div class="flex items-center gap-1.5 flex-shrink-0"> <div${addAttribute(`w-2 h-2 rounded-full ${statusDot[proj.lastBuild.status]}`, "class")}></div> <span class="text-2xs text-[#F0F0F0]-3 font-mono">${proj.lastBuild.ago}</span> </div> </div> <p class="text-xs text-[#F0F0F0]-3 leading-relaxed line-clamp-2 mb-3"> ${proj.description} </p> <!-- Tags + language --> <div class="flex flex-wrap items-center gap-1.5"> <span${addAttribute(`badge border text-2xs ${langColor[proj.language] ?? "badge-neutral"}`, "class")}> ${proj.language} </span> ${proj.tags.map((tag) => renderTemplate`<span class="badge-neutral text-2xs">${tag}</span>`)} </div> </div> <!-- Stats row --> <div class="grid grid-cols-4 divide-x divide-forge-border/50 bg-[#111111]2/30"> ${[
+    { label: "Builds", value: proj.stats.builds.toLocaleString() },
+    { label: "Success", value: `${proj.stats.successRate}%` },
+    { label: "Avg time", value: proj.stats.avgDuration },
+    { label: "Minutes", value: proj.stats.minutesUsed.toLocaleString() }
+  ].map(({ label, value }) => renderTemplate`<div class="px-3 py-3 text-center"> <div class="text-sm font-mono font-bold text-[#F0F0F0]">${value}</div> <div class="text-2xs text-[#F0F0F0]-3 mt-0.5">${label}</div> </div>`)} </div> <!-- Config summary + actions --> <div class="px-5 py-3.5 flex items-center justify-between gap-3"> <div class="flex items-center gap-3 text-2xs text-[#F0F0F0]-3 font-mono"> <span title="Runner">${proj.runner.split("-").slice(0, 2).join("-")}</span> <span class="text-forge-border">·</span> <span title="Parallelism">${proj.parallelism}×</span> <span class="text-forge-border">·</span> <span title="Cache"${addAttribute(proj.cacheEnabled ? "text-[#00FF88]" : "text-[#F0F0F0]-3", "class")}> ${proj.cacheEnabled ? "cache \u2713" : "cache \u2717"} </span> <span class="text-forge-border">·</span> <span title="Members">${proj.members} members</span> </div> <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"> <a${addAttribute(`/dashboard/builds?project=${proj.id}`, "href")} class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3 !px-2" onclick="event.stopPropagation()" title="View builds">
+Builds
+</a> <a${addAttribute(`/dashboard/projects/${proj.id}/settings`, "href")} class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3 !px-2" onclick="event.stopPropagation()" title="Settings">
+Settings
+</a> </div> </div> </div>`)} <!-- Add project card --> <button id="add-project-card" class="card flex flex-col items-center justify-center gap-3 p-8 border-dashed hover:border-forge-accent/40 hover:bg-forge-accent-muted/10 transition-all duration-200 cursor-pointer text-center min-h-[200px] group"> <div class="w-10 h-10 rounded-full border-2 border-dashed border-[#2C2C2C] group-hover:border-forge-accent/40 flex items-center justify-center transition-colors"> <svg class="w-5 h-5 text-[#F0F0F0]-3 group-hover:text-[#FFEE00] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path> </svg> </div> <div> <div class="text-sm font-medium text-[#F0F0F0]-2 group-hover:text-[#FFEE00] transition-colors">Add new project</div> <div class="text-xs text-[#F0F0F0]-3 mt-0.5">Connect a repository to get started</div> </div> </button> </div> <!-- Empty search state --> <div id="proj-empty" class="hidden py-16 text-center"> <div class="text-4xl mb-3">🔍</div> <h3 class="font-bold text-lg text-[#F0F0F0] mb-1">No projects found</h3> <p class="text-[#F0F0F0]-2 text-sm">Try a different search term.</p> </div> </div>  <div id="new-project-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true"> <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="modal-backdrop"></div> <div class="relative flex items-center justify-center min-h-screen p-4"> <div class="w-full max-w-lg bg-[#111111] border border-[#2C2C2C] rounded-none shadow-modal animate-scale-in overflow-hidden"> <!-- Modal header --> <div class="flex items-center justify-between px-6 py-5 border-b border-[#2C2C2C]"> <h2 class="font-bold text-lg text-[#F0F0F0]">New project</h2> <button id="modal-close" class="text-[#F0F0F0]-3 hover:text-[#F0F0F0] transition-colors"> <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> </button> </div> <!-- Modal body --> <div class="px-6 py-5 space-y-5"> <!-- VCS provider --> <div> <label class="input-label">Connect repository from</label> <div class="grid grid-cols-3 gap-2"> ${["GitHub", "GitLab", "Bitbucket"].map((vcs, i) => renderTemplate`<label class="flex items-center justify-center gap-2 p-3 rounded-none border cursor-pointer hover:border-[#2C2C2C]-2 has-[:checked]:border-forge-accent/40 has-[:checked]:bg-forge-accent-muted/20 transition-all"> <input type="radio" name="vcs"${addAttribute(vcs.toLowerCase(), "value")}${addAttribute(i === 0, "checked")} class="sr-only"> <span class="text-xs font-medium text-[#F0F0F0]-2">${vcs}</span> </label>`)} </div> </div> <!-- Repo select --> <div> <label class="input-label" for="repo-select">Repository</label> <select id="repo-select" class="input"> <option value="">Select a repository…</option> <option>acme-corp/new-service</option> <option>acme-corp/data-pipeline</option> <option>acme-corp/ml-training</option> </select> </div> <!-- Project name --> <div> <label class="input-label" for="proj-name">Project name</label> <input type="text" id="proj-name" class="input" placeholder="new-service"> <p class="text-2xs text-[#F0F0F0]-3 mt-1">Auto-generated from repository name. You can change it.</p> </div> <!-- Default branch --> <div> <label class="input-label" for="default-branch">Default branch</label> <input type="text" id="default-branch" class="input" value="main"> </div> <!-- Runner size --> <div> <label class="input-label">Default runner</label> <select class="input"> <option>linux-x64-small (2 vCPU · 4 GB) — 1× credit</option> <option selected>linux-x64-medium (4 vCPU · 8 GB) — 2× credit</option> <option>linux-x64-large (8 vCPU · 16 GB) — 4× credit</option> <option>linux-arm64-medium (4 vCPU · 8 GB) — 2× credit</option> <option>macos-m2-medium (4 vCPU · 8 GB) — 10× credit</option> </select> </div> </div> <!-- Modal footer --> <div class="flex gap-3 px-6 py-4 border-t border-[#2C2C2C] bg-[#111111]2/30"> <button id="modal-cancel" class="btn-secondary btn-md flex-1 justify-center">Cancel</button> <button class="btn-primary btn-md flex-1 justify-center">
+Create project →
+</button> </div> </div> </div> </div> ` })} `;
+}, "/Users/sai/vscode/bons-ci/apps/website/src/pages/dashboard/projects.astro", void 0);
+
+const $$file = "/Users/sai/vscode/bons-ci/apps/website/src/pages/dashboard/projects.astro";
+const $$url = "/dashboard/projects";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Projects,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };

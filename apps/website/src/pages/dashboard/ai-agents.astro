@@ -52,7 +52,7 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
                   <div class="flex items-center gap-2 flex-wrap mb-1">
                     <span class="text-sm font-semibold" style="color:#F0F0F0">{p.title}</span>
                     <span class="badge-neutral">{p.project_name}</span>
-                    {p.occurrence_count && <span class="text-xs font-mono" style="color:#FF7700">{p.occurrence_count}×</span>}
+                    {p.occurrence_count ? <span class="text-xs font-mono" style="color:#FF7700">{p.occurrence_count}×</span> : null}
                   </div>
                   <p class="text-xs mb-2" style="color:#666666">{p.description}</p>
                   <div class="flex items-start gap-2 text-xs" style="color:#3C3C3C">
@@ -93,9 +93,10 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
                   </div>
                   <div class="text-xs font-mono mb-1" style="color:#666666">Failed: <span style="color:#FF3333">{a.failed_step}</span></div>
                   <p class="text-xs mb-2" style="color:#AAAAAA">{a.root_cause}</p>
-                  {a.fix_diff && (
-                    <pre class="text-xs font-mono border-2 p-2 overflow-x-auto" style="border-color:#2C2C2C;background:#050505"><code class="code-remove">{a.fix_diff.split('\n')[0]}</code>{'\n'}<code class="code-add">{a.fix_diff.split('\n')[1]}</code></pre>
-                  )}
+                  {a.fix_diff ? (
+                    <pre class="text-xs font-mono border-2 p-2 overflow-x-auto" style="border-color:#2C2C2C;background:#050505"><code class="code-remove">{a.fix_diff.split('\n')[0]}</code>
+<code class="code-add">{a.fix_diff.split('\n')[1]}</code></pre>
+                  ) : null}
                 </div>
                 <div class="flex flex-col items-end gap-2 flex-shrink-0">
                   <span class="text-xs font-mono" style="color:#3C3C3C">{a.analyzed_at.slice(11,16)} UTC</span>
@@ -186,14 +187,15 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
 </DashboardLayout>
 
 <script>
-  const msgs  = document.getElementById('chat-msgs')!;
-  const input = document.getElementById('sherlock-input') as HTMLTextAreaElement;
+  // @ts-nocheck
+  const msgs  = document.getElementById('chat-msgs');
+  const input = document.getElementById('sherlock-input');
 
-  function append(text: string, role: 'user'|'s', loading = false): HTMLElement {
+  function append(text, role, loading) {
     const div = document.createElement('div');
-    div.className = `flex gap-2.5 ${role==='user'?'justify-end':''}`;
+    div.className = 'flex gap-2.5 ' + (role === 'user' ? 'justify-end' : '');
     if (role === 's') {
-      div.innerHTML = `<div class="w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 mt-0.5" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)"><span class="text-xs font-mono font-bold" style="color:#00EEFF">S</span></div><div class="px-4 py-3 border-2 max-w-[88%]" style="border-color:#2C2C2C;background:#111111">${loading?'<div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.15s"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.3s"></span></div>':`<p class="text-sm leading-relaxed whitespace-pre-line" style="color:#AAAAAA">${text}</p>`}</div>`;
+      div.innerHTML = `<div class="w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 mt-0.5" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)"><span class="text-xs font-mono font-bold" style="color:#00EEFF">S</span></div><div class="px-4 py-3 border-2 max-w-[88%]" style="border-color:#2C2C2C;background:#111111">${loading ? '<div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.15s"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.3s"></span></div>' : `<p class="text-sm leading-relaxed whitespace-pre-line" style="color:#AAAAAA">${text}</p>`}</div>`;
     } else {
       div.innerHTML = `<div class="px-4 py-3 border-2 max-w-[88%]" style="border-color:rgba(255,238,0,0.3);background:rgba(255,238,0,0.06)"><p class="text-sm" style="color:#F0F0F0">${text}</p></div>`;
     }
@@ -205,23 +207,24 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
     append(val, 'user'); input.value = ''; input.style.height = 'auto';
     const ld = append('', 's', true);
     await new Promise(r => setTimeout(r, 1400)); ld.remove();
-    const reply = val.toLowerCase().includes('fail') || val.toLowerCase().includes('diagn')
+    const v = val.toLowerCase();
+    const reply = v.includes('fail') || v.includes('diagn')
       ? "I analyzed build #1845.\n\nRoot cause: AuthMiddleware.ts:34 calls user.id without checking if user is null. The new test exposes this path.\n\n**Fix:** Add `if (!user || ...)` before the property access.\n\nConfidence: 97%. Want me to open a PR?"
-      : val.toLowerCase().includes('flak') || val.toLowerCase().includes('test')
+      : v.includes('flak') || v.includes('test')
       ? "Reviewing 30 runs of AuthMiddleware.test.ts — it fails 4 times, always in 'should handle concurrent session invalidation'.\n\nThe issue is a race condition without proper await. I can generate a patch."
       : "I've reviewed your recent builds and configuration. Everything looks healthy across main pipelines. Is there a specific build or project you'd like me to dig into?";
     append(reply, 's');
   }
 
-  function sendMsg(text: string) { input.value = text; sendSherlockMsg(); }
-  function handleKey(e: KeyboardEvent) {
+  function sendMsg(text) { input.value = text; sendSherlockMsg(); }
+  function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSherlockMsg(); }
-    const ta = e.target as HTMLTextAreaElement;
+    const ta = e.target;
     ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
   }
 
   document.getElementById('ask-btn')?.addEventListener('click', () => input.focus());
-  (window as any).sendSherlockMsg = sendSherlockMsg;
-  (window as any).sendMsg = sendMsg;
-  (window as any).handleKey = handleKey;
+  window.sendSherlockMsg = sendSherlockMsg;
+  window.sendMsg = sendMsg;
+  window.handleKey = handleKey;
 </script>

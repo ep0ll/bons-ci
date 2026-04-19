@@ -8,16 +8,16 @@
 
 // ─── Environment ──────────────────────────────────────────────
 export const ORY_CONFIG = {
-  kratosPublic: import.meta.env.KRATOS_PUBLIC_URL  ?? 'https://your-project.projects.oryapis.com',
-  kratosAdmin:  import.meta.env.KRATOS_ADMIN_URL   ?? 'http://kratos:4434',
-  hydraPublic:  import.meta.env.HYDRA_PUBLIC_URL   ?? 'https://your-project.projects.oryapis.com/oauth2',
-  hydraAdmin:   import.meta.env.HYDRA_ADMIN_URL    ?? 'http://hydra:4445',
-  ketoRead:     import.meta.env.KETO_READ_URL      ?? 'http://keto:4466',
-  ketoWrite:    import.meta.env.KETO_WRITE_URL     ?? 'http://keto:4467',
-  kratosUi:     import.meta.env.KRATOS_UI_URL      ?? 'https://your-project.projects.oryapis.com/ui',
+  kratosPublic: import.meta.env.KRATOS_PUBLIC_URL ?? 'https://your-project.projects.oryapis.com',
+  kratosAdmin: import.meta.env.KRATOS_ADMIN_URL ?? 'http://kratos:4434',
+  hydraPublic: import.meta.env.HYDRA_PUBLIC_URL ?? 'https://your-project.projects.oryapis.com/oauth2',
+  hydraAdmin: import.meta.env.HYDRA_ADMIN_URL ?? 'http://hydra:4445',
+  ketoRead: import.meta.env.KETO_READ_URL ?? 'http://keto:4466',
+  ketoWrite: import.meta.env.KETO_WRITE_URL ?? 'http://keto:4467',
+  kratosUi: import.meta.env.KRATOS_UI_URL ?? 'https://your-project.projects.oryapis.com/ui',
   selfServiceBase: import.meta.env.SELF_SERVICE_URL ?? 'https://forge-ci.dev',
   sessionCookieName: 'ory_session',
-  csrfCookieName:    'ory_csrf_token',
+  csrfCookieName: 'ory_csrf_token',
 };
 
 // ─── Kratos Flow Types ────────────────────────────────────────
@@ -25,141 +25,141 @@ export type FlowType = 'login' | 'registration' | 'recovery' | 'verification' | 
 export type AuthMethod = 'password' | 'oidc' | 'totp' | 'webauthn' | 'lookup_secret' | 'link';
 
 export interface KratosFlow {
-  id:           string;
-  type:         'browser' | 'api';
-  expires_at:   string;
-  issued_at:    string;
-  request_url:  string;
-  ui:           KratosUi;
-  state?:       string;
+  id: string;
+  type: 'browser' | 'api';
+  expires_at: string;
+  issued_at: string;
+  request_url: string;
+  ui: KratosUi;
+  state?: string;
 }
 
 export interface KratosUi {
-  action:   string;
-  method:   string;
-  nodes:    KratosNode[];
+  action: string;
+  method: string;
+  nodes: KratosNode[];
   messages?: KratosMessage[];
 }
 
 export interface KratosNode {
-  type:       'input' | 'img' | 'text' | 'a' | 'script';
-  group:      string;
+  type: 'input' | 'img' | 'text' | 'a' | 'script';
+  group: string;
   attributes: Record<string, unknown>;
-  messages:   KratosMessage[];
-  meta:       { label?: { id: number; text: string; type: string } };
+  messages: KratosMessage[];
+  meta: { label?: { id: number; text: string; type: string } };
 }
 
 export interface KratosMessage {
-  id:      number;
-  type:    'error' | 'info' | 'success';
-  text:    string;
+  id: number;
+  type: 'error' | 'info' | 'success';
+  text: string;
   context?: Record<string, unknown>;
 }
 
 export interface KratosSession {
-  id:          string;
-  active:      boolean;
-  expires_at:  string;
+  id: string;
+  active: boolean;
+  expires_at: string;
   authenticated_at: string;
   authenticator_assurance_level: 'aal0' | 'aal1' | 'aal2';
   authentication_methods: Array<{ method: AuthMethod; aal: string; completed_at: string }>;
-  identity:    KratosIdentity;
+  identity: KratosIdentity;
 }
 
 export interface KratosIdentity {
-  id:           string;
-  schema_id:    string;
-  schema_url:   string;
-  state:        'active' | 'inactive';
+  id: string;
+  schema_id: string;
+  schema_url: string;
+  state: 'active' | 'inactive';
   state_changed_at: string;
-  traits:       IdentityTraits;
+  traits: IdentityTraits;
   verifiable_addresses: VerifiableAddress[];
-  recovery_addresses:   RecoveryAddress[];
+  recovery_addresses: RecoveryAddress[];
   metadata_public?: Record<string, unknown>;
   credentials?: Record<string, KratosCredential>;
 }
 
 export interface IdentityTraits {
-  email:     string;
-  name?:     { first?: string; last?: string };
-  avatar?:   string;
+  email: string;
+  name?: { first?: string; last?: string };
+  avatar?: string;
   org_slug?: string;
-  role?:     OrgRole;
+  role?: OrgRole;
 }
 
 export interface VerifiableAddress {
-  id:         string;
-  value:      string;
-  verified:   boolean;
-  via:        'email' | 'phone';
-  status:     'pending' | 'sent' | 'completed';
+  id: string;
+  value: string;
+  verified: boolean;
+  via: 'email' | 'phone';
+  status: 'pending' | 'sent' | 'completed';
   verified_at?: string;
 }
 
 export interface RecoveryAddress {
-  id:    string;
+  id: string;
   value: string;
-  via:   'email' | 'phone';
+  via: 'email' | 'phone';
 }
 
 export interface KratosCredential {
-  type:        AuthMethod;
+  type: AuthMethod;
   identifiers: string[];
-  config?:     Record<string, unknown>;
-  created_at:  string;
-  updated_at:  string;
+  config?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─── Hydra OAuth2 Types ───────────────────────────────────────
 export interface OAuth2Client {
-  client_id:      string;
-  client_name:    string;
+  client_id: string;
+  client_name: string;
   client_secret?: string;
-  redirect_uris:  string[];
-  grant_types:    string[];
+  redirect_uris: string[];
+  grant_types: string[];
   response_types: string[];
-  scope:          string;
+  scope: string;
   token_endpoint_auth_method: string;
-  logo_uri?:      string;
-  policy_uri?:    string;
-  tos_uri?:       string;
+  logo_uri?: string;
+  policy_uri?: string;
+  tos_uri?: string;
 }
 
 export interface OAuth2Token {
-  access_token:  string;
-  token_type:    string;
-  expires_in:    number;
+  access_token: string;
+  token_type: string;
+  expires_in: number;
   refresh_token?: string;
-  id_token?:     string;
-  scope:         string;
+  id_token?: string;
+  scope: string;
 }
 
 export interface OAuth2LoginChallenge {
-  challenge:        string;
-  client:           OAuth2Client;
-  requested_scope:  string[];
+  challenge: string;
+  client: OAuth2Client;
+  requested_scope: string[];
   requested_access_token_audience: string[];
-  skip:             boolean;
-  subject?:         string;
+  skip: boolean;
+  subject?: string;
 }
 
 export interface OAuth2ConsentChallenge {
-  challenge:       string;
-  client:          OAuth2Client;
+  challenge: string;
+  client: OAuth2Client;
   requested_scope: string[];
-  subject:         string;
-  skip:            boolean;
+  subject: string;
+  skip: boolean;
 }
 
 // ─── Keto Permission Types ────────────────────────────────────
-export type Namespace  = 'organizations' | 'projects' | 'pipelines' | 'secrets' | 'runners';
-export type OrgRole    = 'owner' | 'admin' | 'member' | 'viewer';
-export type Permission = 'read' | 'write' | 'delete' | 'admin' | 'trigger' | 'deploy';
+export type Namespace = 'organizations' | 'projects' | 'pipelines' | 'secrets' | 'runners';
+export type OrgRole = 'owner' | 'admin' | 'member' | 'viewer';
+export type Permission = 'read' | 'write' | 'delete' | 'admin' | 'trigger' | 'deploy' | 'member' | 'owner';
 
 export interface KetoRelationTuple {
-  namespace:  Namespace;
-  object:     string;
-  relation:   Permission;
+  namespace: Namespace;
+  object: string;
+  relation: Permission;
   subject_id?: string;
   subject_set?: { namespace: string; object: string; relation: string };
 }
@@ -192,8 +192,8 @@ export class KratosClient {
   // ── Flows ──────────────────────────────────────────────────
   async initLoginFlow(opts?: { refresh?: boolean; aal?: 'aal1' | 'aal2'; returnTo?: string }): Promise<KratosFlow> {
     const p = new URLSearchParams();
-    if (opts?.refresh)  p.set('refresh', 'true');
-    if (opts?.aal)      p.set('aal', opts.aal);
+    if (opts?.refresh) p.set('refresh', 'true');
+    if (opts?.aal) p.set('aal', opts.aal);
     if (opts?.returnTo) p.set('return_to', opts.returnTo);
     return this.fetch(`/self-service/login/browser?${p}`);
   }
@@ -271,8 +271,8 @@ export class KratosClient {
     const flow = await this.getFlow('settings', flowId);
     const totpNode = flow.ui.nodes.find(n => n.group === 'totp' && (n.attributes as any).id === 'totp_secret_key');
     return {
-      secret:  (totpNode?.attributes as any)?.text ?? '',
-      qr_uri:  (flow.ui.nodes.find(n => (n.attributes as any).id === 'totp_qr')?.attributes as any)?.src ?? '',
+      secret: (totpNode?.attributes as any)?.text ?? '',
+      qr_uri: (flow.ui.nodes.find(n => (n.attributes as any).id === 'totp_qr')?.attributes as any)?.src ?? '',
     };
   }
 
@@ -310,7 +310,7 @@ export class HydraClient {
   private publicBase: string;
 
   constructor() {
-    this.adminBase  = ORY_CONFIG.hydraAdmin;
+    this.adminBase = ORY_CONFIG.hydraAdmin;
     this.publicBase = ORY_CONFIG.hydraPublic;
   }
 
@@ -384,38 +384,38 @@ export class HydraClient {
 
   // ── PKCE helpers ───────────────────────────────────────────
   buildAuthURL(opts: {
-    clientId:     string;
-    redirectUri:  string;
-    scope:        string[];
-    state:        string;
-    codeChallenge:string;
+    clientId: string;
+    redirectUri: string;
+    scope: string[];
+    state: string;
+    codeChallenge: string;
     codeChallengeMethod?: string;
   }): string {
     const p = new URLSearchParams({
-      response_type:          'code',
-      client_id:              opts.clientId,
-      redirect_uri:           opts.redirectUri,
-      scope:                  opts.scope.join(' '),
-      state:                  opts.state,
-      code_challenge:         opts.codeChallenge,
-      code_challenge_method:  opts.codeChallengeMethod ?? 'S256',
+      response_type: 'code',
+      client_id: opts.clientId,
+      redirect_uri: opts.redirectUri,
+      scope: opts.scope.join(' '),
+      state: opts.state,
+      code_challenge: opts.codeChallenge,
+      code_challenge_method: opts.codeChallengeMethod ?? 'S256',
     });
     return `${this.publicBase}/auth?${p}`;
   }
 
   async exchangeCode(opts: {
-    clientId:    string;
-    clientSecret:string;
-    code:        string;
+    clientId: string;
+    clientSecret: string;
+    code: string;
     redirectUri: string;
-    codeVerifier:string;
+    codeVerifier: string;
   }): Promise<OAuth2Token> {
     const form = new URLSearchParams({
-      grant_type:    'authorization_code',
-      client_id:     opts.clientId,
+      grant_type: 'authorization_code',
+      client_id: opts.clientId,
       client_secret: opts.clientSecret,
-      code:          opts.code,
-      redirect_uri:  opts.redirectUri,
+      code: opts.code,
+      redirect_uri: opts.redirectUri,
       code_verifier: opts.codeVerifier,
     });
     const res = await fetch(`${this.publicBase}/token`, {
@@ -429,11 +429,11 @@ export class HydraClient {
 
 // ─── Keto Client ──────────────────────────────────────────────
 export class KetoClient {
-  private readBase:  string;
+  private readBase: string;
   private writeBase: string;
 
   constructor() {
-    this.readBase  = ORY_CONFIG.ketoRead;
+    this.readBase = ORY_CONFIG.ketoRead;
     this.writeBase = ORY_CONFIG.ketoWrite;
   }
 
@@ -449,9 +449,9 @@ export class KetoClient {
   /** Check a single permission */
   async check(tuple: KetoRelationTuple): Promise<boolean> {
     const p = new URLSearchParams({
-      namespace:  tuple.namespace,
-      object:     tuple.object,
-      relation:   tuple.relation,
+      namespace: tuple.namespace,
+      object: tuple.object,
+      relation: tuple.relation,
       ...(tuple.subject_id ? { subject_id: tuple.subject_id } : {}),
     });
     const result = await this.fetch<KetoCheckResponse>(this.readBase, `/relation-tuples/check/openapi?${p}`);
@@ -463,10 +463,10 @@ export class KetoClient {
     await this.fetch(this.writeBase, '/admin/relation-tuples', {
       method: 'PUT',
       body: JSON.stringify({
-        namespace:   tuple.namespace,
-        object:      tuple.object,
-        relation:    tuple.relation,
-        subject_id:  tuple.subject_id,
+        namespace: tuple.namespace,
+        object: tuple.object,
+        relation: tuple.relation,
+        subject_id: tuple.subject_id,
         subject_set: tuple.subject_set,
       }),
     });
@@ -476,8 +476,8 @@ export class KetoClient {
   async delete(tuple: KetoRelationTuple): Promise<void> {
     const p = new URLSearchParams({
       namespace: tuple.namespace,
-      object:    tuple.object,
-      relation:  tuple.relation,
+      object: tuple.object,
+      relation: tuple.relation,
       ...(tuple.subject_id ? { subject_id: tuple.subject_id } : {}),
     });
     await this.fetch(this.writeBase, `/admin/relation-tuples?${p}`, { method: 'DELETE' });
@@ -505,7 +505,7 @@ export class KetoClient {
 
   async revokeOrgAccess(userId: string, orgId: string): Promise<void> {
     for (const rel of ['member', 'admin', 'owner'] as Permission[]) {
-      await this.delete({ namespace: 'organizations', object: orgId, relation: rel, subject_id: userId }).catch(() => {});
+      await this.delete({ namespace: 'organizations', object: orgId, relation: rel, subject_id: userId }).catch(() => { });
     }
   }
 
@@ -521,19 +521,19 @@ export class KratosError extends Error {
     this.name = 'KratosError';
   }
 
-  isUnauthorized()  { return this.status === 401; }
-  isForbidden()     { return this.status === 403; }
-  isGone()          { return this.status === 410; }
-  isRedirect()      { return this.status === 422; }
+  isUnauthorized() { return this.status === 401; }
+  isForbidden() { return this.status === 403; }
+  isGone() { return this.status === 410; }
+  isRedirect() { return this.status === 422; }
 }
 
 // ─── PKCE helpers (browser) ──────────────────────────────────
 export async function generatePKCE(): Promise<{ verifier: string; challenge: string }> {
-  const array   = new Uint8Array(32);
+  const array = new Uint8Array(32);
   crypto.getRandomValues(array);
   const verifier = btoa(String.fromCharCode(...array)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const encoded  = new TextEncoder().encode(verifier);
-  const hash     = await crypto.subtle.digest('SHA-256', encoded);
+  const encoded = new TextEncoder().encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', encoded);
   const challenge = btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return { verifier, challenge };
 }
@@ -542,35 +542,35 @@ export async function generatePKCE(): Promise<{ verifier: string; challenge: str
 export type OAuthProvider = 'github' | 'google' | 'gitlab' | 'microsoft' | 'apple' | 'slack';
 
 export const OAUTH_PROVIDERS: Record<OAuthProvider, { name: string; icon: string; color: string }> = {
-  github:    { name: 'GitHub',    icon: 'github',    color: '#24292e' },
-  google:    { name: 'Google',    icon: 'google',    color: '#4285F4' },
-  gitlab:    { name: 'GitLab',    icon: 'gitlab',    color: '#FC6D26' },
+  github: { name: 'GitHub', icon: 'github', color: '#24292e' },
+  google: { name: 'Google', icon: 'google', color: '#4285F4' },
+  gitlab: { name: 'GitLab', icon: 'gitlab', color: '#FC6D26' },
   microsoft: { name: 'Microsoft', icon: 'microsoft', color: '#00A4EF' },
-  apple:     { name: 'Apple',     icon: 'apple',     color: '#000000' },
-  slack:     { name: 'Slack',     icon: 'slack',     color: '#4A154B' },
+  apple: { name: 'Apple', icon: 'apple', color: '#000000' },
+  slack: { name: 'Slack', icon: 'slack', color: '#4A154B' },
 };
 
 // ─── SSO providers (SAML via Ory) ─────────────────────────────
 export interface SAMLProvider {
-  id:          string;
-  label:       string;
-  provider:    string; // 'okta' | 'azure-ad' | 'google-workspace' | 'onelogin' | 'pingidentity'
-  sso_url:     string;
-  entity_id:   string;
+  id: string;
+  label: string;
+  provider: string; // 'okta' | 'azure-ad' | 'google-workspace' | 'onelogin' | 'pingidentity'
+  sso_url: string;
+  entity_id: string;
   certificate: string;
   attribute_map: {
-    email:      string;
+    email: string;
     first_name?: string;
-    last_name?:  string;
-    groups?:     string;
+    last_name?: string;
+    groups?: string;
   };
 }
 
 export const FORGE_SAML_ENDPOINTS = {
-  acsUrl:      `${ORY_CONFIG.kratosPublic}/self-service/methods/saml/acs`,
-  entityId:    'https://forge-ci.dev/saml/metadata',
+  acsUrl: `${ORY_CONFIG.kratosPublic}/self-service/methods/saml/acs`,
+  entityId: 'https://forge-ci.dev/saml/metadata',
   metadataUrl: `${ORY_CONFIG.kratosPublic}/self-service/methods/saml/metadata`,
-  sloUrl:      `${ORY_CONFIG.kratosPublic}/self-service/methods/saml/slo`,
+  sloUrl: `${ORY_CONFIG.kratosPublic}/self-service/methods/saml/slo`,
 };
 
 export const SSO_SETUP_GUIDES: Record<string, { steps: string[]; docs: string }> = {
@@ -617,31 +617,31 @@ export function hasRole(userRole: OrgRole, minRole: OrgRole): boolean {
 }
 
 const PERMISSION_REQUIRES: Record<string, OrgRole> = {
-  'builds:read':       'viewer',
-  'builds:write':      'member',
-  'builds:cancel':     'member',
-  'artifacts:read':    'viewer',
-  'cache:read':        'viewer',
-  'projects:read':     'viewer',
-  'projects:write':    'admin',
-  'secrets:read':      'admin',
-  'secrets:write':     'admin',
-  'members:read':      'member',
-  'members:invite':    'admin',
-  'members:remove':    'admin',
-  'tokens:read':       'member',
-  'tokens:write':      'admin',
-  'billing:read':      'admin',
-  'billing:write':     'owner',
-  'sso:read':          'admin',
-  'sso:configure':     'owner',
-  'org:settings':      'admin',
-  'org:delete':        'owner',
-  'runners:read':      'member',
-  'runners:register':  'admin',
-  'registry:read':     'viewer',
-  'registry:push':     'member',
-  'registry:delete':   'admin',
+  'builds:read': 'viewer',
+  'builds:write': 'member',
+  'builds:cancel': 'member',
+  'artifacts:read': 'viewer',
+  'cache:read': 'viewer',
+  'projects:read': 'viewer',
+  'projects:write': 'admin',
+  'secrets:read': 'admin',
+  'secrets:write': 'admin',
+  'members:read': 'member',
+  'members:invite': 'admin',
+  'members:remove': 'admin',
+  'tokens:read': 'member',
+  'tokens:write': 'admin',
+  'billing:read': 'admin',
+  'billing:write': 'owner',
+  'sso:read': 'admin',
+  'sso:configure': 'owner',
+  'org:settings': 'admin',
+  'org:delete': 'owner',
+  'runners:read': 'member',
+  'runners:register': 'admin',
+  'registry:read': 'viewer',
+  'registry:push': 'member',
+  'registry:delete': 'admin',
 };
 
 export function can(role: OrgRole, permission: string): boolean {
@@ -656,16 +656,16 @@ export function getPermissions(role: OrgRole): string[] {
 }
 
 export const API_SCOPE_DESCRIPTIONS: Record<string, string> = {
-  'builds:read':    'Read build history, logs, and artifacts',
-  'builds:write':   'Trigger and cancel builds',
-  'projects:read':  'List and read projects',
+  'builds:read': 'Read build history, logs, and artifacts',
+  'builds:write': 'Trigger and cancel builds',
+  'projects:read': 'List and read projects',
   'projects:write': 'Create and configure projects',
-  'secrets:read':   'Read secret names (not values)',
-  'secrets:write':  'Create, update, and rotate secrets',
-  'metrics:read':   'Access build metrics and analytics',
-  'registry:read':  'Pull images from the registry',
-  'registry:push':  'Push images to the registry',
-  'admin':          'Full administrative access (use with care)',
+  'secrets:read': 'Read secret names (not values)',
+  'secrets:write': 'Create, update, and rotate secrets',
+  'metrics:read': 'Access build metrics and analytics',
+  'registry:read': 'Pull images from the registry',
+  'registry:push': 'Push images to the registry',
+  'admin': 'Full administrative access (use with care)',
 };
 
 // ─── Session cookie helpers (SSR) ─────────────────────────────
@@ -692,19 +692,19 @@ export function hasWebAuthn(identity: KratosIdentity): boolean {
 
 // ─── Singleton instances (lazy) ───────────────────────────────
 let _kratos: KratosClient | null = null;
-let _hydra:  HydraClient  | null = null;
-let _keto:   KetoClient   | null = null;
+let _hydra: HydraClient | null = null;
+let _keto: KetoClient | null = null;
 
-export function kratos(): KratosClient  { return _kratos ??= new KratosClient(); }
-export function hydra():  HydraClient   { return _hydra  ??= new HydraClient(); }
-export function keto():   KetoClient    { return _keto   ??= new KetoClient(); }
+export function kratos(): KratosClient { return _kratos ??= new KratosClient(); }
+export function hydra(): HydraClient { return _hydra ??= new HydraClient(); }
+export function keto(): KetoClient { return _keto ??= new KetoClient(); }
 
 // ─── Validation helpers ───────────────────────────────────────
 export function isValidEmail(e: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
 export function isWorkEmail(e: string): boolean {
-  const free = new Set(['gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','proton.me','pm.me']);
+  const free = new Set(['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'proton.me', 'pm.me']);
   const domain = e.split('@')[1]?.toLowerCase() ?? '';
   return !free.has(domain);
 }
@@ -716,7 +716,7 @@ export function slugify(t: string): string {
 }
 export function checkPasswordStrength(p: string): number {
   let s = 0;
-  if (p.length >= 8)  s++;
+  if (p.length >= 8) s++;
   if (p.length >= 12) s++;
   if (/[A-Z]/.test(p) && /[0-9]/.test(p)) s++;
   if (/[^a-zA-Z0-9]/.test(p)) s++;

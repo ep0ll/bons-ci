@@ -1,0 +1,65 @@
+import { a as createComponent, r as renderComponent, b as renderTemplate, m as maybeRenderHead, d as addAttribute } from '../../../chunks/astro/server_CCu-t7dI.mjs';
+import 'kleur/colors';
+import { $ as $$DashboardLayout } from '../../../chunks/DashboardLayout_CthgR4Bm.mjs';
+export { renderers } from '../../../renderers.mjs';
+
+const $$Members = createComponent(($$result, $$props, $$slots) => {
+  const members = [
+    { name: "Ada Lovelace", email: "ada@acme-corp.io", role: "owner", initials: "AL", lastActive: "now", sso: false, joined: "Jan 12, 2024" },
+    { name: "Tom\xE1s Reyes", email: "tomas@acme-corp.io", role: "admin", initials: "TR", lastActive: "5 min ago", sso: true, joined: "Jan 15, 2024" },
+    { name: "Priya Nair", email: "priya@acme-corp.io", role: "member", initials: "PN", lastActive: "2h ago", sso: true, joined: "Feb 3, 2024" },
+    { name: "Olu Adeyemi", email: "olu@acme-corp.io", role: "admin", initials: "OA", lastActive: "1d ago", sso: true, joined: "Feb 8, 2024" },
+    { name: "Sara Johansson", email: "sara@acme-corp.io", role: "member", initials: "SJ", lastActive: "3d ago", sso: true, joined: "Mar 1, 2024" },
+    { name: "Daniel Park", email: "dpark@acme-corp.io", role: "member", initials: "DP", lastActive: "1w ago", sso: false, joined: "Mar 14, 2024" },
+    { name: "Kim Nakamura", email: "kim@acme-corp.io", role: "viewer", initials: "KN", lastActive: "2w ago", sso: true, joined: "Apr 2, 2024" }
+  ];
+  const invitations = [
+    { email: "eng-new@acme-corp.io", role: "member", sentBy: "Ada Lovelace", sentAt: "2 days ago", expires: "5 days" },
+    { email: "devops@acme-corp.io", role: "admin", sentBy: "Tom\xE1s Reyes", sentAt: "1 day ago", expires: "6 days" }
+  ];
+  const roleColors = {
+    owner: "badge-danger border border-[rgba(255,51,51,0.3)]",
+    admin: "badge-warning border border-[rgba(255,119,0,0.3)]",
+    member: "badge-info border border-[rgba(51,170,255,0.3)]",
+    viewer: "badge-neutral border border-[#2C2C2C]"
+  };
+  const perms = [
+    { action: "View builds & logs", owner: true, admin: true, member: true, viewer: true },
+    { action: "Trigger builds", owner: true, admin: true, member: true, viewer: false },
+    { action: "Manage build secrets", owner: true, admin: true, member: false, viewer: false },
+    { action: "Create / delete projects", owner: true, admin: true, member: false, viewer: false },
+    { action: "Manage integrations", owner: true, admin: true, member: false, viewer: false },
+    { action: "View billing & usage", owner: true, admin: true, member: false, viewer: false },
+    { action: "Manage billing & plan", owner: true, admin: false, member: false, viewer: false },
+    { action: "Invite / remove members", owner: true, admin: true, member: false, viewer: false },
+    { action: "Configure SSO / SAML", owner: true, admin: false, member: false, viewer: false },
+    { action: "Delete organization", owner: true, admin: false, member: false, viewer: false }
+  ];
+  return renderTemplate`${renderComponent($$result, "DashboardLayout", $$DashboardLayout, { "title": "Team Members", "activeNav": "members", "breadcrumbs": [{ label: "Settings", href: "/dashboard/settings" }, { label: "Members" }] }, { "default": ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto space-y-6"> <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"> <div> <h1 class="font-bold text-2xl text-[#F0F0F0]">Team Members</h1> <p class="text-[#F0F0F0]-3 text-sm mt-0.5"> ${members.length} members · ${invitations.length} pending invitations · 20 seat limit
+</p> </div> <button id="invite-btn" class="btn-primary btn-md"> <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path> </svg>
+Invite member
+</button> </div> <!-- Seat usage --> <div class="card p-4 flex items-center gap-4"> <div class="flex-1"> <div class="flex justify-between mb-1.5 text-xs"> <span class="text-[#F0F0F0]-2">Seats used</span> <span class="font-mono text-[#F0F0F0]">${members.length} / 20</span> </div> <div class="progress"> <div class="progress-bar"${addAttribute(`width: ${members.length / 20 * 100}%`, "style")}></div> </div> </div> <div class="text-xs text-[#F0F0F0]-3 flex-shrink-0"> ${20 - members.length} seats available · <a href="/dashboard/settings?tab=plan" class="text-[#FFEE00] hover:underline">Add more</a> </div> </div> <!-- Members table --> <div class="card overflow-hidden"> <div class="flex items-center justify-between px-5 py-4 border-b border-[#2C2C2C]"> <h2 class="font-bold text-base text-[#F0F0F0]">Members (${members.length})</h2> <div class="flex gap-2"> <div class="relative"> <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path> </svg> <input type="search" placeholder="Search members…" class="input !pl-9 !py-1.5 !text-xs w-44"> </div> <select class="input !py-1.5 !text-xs w-28"> <option>All roles</option> <option>Owner</option> <option>Admin</option> <option>Member</option> <option>Viewer</option> </select> </div> </div> <table class="table-forge"> <thead> <tr> <th>Member</th> <th>Role</th> <th class="hidden sm:table-cell">SSO</th> <th class="hidden md:table-cell">Joined</th> <th class="hidden lg:table-cell">Last active</th> <th></th> </tr> </thead> <tbody> ${members.map((m) => renderTemplate`<tr class="group"> <td> <div class="flex items-center gap-3"> <div class="avatar-md bg-[#111111]3 border border-[#2C2C2C] text-[#FFEE00] font-bold flex-shrink-0"> ${m.initials} </div> <div> <div class="text-sm font-medium text-[#F0F0F0]">${m.name}</div> <div class="text-xs text-[#F0F0F0]-3">${m.email}</div> </div> </div> </td> <td> <select${addAttribute(`badge border text-2xs ${roleColors[m.role]} bg-transparent cursor-pointer hover:opacity-80 transition-opacity`, "class")}${addAttribute(m.role === "owner", "disabled")}> ${["owner", "admin", "member", "viewer"].map((r) => renderTemplate`<option${addAttribute(r, "value")}${addAttribute(r === m.role, "selected")}>${r.charAt(0).toUpperCase() + r.slice(1)}</option>`)} </select> </td> <td class="hidden sm:table-cell"> ${m.sso ? renderTemplate`<span class="flex items-center gap-1 text-2xs text-[#00FF88]"> <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path> </svg>
+SSO
+</span>` : renderTemplate`<span class="text-2xs text-[#F0F0F0]-3">Password</span>`} </td> <td class="hidden md:table-cell"> <span class="text-xs text-[#F0F0F0]-3">${m.joined}</span> </td> <td class="hidden lg:table-cell"> <span${addAttribute(`text-xs font-mono ${m.lastActive === "now" || m.lastActive.includes("min") ? "text-[#00FF88]" : "text-[#F0F0F0]-3"}`, "class")}> ${m.lastActive} </span> </td> <td> ${m.role !== "owner" && renderTemplate`<div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"> <button class="btn-ghost btn-sm !p-1.5 text-[#F0F0F0]-3 hover:text-[#FF3333]" title="Remove member"> <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"></path> </svg> </button> </div>`} </td> </tr>`)} </tbody> </table> </div> <!-- Pending invitations --> ${invitations.length > 0 && renderTemplate`<div class="card overflow-hidden"> <div class="px-5 py-4 border-b border-[#2C2C2C]"> <h2 class="font-bold text-base text-[#F0F0F0]">
+Pending invitations
+<span class="ml-2 badge-warning border border-[rgba(255,119,0,0.3)] text-2xs">${invitations.length}</span> </h2> </div> <table class="table-forge"> <thead> <tr> <th>Email</th> <th>Role</th> <th>Sent by</th> <th>Sent</th> <th>Expires</th> <th></th> </tr> </thead> <tbody> ${invitations.map((inv) => renderTemplate`<tr> <td><span class="text-sm text-[#F0F0F0]-2">${inv.email}</span></td> <td> <span${addAttribute(`badge border text-2xs ${roleColors[inv.role]}`, "class")}>${inv.role}</span> </td> <td><span class="text-xs text-[#F0F0F0]-3">${inv.sentBy}</span></td> <td><span class="text-xs text-[#F0F0F0]-3">${inv.sentAt}</span></td> <td><span class="text-xs text-[#FF7700] font-mono">${inv.expires}</span></td> <td> <div class="flex gap-1"> <button class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3">Resend</button> <button class="btn-ghost btn-sm text-xs text-[#FF3333]">Revoke</button> </div> </td> </tr>`)} </tbody> </table> </div>`} <!-- RBAC reference --> <div class="card overflow-hidden"> <div class="px-5 py-4 border-b border-[#2C2C2C]"> <h2 class="font-bold text-base text-[#F0F0F0]">Role permissions</h2> <p class="text-xs text-[#F0F0F0]-3 mt-0.5">What each role can do in acme-corp</p> </div> <div class="overflow-x-auto"> <table class="table-forge min-w-[500px]"> <thead> <tr> <th class="w-2/5">Permission</th> ${["Owner", "Admin", "Member", "Viewer"].map((r) => renderTemplate`<th class="text-center">${r}</th>`)} </tr> </thead> <tbody> ${perms.map((p) => renderTemplate`<tr> <td class="text-xs text-[#F0F0F0]-2">${p.action}</td> ${[p.owner, p.admin, p.member, p.viewer].map((allowed) => renderTemplate`<td class="text-center"> ${allowed ? renderTemplate`<svg class="w-4 h-4 text-[#00FF88] mx-auto" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path> </svg>` : renderTemplate`<svg class="w-4 h-4 text-forge-border mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path> </svg>`} </td>`)} </tr>`)} </tbody> </table> </div> </div> </div>  <div id="invite-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true"> <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="invite-backdrop"></div> <div class="relative flex items-center justify-center min-h-screen p-4"> <div class="w-full max-w-md bg-[#111111] border border-[#2C2C2C] rounded-none shadow-modal animate-scale-in overflow-hidden"> <div class="flex items-center justify-between px-6 py-5 border-b border-[#2C2C2C]"> <h2 class="font-bold text-lg text-[#F0F0F0]">Invite team members</h2> <button id="invite-close" class="text-[#F0F0F0]-3 hover:text-[#F0F0F0]"> <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg> </button> </div> <div class="px-6 py-5 space-y-4"> <div> <label class="input-label">Email addresses</label> <textarea${addAttribute(3, "rows")} class="input resize-none font-mono text-xs" placeholder="alice@company.com
+bob@company.com
+carol@company.com"></textarea> <p class="text-2xs text-[#F0F0F0]-3 mt-1">One email per line or comma-separated</p> </div> <div> <label class="input-label">Role</label> <select class="input"> <option>Viewer — can view builds and logs</option> <option selected>Member — can trigger builds and view secrets</option> <option>Admin — can manage projects, secrets, and members</option> </select> </div> <div> <label class="input-label">Message (optional)</label> <textarea${addAttribute(2, "rows")} class="input resize-none text-sm" placeholder="Hi! Join our Forge CI workspace to collaborate on builds…"></textarea> </div> <div class="p-3 rounded-none  border border-[rgba(51,170,255,0.3)] text-xs text-[#F0F0F0]-2"> <strong class="text-forge-cyan">SSO enforced:</strong> New members will be required to sign in via Okta SSO.
+</div> </div> <div class="flex gap-3 px-6 py-4 border-t border-[#2C2C2C] bg-[#111111]2/30"> <button id="invite-cancel" class="btn-secondary btn-md flex-1 justify-center">Cancel</button> <button class="btn-primary btn-md flex-1 justify-center">
+Send invitations
+</button> </div> </div> </div> </div> ` })} `;
+}, "/Users/sai/vscode/bons-ci/apps/website/src/pages/dashboard/settings/members.astro", void 0);
+
+const $$file = "/Users/sai/vscode/bons-ci/apps/website/src/pages/dashboard/settings/members.astro";
+const $$url = "/dashboard/settings/members";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Members,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };

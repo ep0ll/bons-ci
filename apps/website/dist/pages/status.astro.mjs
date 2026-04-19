@@ -1,0 +1,91 @@
+import { a as createComponent, r as renderComponent, b as renderTemplate, m as maybeRenderHead, d as addAttribute, F as Fragment } from '../chunks/astro/server_CCu-t7dI.mjs';
+import 'kleur/colors';
+import { $ as $$MarketingLayout } from '../chunks/MarketingLayout_tAfEjAWH.mjs';
+export { renderers } from '../renderers.mjs';
+
+const $$Status = createComponent(($$result, $$props, $$slots) => {
+  const services = [
+    { name: "Build execution", status: "operational", region: "Global", uptime: 99.99 },
+    { name: "Queue & scheduling", status: "operational", region: "Global", uptime: 99.97 },
+    { name: "API (v2)", status: "operational", region: "Global", uptime: 99.99 },
+    { name: "Dashboard", status: "operational", region: "Global", uptime: 99.98 },
+    { name: "Image registry", status: "operational", region: "Global", uptime: 99.95 },
+    { name: "Artifact storage", status: "operational", region: "Global", uptime: 99.94 },
+    { name: "Cache layer", status: "degraded", region: "eu-west-1", uptime: 99.82 },
+    { name: "Sherlock AI", status: "operational", region: "Global", uptime: 99.91 },
+    { name: "Webhook delivery", status: "operational", region: "Global", uptime: 99.88 },
+    { name: "Notifications", status: "operational", region: "Global", uptime: 99.96 }
+  ];
+  const incidents = [
+    {
+      id: "inc-2025-04-10",
+      title: "Elevated cache miss rates in eu-west-1",
+      status: "monitoring",
+      severity: "degraded",
+      startedAt: "Apr 10, 2025 \xB7 14:22 UTC",
+      updates: [
+        { time: "14:22 UTC", text: "We are investigating elevated cache miss rates in the eu-west-1 region. Build queues are unaffected." },
+        { time: "14:48 UTC", text: "Root cause identified: a storage node failover caused partial key eviction. Cache warming is in progress." },
+        { time: "15:15 UTC", text: "Cache hit rates recovering. eu-west-1 now at 84% (normal: 91%). Monitoring." }
+      ]
+    },
+    {
+      id: "inc-2025-03-28",
+      title: "API elevated error rate \u2014 fully resolved",
+      status: "resolved",
+      severity: "partial",
+      startedAt: "Mar 28, 2025 \xB7 09:14 UTC",
+      resolvedAt: "Mar 28, 2025 \xB7 10:02 UTC",
+      updates: [
+        { time: "09:14 UTC", text: "Elevated 5xx error rate on /v2/builds endpoint. Investigating." },
+        { time: "09:31 UTC", text: "Identified a bad deploy in the API gateway. Rolling back." },
+        { time: "10:02 UTC", text: "Rollback complete. All systems normal. Post-mortem will follow within 48h." }
+      ]
+    }
+  ];
+  const statusConfig = {
+    operational: { label: "Operational", dot: "bg-forge-success", badge: "badge-success border border-[rgba(0,255,136,0.3)]" },
+    degraded: { label: "Degraded", dot: "bg-forge-warning animate-pulse", badge: "badge-warning border border-[rgba(255,119,0,0.3)]" },
+    partial: { label: "Partial outage", dot: "bg-forge-warning animate-pulse", badge: "badge-warning border border-[rgba(255,119,0,0.3)]" },
+    outage: { label: "Major outage", dot: "bg-forge-danger animate-pulse", badge: "badge-danger border border-[rgba(255,51,51,0.3)]" },
+    resolved: { label: "Resolved", dot: "bg-forge-success", badge: "badge-success border border-[rgba(0,255,136,0.3)]" },
+    monitoring: { label: "Monitoring", dot: "bg-forge-warning animate-pulse", badge: "badge-warning border border-[rgba(255,119,0,0.3)]" }
+  };
+  const hasAnyIssue = services.some((s) => s.status !== "operational");
+  return renderTemplate`${renderComponent($$result, "MarketingLayout", $$MarketingLayout, { "title": "System Status \u2014 Forge CI" }, { "default": ($$result2) => renderTemplate` ${maybeRenderHead()}<div class="pt-24 pb-20"> <div class="container-forge max-w-3xl space-y-8"> <!-- Overall status banner --> <div${addAttribute(`rounded-none p-6 border ${hasAnyIssue ? "border-forge-warning/30 /20" : "border-forge-success/30 /20"}`, "class")}> <div class="flex items-center gap-4"> <div${addAttribute(`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${hasAnyIssue ? "bg-forge-warning/10" : "bg-forge-success/10"}`, "class")}> ${hasAnyIssue ? renderTemplate`<svg class="w-6 h-6 text-[#FF7700]" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path> </svg>` : renderTemplate`<svg class="w-6 h-6 text-[#00FF88]" fill="currentColor" viewBox="0 0 20 20"> <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path> </svg>`} </div> <div> <h1${addAttribute(`font-bold text-2xl ${hasAnyIssue ? "text-[#FF7700]" : "text-[#00FF88]"}`, "class")}> ${hasAnyIssue ? "Partial service disruption" : "All systems operational"} </h1> <p class="text-sm text-[#F0F0F0]-3 mt-0.5">
+Last updated: ${(/* @__PURE__ */ new Date()).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC
+</p> </div> <div class="ml-auto"> <button class="btn-secondary btn-sm text-xs">Subscribe to updates</button> </div> </div> </div> <!-- Uptime metrics strip --> <div class="card p-5 grid grid-cols-3 divide-x divide-forge-border text-center"> ${[
+    { label: "30-day uptime", value: "99.97%", color: "text-[#00FF88]" },
+    { label: "Incidents (30d)", value: "2", color: "text-[#F0F0F0]" },
+    { label: "Avg response time", value: "48 ms", color: "text-[#F0F0F0]" }
+  ].map(({ label, value, color }) => renderTemplate`<div class="px-4"> <div${addAttribute(`font-bold text-2xl ${color}`, "class")}>${value}</div> <div class="text-xs text-[#F0F0F0]-3 mt-1">${label}</div> </div>`)} </div> <!-- Service status list --> <div class="card overflow-hidden"> <div class="px-5 py-4 border-b border-[#2C2C2C]"> <h2 class="font-bold text-base text-[#F0F0F0]">Services</h2> </div> <div class="divide-y divide-forge-border/50"> ${services.map((svc) => {
+    const s = statusConfig[svc.status];
+    return renderTemplate`<div class="flex items-center justify-between px-5 py-3.5"> <div class="flex items-center gap-3"> <div${addAttribute(`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`, "class")}></div> <div> <div class="text-sm font-medium text-[#F0F0F0]">${svc.name}</div> <div class="text-xs text-[#F0F0F0]-3">${svc.region}</div> </div> </div> <div class="flex items-center gap-4"> <span class="text-xs font-mono text-[#F0F0F0]-3 hidden sm:inline">${svc.uptime}% uptime</span> <span${addAttribute(`badge text-2xs ${s.badge}`, "class")}>${s.label}</span> </div> </div>`;
+  })} </div> </div> <!-- 90-day uptime bars --> <div class="card p-5"> <div class="flex items-center justify-between mb-4"> <h2 class="font-bold text-base text-[#F0F0F0]">90-day history</h2> <div class="flex items-center gap-4 text-2xs text-[#F0F0F0]-3"> <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-forge-success"></div>Operational</div> <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-forge-warning"></div>Degraded</div> <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-forge-danger"></div>Outage</div> </div> </div> <div class="flex gap-0.5"> ${Array.from({ length: 90 }, (_, i) => {
+    const rand = Math.random();
+    const color = i === 79 ? "bg-forge-warning" : rand > 0.98 ? "bg-forge-warning" : rand > 0.995 ? "bg-forge-danger" : "bg-forge-success";
+    return renderTemplate`<div${addAttribute(`flex-1 h-8 rounded-sm ${color} opacity-80 hover:opacity-100 transition-opacity cursor-default`, "class")}${addAttribute(`Day ${90 - i}: ${color.includes("warning") ? "Degraded" : color.includes("danger") ? "Outage" : "Operational"}`, "title")}></div>`;
+  })} </div> <div class="flex justify-between mt-2 text-2xs text-[#F0F0F0]-3 font-mono"> <span>90 days ago</span> <span>Today</span> </div> </div> <!-- Active / recent incidents --> <div> <h2 class="font-bold text-xl text-[#F0F0F0] mb-4">Incidents</h2> <div class="space-y-4"> ${incidents.map((inc) => {
+    const s = statusConfig[inc.status];
+    return renderTemplate`<div class="card p-5"> <div class="flex items-start justify-between gap-3 mb-4"> <div> <div class="flex items-center gap-2 flex-wrap mb-1"> <span${addAttribute(`badge text-2xs ${s.badge}`, "class")}>${s.label}</span> <span class="text-xs text-[#F0F0F0]-3 font-mono">${inc.id}</span> </div> <h3 class="font-bold text-base text-[#F0F0F0]">${inc.title}</h3> <div class="text-xs text-[#F0F0F0]-3 mt-1">
+Started: ${inc.startedAt} ${inc.resolvedAt && renderTemplate`${renderComponent($$result2, "Fragment", Fragment, {}, { "default": ($$result3) => renderTemplate` · Resolved: ${inc.resolvedAt}` })}`} </div> </div> </div> <div class="space-y-3 border-l-2 border-[#2C2C2C] pl-4 ml-2"> ${inc.updates.map((u) => renderTemplate`<div> <div class="text-2xs font-mono text-[#F0F0F0]-3 mb-1">${u.time}</div> <p class="text-sm text-[#F0F0F0]-2">${u.text}</p> </div>`)} </div> </div>`;
+  })} <div class="card p-5 text-center text-sm text-[#F0F0F0]-3">
+No major incidents in the last 90 days.
+<a href="/status/history" class="text-[#FFEE00] ml-1 hover:underline">View full incident history →</a> </div> </div> </div> <!-- Subscribe --> <div class="card p-6 text-center"> <h3 class="font-bold text-lg text-[#F0F0F0] mb-2">Stay informed</h3> <p class="text-sm text-[#F0F0F0]-2 mb-5">Get notified instantly when an incident affects your services.</p> <div class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"> <input type="email" placeholder="you@company.com" class="input flex-1"> <button class="btn-primary btn-md flex-shrink-0">Subscribe</button> </div> <div class="flex items-center justify-center gap-4 mt-4 text-xs text-[#F0F0F0]-3"> <a href="/rss/status.xml" class="hover:text-[#F0F0F0] transition-colors flex items-center gap-1.5"> <svg class="w-3.5 h-3.5 text-[#FF7700]" fill="currentColor" viewBox="0 0 20 20"> <path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3zm.001 5.924a1 1 0 10-.002 2 5.076 5.076 0 015.077 5.077 1 1 0 102 0 7.077 7.077 0 00-7.075-7.077zM4 15a2 2 0 114 0 2 2 0 01-4 0z"></path> </svg>
+RSS feed
+</a> <a href="https://twitter.com/forgecistatus" class="hover:text-[#F0F0F0] transition-colors">@forgecistatus</a> </div> </div> </div> </div> ` })}`;
+}, "/Users/sai/vscode/bons-ci/apps/website/src/pages/status.astro", void 0);
+
+const $$file = "/Users/sai/vscode/bons-ci/apps/website/src/pages/status.astro";
+const $$url = "/status";
+
+const _page = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: $$Status,
+  file: $$file,
+  url: $$url
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const page = () => _page;
+
+export { page };

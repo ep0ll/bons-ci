@@ -44,25 +44,34 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
   <div class="card p-4 mb-5">
     <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#FFEE00">◆ Forge CI SAML endpoints — copy to your IdP</div>
     <div class="space-y-3">
-      {[
+    {(() => {
+      const epMap: any = endpoints;
+      return [
         {label:'ACS URL (Assertion Consumer Service)', key:'acsUrl'},
         {label:'Entity ID (Audience URI)',             key:'entityId'},
         {label:'SAML Metadata URL',                   key:'metadataUrl'},
         {label:'SLO URL (Single Logout)',              key:'sloUrl'},
-      ].map(e => (
-        <div>
-          <div class="text-xs font-mono mb-1" style="color:#666666">{e.label}</div>
-          <div class="flex items-center gap-0 border-2" style="border-color:#2C2C2C">
-            <code class="text-xs font-mono flex-1 px-3 py-2 truncate" style="color:#AAAAAA">
-              {(endpoints as Record<string,string>)[e.key] ?? '—'}
-            </code>
-            <button onclick={`navigator.clipboard.writeText(${JSON.stringify((endpoints as Record<string,string>)[e.key]??'')})`}
-                    class="btn-secondary btn-sm flex-shrink-0 text-xs font-mono" style="border-radius:0;border-top:none;border-right:none;border-bottom:none">
-              copy
-            </button>
+      ].map(e => {
+        const val = epMap[e.key] ?? '—';
+        return (
+          <div>
+            <div class="text-xs font-mono mb-1" style="color:#666666">{e.label}</div>
+            <div class="flex items-center gap-0 border-2" style="border-color:#2C2C2C">
+              <code class="text-xs font-mono flex-1 px-3 py-2 truncate" style="color:#AAAAAA">
+                {val}
+              </code>
+              <button
+                data-copy={val}
+                onclick="navigator.clipboard.writeText(this.getAttribute('data-copy'))"
+                class="btn-secondary btn-sm flex-shrink-0 text-xs font-mono"
+                style="border-radius:0;border-top:none;border-right:none;border-bottom:none">
+                copy
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      });
+    })()}
     </div>
   </div>
 
