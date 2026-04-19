@@ -45,8 +45,8 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="font-display font-bold text-2xl text-forge-text">Artifacts</h1>
-        <p class="text-forge-text-3 text-sm mt-0.5">
+        <h1 class="font-bold text-2xl text-[#F0F0F0]">Artifacts</h1>
+        <p class="text-[#F0F0F0]-3 text-sm mt-0.5">
           {artifacts.length} artifacts · {fmtSize(totalSize)} total · retained for 90 days
         </p>
       </div>
@@ -69,10 +69,10 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
     <!-- Filter bar -->
     <div class="flex flex-col sm:flex-row gap-3">
       <!-- Type tabs -->
-      <div class="flex gap-1 bg-forge-surface border border-forge-border rounded-lg p-1 flex-shrink-0 flex-wrap">
+      <div class="flex gap-1 bg-[#111111] border border-[#2C2C2C] rounded-none p-1 flex-shrink-0 flex-wrap">
         {Object.keys(typeGroups).map((type, i) => (
           <button
-            class={`type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all ${i===0 ? 'bg-forge-surface2 text-forge-text' : 'text-forge-text-3 hover:text-forge-text'}`}
+            class={`type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all ${i===0 ? 'bg-[#111111]2 text-[#F0F0F0]' : 'text-[#F0F0F0]-3 hover:text-[#F0F0F0]'}`}
             data-type={type}
             onclick="filterType(this)"
           >
@@ -83,7 +83,7 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
 
       <div class="flex gap-2 flex-1">
         <div class="relative flex-1">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
           <input type="search" id="artifact-search" placeholder="Search artifacts, build IDs, branches…" class="input !pl-9 !py-2 !text-xs w-full"/>
@@ -99,11 +99,11 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
 
     <!-- Select all banner (when items checked) -->
     <div id="selection-bar" class="hidden card p-3 border-forge-accent/30 bg-forge-accent-muted/20 flex items-center gap-3">
-      <span class="text-sm text-forge-text" id="selection-count">0 selected</span>
+      <span class="text-sm text-[#F0F0F0]" id="selection-count">0 selected</span>
       <div class="ml-auto flex gap-2">
         <button class="btn-secondary btn-sm text-xs">Download all</button>
         <button class="btn-danger btn-sm text-xs">Delete selected</button>
-        <button class="btn-ghost btn-sm text-xs text-forge-text-3" onclick="clearSelection()">Clear</button>
+        <button class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3" onclick="clearSelection()">Clear</button>
       </div>
     </div>
 
@@ -112,7 +112,7 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
       <table class="table-forge" id="artifacts-table">
         <thead>
           <tr>
-            <th class="w-6"><input type="checkbox" id="select-all" class="rounded border-forge-border"/></th>
+            <th class="w-6"><input type="checkbox" id="select-all" class="rounded border-[#2C2C2C]"/></th>
             <th>Name</th>
             <th>Build</th>
             <th class="hidden md:table-cell">Project / Branch</th>
@@ -132,52 +132,52 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
               data-text={`${a.name} ${a.build} ${a.branch} ${a.project}`.toLowerCase()}
             >
               <td onclick="event.stopPropagation()">
-                <input type="checkbox" class="artifact-check rounded border-forge-border" data-id={a.id}/>
+                <input type="checkbox" class="artifact-check rounded border-[#2C2C2C]" data-id={a.id}/>
               </td>
               <td>
                 <div class="flex items-center gap-2.5">
                   <span class="text-base flex-shrink-0" aria-hidden="true">{a.icon}</span>
                   <div>
-                    <div class="text-xs font-medium text-forge-text font-mono">{a.name}</div>
+                    <div class="text-xs font-medium text-[#F0F0F0] font-mono">{a.name}</div>
                   </div>
                 </div>
               </td>
               <td>
-                <a href={`/dashboard/builds/${a.build.replace('#','')}`} class="text-xs font-mono text-forge-accent hover:text-forge-accent-dim transition-colors" onclick="event.stopPropagation()">
+                <a href={`/dashboard/builds/${a.build.replace('#','')}`} class="text-xs font-mono text-[#FFEE00] hover:text-[#FFEE00]-dim transition-colors" onclick="event.stopPropagation()">
                   {a.build}
                 </a>
               </td>
               <td class="hidden md:table-cell">
-                <div class="text-xs text-forge-text-2">{a.project}</div>
-                <div class="text-2xs text-forge-text-3 font-mono">{a.branch}</div>
+                <div class="text-xs text-[#F0F0F0]-2">{a.project}</div>
+                <div class="text-2xs text-[#F0F0F0]-3 font-mono">{a.branch}</div>
               </td>
               <td class="hidden sm:table-cell">
-                <span class="text-2xs font-mono text-forge-text-3">{a.type.split('/')[1]}</span>
+                <span class="text-2xs font-mono text-[#F0F0F0]-3">{a.type.split('/')[1]}</span>
               </td>
               <td>
-                <span class="text-xs font-mono text-forge-text-2">{fmtSize(a.size)}</span>
+                <span class="text-xs font-mono text-[#F0F0F0]-2">{fmtSize(a.size)}</span>
               </td>
               <td class="hidden lg:table-cell">
-                <span class="text-xs text-forge-text-3">{a.created}</span>
+                <span class="text-xs text-[#F0F0F0]-3">{a.created}</span>
               </td>
               <td class="hidden xl:table-cell">
-                <span class={`text-xs font-mono ${parseInt(a.expires) < 7 ? 'text-forge-warning' : 'text-forge-text-3'}`}>
+                <span class={`text-xs font-mono ${parseInt(a.expires) < 7 ? 'text-[#FF7700]' : 'text-[#F0F0F0]-3'}`}>
                   {a.expires}
                 </span>
               </td>
               <td>
                 <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3 hover:text-forge-accent" title="Download">
+                  <button class="btn-ghost btn-sm !p-1.5 text-[#F0F0F0]-3 hover:text-[#FFEE00]" title="Download">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
                   </button>
-                  <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3 hover:text-forge-text" title="Copy URL">
+                  <button class="btn-ghost btn-sm !p-1.5 text-[#F0F0F0]-3 hover:text-[#F0F0F0]" title="Copy URL">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                     </svg>
                   </button>
-                  <button class="btn-ghost btn-sm !p-1.5 text-forge-danger" title="Delete">
+                  <button class="btn-ghost btn-sm !p-1.5 text-[#FF3333]" title="Delete">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                     </svg>
@@ -191,8 +191,8 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
 
       <div id="artifacts-empty" class="hidden py-14 text-center">
         <div class="text-3xl mb-3">📦</div>
-        <h3 class="font-display font-bold text-lg text-forge-text mb-1">No artifacts found</h3>
-        <p class="text-forge-text-2 text-sm">Try changing filters or run a build that produces artifacts.</p>
+        <h3 class="font-bold text-lg text-[#F0F0F0] mb-1">No artifacts found</h3>
+        <p class="text-[#F0F0F0]-2 text-sm">Try changing filters or run a build that produces artifacts.</p>
       </div>
     </div>
 
@@ -238,9 +238,9 @@ const totalSize = artifacts.reduce((s, a) => s + a.size, 0);
 
   function filterType(btn: HTMLButtonElement) {
     document.querySelectorAll('.type-tab').forEach(b => {
-      b.className = 'type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all text-forge-text-3 hover:text-forge-text';
+      b.className = 'type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all text-[#F0F0F0]-3 hover:text-[#F0F0F0]';
     });
-    btn.className = 'type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all bg-forge-surface2 text-forge-text';
+    btn.className = 'type-tab px-3 py-1.5 rounded-md text-xs font-medium transition-all bg-[#111111]2 text-[#F0F0F0]';
     activeType = btn.dataset.type!;
     applyFilters();
   }

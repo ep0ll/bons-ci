@@ -17,10 +17,10 @@ const invitations = [
 ];
 
 const roleColors: Record<string, string> = {
-  owner:  'badge-danger border border-forge-danger/20',
-  admin:  'badge-warning border border-forge-warning/20',
-  member: 'badge-info border border-forge-info/20',
-  viewer: 'badge-neutral border border-forge-border',
+  owner:  'badge-danger border border-[rgba(255,51,51,0.3)]',
+  admin:  'badge-warning border border-[rgba(255,119,0,0.3)]',
+  member: 'badge-info border border-[rgba(51,170,255,0.3)]',
+  viewer: 'badge-neutral border border-[#2C2C2C]',
 };
 
 const perms = [
@@ -46,8 +46,8 @@ const perms = [
 
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="font-display font-bold text-2xl text-forge-text">Team Members</h1>
-        <p class="text-forge-text-3 text-sm mt-0.5">
+        <h1 class="font-bold text-2xl text-[#F0F0F0]">Team Members</h1>
+        <p class="text-[#F0F0F0]-3 text-sm mt-0.5">
           {members.length} members · {invitations.length} pending invitations · 20 seat limit
         </p>
       </div>
@@ -63,25 +63,25 @@ const perms = [
     <div class="card p-4 flex items-center gap-4">
       <div class="flex-1">
         <div class="flex justify-between mb-1.5 text-xs">
-          <span class="text-forge-text-2">Seats used</span>
-          <span class="font-mono text-forge-text">{members.length} / 20</span>
+          <span class="text-[#F0F0F0]-2">Seats used</span>
+          <span class="font-mono text-[#F0F0F0]">{members.length} / 20</span>
         </div>
         <div class="progress">
           <div class="progress-bar" style={`width: ${(members.length/20)*100}%`}></div>
         </div>
       </div>
-      <div class="text-xs text-forge-text-3 flex-shrink-0">
-        {20 - members.length} seats available · <a href="/dashboard/settings?tab=plan" class="text-forge-accent hover:underline">Add more</a>
+      <div class="text-xs text-[#F0F0F0]-3 flex-shrink-0">
+        {20 - members.length} seats available · <a href="/dashboard/settings?tab=plan" class="text-[#FFEE00] hover:underline">Add more</a>
       </div>
     </div>
 
     <!-- Members table -->
     <div class="card overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
-        <h2 class="font-display font-bold text-base text-forge-text">Members ({members.length})</h2>
+      <div class="flex items-center justify-between px-5 py-4 border-b border-[#2C2C2C]">
+        <h2 class="font-bold text-base text-[#F0F0F0]">Members ({members.length})</h2>
         <div class="flex gap-2">
           <div class="relative">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
             <input type="search" placeholder="Search members…" class="input !pl-9 !py-1.5 !text-xs w-44"/>
@@ -112,12 +112,12 @@ const perms = [
             <tr class="group">
               <td>
                 <div class="flex items-center gap-3">
-                  <div class="avatar-md bg-forge-surface3 border border-forge-border text-forge-accent font-display font-bold flex-shrink-0">
+                  <div class="avatar-md bg-[#111111]3 border border-[#2C2C2C] text-[#FFEE00] font-bold flex-shrink-0">
                     {m.initials}
                   </div>
                   <div>
-                    <div class="text-sm font-medium text-forge-text">{m.name}</div>
-                    <div class="text-xs text-forge-text-3">{m.email}</div>
+                    <div class="text-sm font-medium text-[#F0F0F0]">{m.name}</div>
+                    <div class="text-xs text-[#F0F0F0]-3">{m.email}</div>
                   </div>
                 </div>
               </td>
@@ -131,28 +131,28 @@ const perms = [
               </td>
               <td class="hidden sm:table-cell">
                 {m.sso ? (
-                  <span class="flex items-center gap-1 text-2xs text-forge-success">
+                  <span class="flex items-center gap-1 text-2xs text-[#00FF88]">
                     <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                     </svg>
                     SSO
                   </span>
                 ) : (
-                  <span class="text-2xs text-forge-text-3">Password</span>
+                  <span class="text-2xs text-[#F0F0F0]-3">Password</span>
                 )}
               </td>
               <td class="hidden md:table-cell">
-                <span class="text-xs text-forge-text-3">{m.joined}</span>
+                <span class="text-xs text-[#F0F0F0]-3">{m.joined}</span>
               </td>
               <td class="hidden lg:table-cell">
-                <span class={`text-xs font-mono ${m.lastActive === 'now' || m.lastActive.includes('min') ? 'text-forge-success' : 'text-forge-text-3'}`}>
+                <span class={`text-xs font-mono ${m.lastActive === 'now' || m.lastActive.includes('min') ? 'text-[#00FF88]' : 'text-[#F0F0F0]-3'}`}>
                   {m.lastActive}
                 </span>
               </td>
               <td>
                 {m.role !== 'owner' && (
                   <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3 hover:text-forge-danger" title="Remove member">
+                    <button class="btn-ghost btn-sm !p-1.5 text-[#F0F0F0]-3 hover:text-[#FF3333]" title="Remove member">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/>
                       </svg>
@@ -169,10 +169,10 @@ const perms = [
     <!-- Pending invitations -->
     {invitations.length > 0 && (
       <div class="card overflow-hidden">
-        <div class="px-5 py-4 border-b border-forge-border">
-          <h2 class="font-display font-bold text-base text-forge-text">
+        <div class="px-5 py-4 border-b border-[#2C2C2C]">
+          <h2 class="font-bold text-base text-[#F0F0F0]">
             Pending invitations
-            <span class="ml-2 badge-warning border border-forge-warning/20 text-2xs">{invitations.length}</span>
+            <span class="ml-2 badge-warning border border-[rgba(255,119,0,0.3)] text-2xs">{invitations.length}</span>
           </h2>
         </div>
         <table class="table-forge">
@@ -189,17 +189,17 @@ const perms = [
           <tbody>
             {invitations.map(inv => (
               <tr>
-                <td><span class="text-sm text-forge-text-2">{inv.email}</span></td>
+                <td><span class="text-sm text-[#F0F0F0]-2">{inv.email}</span></td>
                 <td>
                   <span class={`badge border text-2xs ${roleColors[inv.role]}`}>{inv.role}</span>
                 </td>
-                <td><span class="text-xs text-forge-text-3">{inv.sentBy}</span></td>
-                <td><span class="text-xs text-forge-text-3">{inv.sentAt}</span></td>
-                <td><span class="text-xs text-forge-warning font-mono">{inv.expires}</span></td>
+                <td><span class="text-xs text-[#F0F0F0]-3">{inv.sentBy}</span></td>
+                <td><span class="text-xs text-[#F0F0F0]-3">{inv.sentAt}</span></td>
+                <td><span class="text-xs text-[#FF7700] font-mono">{inv.expires}</span></td>
                 <td>
                   <div class="flex gap-1">
-                    <button class="btn-ghost btn-sm text-xs text-forge-text-3">Resend</button>
-                    <button class="btn-ghost btn-sm text-xs text-forge-danger">Revoke</button>
+                    <button class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3">Resend</button>
+                    <button class="btn-ghost btn-sm text-xs text-[#FF3333]">Revoke</button>
                   </div>
                 </td>
               </tr>
@@ -211,9 +211,9 @@ const perms = [
 
     <!-- RBAC reference -->
     <div class="card overflow-hidden">
-      <div class="px-5 py-4 border-b border-forge-border">
-        <h2 class="font-display font-bold text-base text-forge-text">Role permissions</h2>
-        <p class="text-xs text-forge-text-3 mt-0.5">What each role can do in acme-corp</p>
+      <div class="px-5 py-4 border-b border-[#2C2C2C]">
+        <h2 class="font-bold text-base text-[#F0F0F0]">Role permissions</h2>
+        <p class="text-xs text-[#F0F0F0]-3 mt-0.5">What each role can do in acme-corp</p>
       </div>
       <div class="overflow-x-auto">
         <table class="table-forge min-w-[500px]">
@@ -228,11 +228,11 @@ const perms = [
           <tbody>
             {perms.map(p => (
               <tr>
-                <td class="text-xs text-forge-text-2">{p.action}</td>
+                <td class="text-xs text-[#F0F0F0]-2">{p.action}</td>
                 {[p.owner, p.admin, p.member, p.viewer].map(allowed => (
                   <td class="text-center">
                     {allowed ? (
-                      <svg class="w-4 h-4 text-forge-success mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                      <svg class="w-4 h-4 text-[#00FF88] mx-auto" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                       </svg>
                     ) : (
@@ -255,10 +255,10 @@ const perms = [
   <div id="invite-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="invite-backdrop"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
-      <div class="w-full max-w-md bg-forge-surface border border-forge-border rounded-2xl shadow-modal animate-scale-in overflow-hidden">
-        <div class="flex items-center justify-between px-6 py-5 border-b border-forge-border">
-          <h2 class="font-display font-bold text-lg text-forge-text">Invite team members</h2>
-          <button id="invite-close" class="text-forge-text-3 hover:text-forge-text">
+      <div class="w-full max-w-md bg-[#111111] border border-[#2C2C2C] rounded-none shadow-modal animate-scale-in overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-5 border-b border-[#2C2C2C]">
+          <h2 class="font-bold text-lg text-[#F0F0F0]">Invite team members</h2>
+          <button id="invite-close" class="text-[#F0F0F0]-3 hover:text-[#F0F0F0]">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -270,7 +270,7 @@ const perms = [
               class="input resize-none font-mono text-xs"
               placeholder="alice@company.com&#10;bob@company.com&#10;carol@company.com"
             ></textarea>
-            <p class="text-2xs text-forge-text-3 mt-1">One email per line or comma-separated</p>
+            <p class="text-2xs text-[#F0F0F0]-3 mt-1">One email per line or comma-separated</p>
           </div>
           <div>
             <label class="input-label">Role</label>
@@ -284,11 +284,11 @@ const perms = [
             <label class="input-label">Message (optional)</label>
             <textarea rows={2} class="input resize-none text-sm" placeholder="Hi! Join our Forge CI workspace to collaborate on builds…"></textarea>
           </div>
-          <div class="p-3 rounded-lg bg-forge-info-bg border border-forge-info/20 text-xs text-forge-text-2">
+          <div class="p-3 rounded-none  border border-[rgba(51,170,255,0.3)] text-xs text-[#F0F0F0]-2">
             <strong class="text-forge-cyan">SSO enforced:</strong> New members will be required to sign in via Okta SSO.
           </div>
         </div>
-        <div class="flex gap-3 px-6 py-4 border-t border-forge-border bg-forge-surface2/30">
+        <div class="flex gap-3 px-6 py-4 border-t border-[#2C2C2C] bg-[#111111]2/30">
           <button id="invite-cancel" class="btn-secondary btn-md flex-1 justify-center">Cancel</button>
           <button class="btn-primary btn-md flex-1 justify-center">
             Send invitations

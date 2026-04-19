@@ -18,18 +18,18 @@ const invoices = [
   <div class="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-6">
 
     <div>
-      <h1 class="font-display font-bold text-2xl text-forge-text">Organization settings</h1>
-      <p class="text-forge-text-3 text-sm mt-0.5">Manage acme-corp settings, billing, and plan.</p>
+      <h1 class="font-bold text-2xl text-[#F0F0F0]">Organization settings</h1>
+      <p class="text-[#F0F0F0]-3 text-sm mt-0.5">Manage acme-corp settings, billing, and plan.</p>
     </div>
 
     <!-- Settings nav tabs -->
-    <div class="flex gap-1 border-b border-forge-border overflow-x-auto no-scrollbar -mb-2">
+    <div class="flex gap-1 border-b border-[#2C2C2C] overflow-x-auto no-scrollbar -mb-2">
       {['General', 'Billing', 'Plan', 'Danger zone'].map((tab, i) => (
         <button
           class={`settings-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all -mb-px ${
             i === 0
-              ? 'border-forge-accent text-forge-accent'
-              : 'border-transparent text-forge-text-3 hover:text-forge-text'
+              ? 'border-forge-accent text-[#FFEE00]'
+              : 'border-transparent text-[#F0F0F0]-3 hover:text-[#F0F0F0]'
           }`}
           data-tab={tab.toLowerCase().replace(' ','-')}
           onclick="switchSettingsTab(this)"
@@ -43,16 +43,16 @@ const invoices = [
     <div id="tab-general" class="space-y-5">
 
       <div class="card p-6 space-y-5">
-        <h2 class="font-display font-bold text-base text-forge-text border-b border-forge-border pb-4">Organization profile</h2>
+        <h2 class="font-bold text-base text-[#F0F0F0] border-b border-[#2C2C2C] pb-4">Organization profile</h2>
 
         <!-- Org avatar -->
         <div class="flex items-center gap-5">
-          <div class="w-16 h-16 rounded-xl bg-forge-accent flex items-center justify-center text-2xl font-bold text-forge-bg font-display flex-shrink-0">
+          <div class="w-16 h-16 rounded-none bg-forge-accent flex items-center justify-center text-2xl font-bold text-forge-bg font-display flex-shrink-0">
             A
           </div>
           <div>
-            <div class="text-sm font-medium text-forge-text mb-1">Organization avatar</div>
-            <div class="text-xs text-forge-text-3 mb-3">Square PNG or JPG, 256×256px minimum</div>
+            <div class="text-sm font-medium text-[#F0F0F0] mb-1">Organization avatar</div>
+            <div class="text-xs text-[#F0F0F0]-3 mb-3">Square PNG or JPG, 256×256px minimum</div>
             <button class="btn-secondary btn-sm text-xs">Upload image</button>
           </div>
         </div>
@@ -66,7 +66,7 @@ const invoices = [
           <div>
             <label class="input-label" for="org-slug">URL slug</label>
             <div class="flex">
-              <span class="px-3 py-2.5 bg-forge-surface2 border border-forge-border border-r-0 rounded-l-lg text-forge-text-3 text-sm font-mono flex-shrink-0">forge-ci.dev/</span>
+              <span class="px-3 py-2.5 bg-[#111111]2 border border-[#2C2C2C] border-r-0 rounded-l-lg text-[#F0F0F0]-3 text-sm font-mono flex-shrink-0">forge-ci.dev/</span>
               <input type="text" id="org-slug" class="input rounded-l-none" value="acme-corp"/>
             </div>
           </div>
@@ -91,7 +91,7 @@ const invoices = [
 
       <!-- Default build settings -->
       <div class="card p-6 space-y-4">
-        <h2 class="font-display font-bold text-base text-forge-text border-b border-forge-border pb-4">Default build settings</h2>
+        <h2 class="font-bold text-base text-[#F0F0F0] border-b border-[#2C2C2C] pb-4">Default build settings</h2>
 
         <div class="grid sm:grid-cols-2 gap-4">
           <div>
@@ -135,14 +135,14 @@ const invoices = [
             { label: 'Require build to pass before merge', desc: 'Block PR merging until all required pipeline steps pass', checked: false },
             { label: 'Enable build notifications by default', desc: 'Send email and Slack notifications for all new projects', checked: true },
           ].map(({ label, desc, checked }) => (
-            <div class="flex items-start justify-between gap-4 py-3 border-t border-forge-border/50">
+            <div class="flex items-start justify-between gap-4 py-3 border-t border-[#2C2C2C]/50">
               <div>
-                <div class="text-sm font-medium text-forge-text">{label}</div>
-                <div class="text-xs text-forge-text-3 mt-0.5">{desc}</div>
+                <div class="text-sm font-medium text-[#F0F0F0]">{label}</div>
+                <div class="text-xs text-[#F0F0F0]-3 mt-0.5">{desc}</div>
               </div>
               <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
                 <input type="checkbox" checked={checked} class="sr-only peer"/>
-                <div class="w-10 h-5 bg-forge-surface2 border border-forge-border rounded-full peer
+                <div class="w-10 h-5 bg-[#111111]2 border border-[#2C2C2C] rounded-full peer
                             peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted
                             after:content-[''] after:absolute after:top-[2px] after:left-[2px]
                             after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all
@@ -163,21 +163,21 @@ const invoices = [
     <div id="tab-billing" class="space-y-5 hidden">
 
       <!-- Current plan summary -->
-      <div class="card p-6" style="background: linear-gradient(135deg, rgba(200,255,0,0.04), rgba(34,211,238,0.04)); border-color: rgba(200,255,0,0.2);">
+      <div class="card p-6" style="background: linear-gradient(135deg, rgba(255,238,0,0.04), rgba(0,238,255,0.04)); border-color: rgba(255,238,0,0.2);">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div class="flex items-center gap-2 mb-2">
-              <span class="badge-accent text-sm px-3 py-1 font-display font-bold">Team Plan</span>
-              <span class="text-2xs text-forge-text-3">Billed monthly</span>
+              <span class="badge-accent text-sm px-3 py-1 font-bold">Team Plan</span>
+              <span class="text-2xs text-[#F0F0F0]-3">Billed monthly</span>
             </div>
-            <div class="text-3xl font-display font-bold text-forge-text mb-1">
-              $1,580<span class="text-base font-normal text-forge-text-3"> / month</span>
+            <div class="text-3xl font-bold text-[#F0F0F0] mb-1">
+              $1,580<span class="text-base font-normal text-[#F0F0F0]-3"> / month</span>
             </div>
-            <div class="text-sm text-forge-text-3">20 seats × $79/user · Next invoice May 1, 2025</div>
+            <div class="text-sm text-[#F0F0F0]-3">20 seats × $79/user · Next invoice May 1, 2025</div>
           </div>
           <div class="flex flex-col gap-2">
             <button class="btn-primary btn-md">Upgrade to Enterprise</button>
-            <button class="btn-ghost btn-sm text-forge-text-3">Switch to annual (save 20%)</button>
+            <button class="btn-ghost btn-sm text-[#F0F0F0]-3">Switch to annual (save 20%)</button>
           </div>
         </div>
       </div>
@@ -185,24 +185,24 @@ const invoices = [
       <!-- Payment method -->
       <div class="card p-6">
         <div class="flex items-center justify-between mb-5">
-          <h2 class="font-display font-bold text-base text-forge-text">Payment method</h2>
+          <h2 class="font-bold text-base text-[#F0F0F0]">Payment method</h2>
           <button class="btn-secondary btn-sm text-xs">Update card</button>
         </div>
-        <div class="flex items-center gap-4 p-4 rounded-xl border border-forge-border bg-forge-surface2/40">
-          <div class="w-12 h-8 bg-forge-surface3 border border-forge-border rounded-md flex items-center justify-center">
-            <span class="text-xs font-bold text-forge-text-2">VISA</span>
+        <div class="flex items-center gap-4 p-4 rounded-none border border-[#2C2C2C] bg-[#111111]2/40">
+          <div class="w-12 h-8 bg-[#111111]3 border border-[#2C2C2C] rounded-md flex items-center justify-center">
+            <span class="text-xs font-bold text-[#F0F0F0]-2">VISA</span>
           </div>
           <div>
-            <div class="text-sm font-medium text-forge-text">Visa ending in 4242</div>
-            <div class="text-xs text-forge-text-3">Expires 12/2027 · billing@acme-corp.io</div>
+            <div class="text-sm font-medium text-[#F0F0F0]">Visa ending in 4242</div>
+            <div class="text-xs text-[#F0F0F0]-3">Expires 12/2027 · billing@acme-corp.io</div>
           </div>
-          <div class="ml-auto badge-success border border-forge-success/20 text-2xs">Active</div>
+          <div class="ml-auto badge-success border border-[rgba(0,255,136,0.3)] text-2xs">Active</div>
         </div>
       </div>
 
       <!-- Usage breakdown -->
       <div class="card p-6">
-        <h2 class="font-display font-bold text-base text-forge-text mb-5">Usage this billing period</h2>
+        <h2 class="font-bold text-base text-[#F0F0F0] mb-5">Usage this billing period</h2>
         <div class="space-y-3 mb-4">
           {[
             { label: '20 × Team seats',           amount: 1580 },
@@ -210,23 +210,23 @@ const invoices = [
             { label: 'Extra cache storage (0 GB)', amount: 0 },
             { label: 'Additional egress (0 GB)',   amount: 0 },
           ].map(({ label, amount }) => (
-            <div class="flex justify-between items-center py-2 border-b border-forge-border/50">
-              <span class="text-sm text-forge-text-2">{label}</span>
-              <span class="text-sm font-mono font-medium text-forge-text">${amount.toLocaleString()}</span>
+            <div class="flex justify-between items-center py-2 border-b border-[#2C2C2C]/50">
+              <span class="text-sm text-[#F0F0F0]-2">{label}</span>
+              <span class="text-sm font-mono font-medium text-[#F0F0F0]">${amount.toLocaleString()}</span>
             </div>
           ))}
         </div>
-        <div class="flex justify-between items-center py-3 border-t-2 border-forge-border">
-          <span class="font-display font-bold text-forge-text">Total due May 1</span>
-          <span class="font-display font-bold text-xl text-forge-text">$1,580</span>
+        <div class="flex justify-between items-center py-3 border-t-2 border-[#2C2C2C]">
+          <span class="font-bold text-[#F0F0F0]">Total due May 1</span>
+          <span class="font-bold text-xl text-[#F0F0F0]">$1,580</span>
         </div>
       </div>
 
       <!-- Invoices -->
       <div class="card overflow-hidden">
-        <div class="px-5 py-4 border-b border-forge-border flex items-center justify-between">
-          <h2 class="font-display font-bold text-base text-forge-text">Invoice history</h2>
-          <button class="btn-ghost btn-sm text-xs text-forge-text-3">Download all</button>
+        <div class="px-5 py-4 border-b border-[#2C2C2C] flex items-center justify-between">
+          <h2 class="font-bold text-base text-[#F0F0F0]">Invoice history</h2>
+          <button class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3">Download all</button>
         </div>
         <table class="table-forge">
           <thead>
@@ -242,17 +242,17 @@ const invoices = [
           <tbody>
             {invoices.map(inv => (
               <tr>
-                <td><code class="text-xs font-mono text-forge-text-2">{inv.id}</code></td>
-                <td><span class="text-xs text-forge-text-2">{inv.period}</span></td>
-                <td><span class="text-xs text-forge-text-3">{inv.date}</span></td>
-                <td><span class="text-xs font-mono text-forge-text">${inv.amount.toLocaleString()}</span></td>
+                <td><code class="text-xs font-mono text-[#F0F0F0]-2">{inv.id}</code></td>
+                <td><span class="text-xs text-[#F0F0F0]-2">{inv.period}</span></td>
+                <td><span class="text-xs text-[#F0F0F0]-3">{inv.date}</span></td>
+                <td><span class="text-xs font-mono text-[#F0F0F0]">${inv.amount.toLocaleString()}</span></td>
                 <td>
-                  <span class={`badge border text-2xs ${inv.status === 'paid' ? 'badge-success border-forge-success/20' : 'badge-warning border-forge-warning/20'}`}>
+                  <span class={`badge border text-2xs ${inv.status === 'paid' ? 'badge-success border-[rgba(0,255,136,0.3)]' : 'badge-warning border-[rgba(255,119,0,0.3)]'}`}>
                     {inv.status}
                   </span>
                 </td>
                 <td>
-                  <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3 hover:text-forge-text">
+                  <button class="btn-ghost btn-sm !p-1.5 text-[#F0F0F0]-3 hover:text-[#F0F0F0]">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                     </svg>
@@ -278,17 +278,17 @@ const invoices = [
         ].map(plan => (
           <div class={`card p-6 flex flex-col ${plan.current ? 'border-forge-accent/40' : ''}`}>
             {plan.current && (
-              <div class="badge-accent border border-forge-accent/20 text-2xs self-start mb-3">Current plan</div>
+              <div class="badge-accent border border-[rgba(255,238,0,0.3)] text-2xs self-start mb-3">Current plan</div>
             )}
-            <h3 class="font-display font-bold text-xl text-forge-text mb-1">{plan.name}</h3>
-            <div class="text-3xl font-mono font-bold text-forge-text mb-0.5">
+            <h3 class="font-bold text-xl text-[#F0F0F0] mb-1">{plan.name}</h3>
+            <div class="text-3xl font-mono font-bold text-[#F0F0F0] mb-0.5">
               {plan.price ? `$${plan.price}` : 'Custom'}
             </div>
-            <div class="text-xs text-forge-text-3 mb-5">per {plan.per}</div>
+            <div class="text-xs text-[#F0F0F0]-3 mb-5">per {plan.per}</div>
             <ul class="space-y-2 flex-1 mb-5">
               {plan.features.map(f => (
-                <li class="flex items-center gap-2 text-xs text-forge-text-2">
-                  <svg class="w-3.5 h-3.5 text-forge-success flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <li class="flex items-center gap-2 text-xs text-[#F0F0F0]-2">
+                  <svg class="w-3.5 h-3.5 text-[#00FF88] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                   </svg>
                   {f}
@@ -310,10 +310,10 @@ const invoices = [
         { title:'Delete all build history', desc:'Permanently delete all build logs, artifacts, and metrics. This cannot be undone.', btn:'Delete history', btnCls:'btn-danger' },
         { title:'Delete organization', desc:'Permanently delete the acme-corp organization and all its data. This cannot be undone.', btn:'Delete organization', btnCls:'btn-danger' },
       ].map(({ title, desc, btn, btnCls }) => (
-        <div class="card p-5 border-forge-danger/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="card p-5 border-[rgba(255,51,51,0.3)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h3 class="font-medium text-forge-text mb-1">{title}</h3>
-            <p class="text-xs text-forge-text-3 leading-relaxed">{desc}</p>
+            <h3 class="font-medium text-[#F0F0F0] mb-1">{title}</h3>
+            <p class="text-xs text-[#F0F0F0]-3 leading-relaxed">{desc}</p>
           </div>
           <button class={`${btnCls} btn-md flex-shrink-0`}>{btn}</button>
         </div>
@@ -326,9 +326,9 @@ const invoices = [
 <script>
   function switchSettingsTab(btn: HTMLButtonElement) {
     document.querySelectorAll('.settings-tab').forEach(b => {
-      b.className = 'settings-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all -mb-px border-transparent text-forge-text-3 hover:text-forge-text';
+      b.className = 'settings-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all -mb-px border-transparent text-[#F0F0F0]-3 hover:text-[#F0F0F0]';
     });
-    btn.className = 'settings-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all -mb-px border-forge-accent text-forge-accent';
+    btn.className = 'settings-tab px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all -mb-px border-forge-accent text-[#FFEE00]';
 
     const tabId = 'tab-' + btn.dataset.tab!;
     document.querySelectorAll<HTMLElement>('[id^="tab-"]').forEach(el => el.classList.add('hidden'));

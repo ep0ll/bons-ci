@@ -2,107 +2,68 @@
 import '../styles/global.css';
 
 export interface Props {
-  title?: string;
-  description?: string;
-  image?: string;
-  noindex?: boolean;
-  class?: string;
+  title?: string; description?: string; image?: string;
+  noindex?: boolean; canonical?: string;
 }
 
 const {
   title = 'Forge CI — Build at the Speed of Thought',
-  description = 'The fastest CI/CD platform for modern engineering teams. 10x faster builds, intelligent caching, any cloud — and an AI agent that actually understands your failures.',
+  description = 'The fastest CI/CD platform. 10× faster builds, Sherlock AI, any cloud. 50K+ teams.',
   image = '/og-default.png',
   noindex = false,
-  class: className = '',
+  canonical,
 } = Astro.props;
 
-const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? 'https://forge-ci.dev');
 const fullTitle = title.includes('Forge CI') ? title : `${title} — Forge CI`;
+const canonicalURL = canonical ?? new URL(Astro.url.pathname, 'https://forge-ci.dev').href;
 ---
-
 <!DOCTYPE html>
-<html lang="en" class="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-
-    <!-- Primary Meta -->
-    <title>{fullTitle}</title>
-    <meta name="description" content={description} />
-    <link rel="canonical" href={canonicalURL} />
-    {noindex && <meta name="robots" content="noindex, nofollow" />}
-
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content={canonicalURL} />
-    <meta property="og:title" content={fullTitle} />
-    <meta property="og:description" content={description} />
-    <meta property="og:image" content={new URL(image, Astro.site ?? 'https://forge-ci.dev')} />
-    <meta property="og:site_name" content="Forge CI" />
-
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@forgeci" />
-    <meta name="twitter:title" content={fullTitle} />
-    <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={new URL(image, Astro.site ?? 'https://forge-ci.dev')} />
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-
-    <!-- Theme color -->
-    <meta name="theme-color" content="#07090E" />
-    <meta name="color-scheme" content="dark" />
-
-    <!-- Structured data -->
-    <script type="application/ld+json">
-      {JSON.stringify({
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "Forge CI",
-        "description": description,
-        "url": "https://forge-ci.dev",
-        "applicationCategory": "DeveloperApplication",
-        "operatingSystem": "Web",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD",
-        },
-      })}
-    </script>
-
-    <slot name="head" />
-  </head>
-  <body class={className}>
-    <slot />
-
-    <!-- Intersection Observer for scroll animations -->
-    <script>
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add('in');
-              observer.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.1, rootMargin: '0px 0px -60px 0px' }
-      );
-
-      document.querySelectorAll('.appear').forEach((el) => observer.observe(el));
-    </script>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <title>{fullTitle}</title>
+  <meta name="description" content={description}/>
+  <link rel="canonical" href={canonicalURL}/>
+  {noindex && <meta name="robots" content="noindex,nofollow"/>}
+  <meta property="og:type"        content="website"/>
+  <meta property="og:url"         content={canonicalURL}/>
+  <meta property="og:title"       content={fullTitle}/>
+  <meta property="og:description" content={description}/>
+  <meta property="og:image"       content={`https://forge-ci.dev${image}`}/>
+  <meta property="og:site_name"   content="Forge CI"/>
+  <meta name="twitter:card"        content="summary_large_image"/>
+  <meta name="twitter:site"        content="@forgeci"/>
+  <meta name="twitter:title"       content={fullTitle}/>
+  <meta name="twitter:description" content={description}/>
+  <meta name="twitter:image"       content={`https://forge-ci.dev${image}`}/>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <meta name="theme-color" content="#0A0A0A"/>
+  <meta name="color-scheme" content="dark"/>
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context":"https://schema.org","@type":"SoftwareApplication",
+    "name":"Forge CI","description":description,"url":"https://forge-ci.dev",
+    "applicationCategory":"DeveloperApplication","operatingSystem":"Web",
+    "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+    "provider":{"@type":"Organization","name":"Forge CI, Inc.","url":"https://forge-ci.dev"},
+  })}/>
+  <slot name="head"/>
+</head>
+<body>
+  <slot/>
+  <script>
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);} });
+    }, { threshold: 0.07, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.appear').forEach(el => io.observe(el));
+  </script>
+  <style>
+    .appear{opacity:0;transform:translateY(10px);transition:opacity 0.4s ease,transform 0.4s cubic-bezier(0.16,1,0.3,1)}
+    .appear.in{opacity:1;transform:translateY(0)}
+  </style>
+</body>
 </html>

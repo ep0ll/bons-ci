@@ -1,514 +1,412 @@
 ---
 import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { MOCK_BUILDS, formatDuration, relativeTime } from '../../../data/mock.ts';
+import { generateResourceTimeline, formatBytes } from '../../../lib/charts.ts';
 
-// In production this comes from API params
-const buildId = '1845';
+const { id } = Astro.params;
+const build = MOCK_BUILDS.find(b=>b.id===id) ?? MOCK_BUILDS[2];
+const totalMs = build.duration_ms ?? build.steps.reduce((s,step)=>s+step.duration_ms,0);
+const resourceTimeline = build.resources
+  ? generateResourceTimeline(Math.round(totalMs/1000), build.resources.cpu_avg, build.resources.mem_avg_mb, 40)
+  : [];
 
-const build = {
-  id: buildId,
-  number: 1845,
-  project: 'api-service',
-  branch: 'fix/null-pointer',
-  commit: 'c1b2f3d',
-  commitFull: 'c1b2f3de49a1b28c3f9e8d4a0bc7e21f45c6d382',
-  commitMsg: 'fix: handle null user object in session middleware',
-  commitDesc: 'Closes #847. Adds null-check before accessing user.id in AuthMiddleware.verify(). Also adds unit test coverage for unauthenticated request edge case.',
-  status: 'failed',
-  duration: '2m 11s',
-  queuedAt: '2025-04-15T10:22:14Z',
-  startedAt: '2025-04-15T10:22:16Z',
-  finishedAt: '2025-04-15T10:24:27Z',
-  author: { name: 'Priya Nair', email: 'pnair@acme.com', initials: 'PN' },
-  trigger: 'pr',
-  prNumber: 291,
-  runner: 'linux-x64-medium',
-  region: 'us-east-1',
-  credits: 18,
-  cacheHit: false,
+const sCfg: Record<string,{dot:string;cls:string;label:string;icon:string}> = {
+  success:  {dot:'background:#00FF88',cls:'badge-success',label:'Passed',   icon:'✓'},
+  failed:   {dot:'background:#FF3333',cls:'badge-danger', label:'Failed',   icon:'✕'},
+  running:  {dot:'background:#00EEFF;animation:pulse 1s ease-in-out infinite',cls:'badge-running',label:'Running',icon:'…'},
+  queued:   {dot:'background:#3C3C3C',cls:'badge-neutral',label:'Queued',   icon:'·'},
+  skipped:  {dot:'background:#3C3C3C',cls:'badge-neutral',label:'Skipped',  icon:'—'},
+  cancelled:{dot:'background:#3C3C3C',cls:'badge-neutral',label:'Cancelled',icon:'✕'},
 };
+const bs = sCfg[build.status] ?? sCfg.queued;
+const allLogs = build.steps.flatMap(step=>step.log_lines);
 
-const steps = [
-  { id:'s1', name:'Setup runner', status:'success', duration:'0.8s',  startSec:0,   endSec:1    },
-  { id:'s2', name:'Restore cache', status:'success', duration:'0.3s', startSec:1,   endSec:2    },
-  { id:'s3', name:'Install dependencies', status:'success', duration:'2.4s', startSec:2, endSec:5 },
-  { id:'s4', name:'Lint', status:'success', duration:'4.1s', startSec:5, endSec:10   },
-  { id:'s5', name:'Build', status:'success', duration:'18.2s', startSec:10, endSec:29 },
-  { id:'s6', name:'Test (unit)', status:'failed',  duration:'14.2s', startSec:29,  endSec:44   },
-  { id:'s7', name:'Test (integration)', status:'skipped', duration:'—', startSec:44, endSec:44 },
-  { id:'s8', name:'Deploy', status:'skipped', duration:'—', startSec:44, endSec:44 },
-];
-
-const totalSec = 131;
-
-const artifacts = [
-  { name: 'test-results.xml', size: '48 KB', type: 'application/xml', path: '/test-results/junit.xml' },
-  { name: 'coverage-report.html', size: '2.1 MB', type: 'text/html', path: '/coverage/index.html' },
-  { name: 'build.log', size: '128 KB', type: 'text/plain', path: '/logs/build.log' },
-];
-
-const logLines = [
-  { t:'10:22:16', level:'info', text:'Runner ready — linux-x64-medium · 4 vCPU · 8 GB RAM · us-east-1' },
-  { t:'10:22:16', level:'info', text:'Pipeline: api-service · branch: fix/null-pointer · commit: c1b2f3d' },
-  { t:'10:22:16', level:'step', text:'▶ STEP 1/8 — Setup runner' },
-  { t:'10:22:16', level:'ok',   text:'  ✓ Runtime: Node.js v20.12.0, npm 10.5.0' },
-  { t:'10:22:17', level:'ok',   text:'  ✓ Docker 26.0.0 available' },
-  { t:'10:22:17', level:'step', text:'▶ STEP 2/8 — Restore cache' },
-  { t:'10:22:17', level:'warn', text:'  ⚠ Cache miss — no matching key for node_modules-lock-9f2a1b3e' },
-  { t:'10:22:17', level:'step', text:'▶ STEP 3/8 — Install dependencies' },
-  { t:'10:22:17', level:'info', text:'  $ npm ci --prefer-offline' },
-  { t:'10:22:18', level:'info', text:'  added 1,847 packages in 2.4s' },
-  { t:'10:22:19', level:'step', text:'▶ STEP 4/8 — Lint' },
-  { t:'10:22:19', level:'info', text:'  $ npx eslint . --ext .ts --max-warnings 0' },
-  { t:'10:22:23', level:'ok',   text:'  ✓ No ESLint warnings or errors' },
-  { t:'10:22:23', level:'step', text:'▶ STEP 5/8 — Build' },
-  { t:'10:22:23', level:'info', text:'  $ npm run build' },
-  { t:'10:22:41', level:'ok',   text:'  ✓ Build complete — dist/ 2.4 MB' },
-  { t:'10:22:41', level:'step', text:'▶ STEP 6/8 — Test (unit) ← FAILED' },
-  { t:'10:22:41', level:'info', text:'  $ jest --coverage --runInBand' },
-  { t:'10:22:44', level:'info', text:'  PASS src/services/__tests__/UserService.test.ts' },
-  { t:'10:22:46', level:'info', text:'  PASS src/services/__tests__/AuthService.test.ts' },
-  { t:'10:22:50', level:'error',text:'  FAIL src/middleware/__tests__/AuthMiddleware.test.ts' },
-  { t:'10:22:50', level:'error',text:'  ✕ AuthMiddleware.verify should handle unauthenticated request (8ms)' },
-  { t:'10:22:50', level:'error',text:'    TypeError: Cannot read properties of null (reading \'id\')' },
-  { t:'10:22:50', level:'error',text:'      at AuthMiddleware.verify (src/middleware/AuthMiddleware.ts:34:22)' },
-  { t:'10:22:50', level:'error',text:'      at Object.<anonymous> (src/middleware/__tests__/AuthMiddleware.test.ts:47:5)' },
-  { t:'10:22:55', level:'error',text:'  Tests: 1 failed, 1846 passed, 1847 total' },
-  { t:'10:22:55', level:'error',text:'  Coverage: Statements 87.4% / Branches 82.1% / Functions 91.0% / Lines 87.2%' },
-  { t:'10:24:27', level:'error',text:'  exit code 1 · step failed · skipping remaining steps' },
-];
-
-const statusStyle: Record<string, string> = {
-  success: 'text-forge-success bg-forge-success-bg border-forge-success/30',
-  failed:  'text-forge-danger bg-forge-danger-bg border-forge-danger/30',
-  running: 'text-forge-cyan bg-forge-info-bg border-forge-cyan/30',
-  skipped: 'text-forge-text-3 bg-forge-surface2 border-forge-border',
-  pending: 'text-forge-text-3 bg-forge-surface2 border-forge-border',
-};
-
-const logLevel: Record<string, string> = {
-  info:  'text-forge-text-2',
-  ok:    'text-forge-success',
-  warn:  'text-forge-warning',
-  error: 'text-forge-danger',
-  step:  'text-forge-accent font-semibold',
-};
+// Span waterfall - proportional to step durations
+const maxStepMs = Math.max(...build.steps.map(s=>s.duration_ms));
+const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:'rgba(255,51,51,0.8)',skipped:'rgba(60,60,60,0.5)',running:'rgba(0,238,255,0.8)'};
 ---
 
-<DashboardLayout
-  title={`Build #${buildId}`}
-  activeNav="builds"
-  breadcrumbs={[
-    { label: 'Builds', href: '/dashboard/builds' },
-    { label: `#${buildId} — ${build.project}` },
-  ]}
->
-  <div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
+<DashboardLayout title={`Build #${build.number}`} activeNav="builds"
+  breadcrumbs={[{label:'Builds',href:'/dashboard/builds'},{label:`#${build.number} — ${build.project_name}`}]}>
+<div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
 
-    <!-- ── Build header ───────────────────────── -->
-    <div class="card p-5">
-      <div class="flex flex-col lg:flex-row lg:items-start gap-5">
-
-        <!-- Left: main info -->
-        <div class="flex-1 min-w-0">
-          <div class="flex flex-wrap items-center gap-2 mb-3">
-            <!-- Status badge -->
-            <span class={`badge border ${statusStyle[build.status]}`}>
-              <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
-              </svg>
-              Build failed
-            </span>
-            <span class="text-forge-text-3 text-xs font-mono">#{build.number}</span>
-            <span class="text-forge-border">·</span>
-            <span class="text-xs text-forge-text-3">{build.project}</span>
-            <span class="text-forge-border">·</span>
-            <span class="text-xs font-mono text-forge-text-2">{build.branch}</span>
-          </div>
-
-          <h1 class="font-display font-bold text-xl text-forge-text mb-2 leading-tight">
-            {build.commitMsg}
-          </h1>
-          <p class="text-sm text-forge-text-3 mb-4 leading-relaxed max-w-2xl">{build.commitDesc}</p>
-
-          <!-- Meta row -->
-          <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-forge-text-3">
-            <div class="flex items-center gap-1.5">
-              <div class="avatar-sm bg-forge-surface3 border border-forge-border text-forge-accent font-display text-2xs">{build.author.initials}</div>
-              <span class="text-forge-text-2">{build.author.name}</span>
-            </div>
-            <div class="flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
-              PR #{build.prNumber}
-            </div>
-            <div class="flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-              <code class="font-mono">{build.commit}</code>
-            </div>
-            <div class="flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-              {build.duration}
-            </div>
-            <div class="flex items-center gap-1">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
-              {build.runner} · {build.region}
-            </div>
-            <div class="flex items-center gap-1">
-              <span>⚡</span>
-              {build.credits} credits · cache {build.cacheHit ? 'hit ✓' : 'miss ✗'}
-            </div>
-          </div>
+  <!-- Build header -->
+  <div class="card p-5 border-l-4" style={`border-left-color:${build.status==='success'?'#00FF88':build.status==='failed'?'#FF3333':'#3C3C3C'}`}>
+    <div class="flex flex-col lg:flex-row lg:items-start gap-5">
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          <span class={bs.cls}>{bs.label}</span>
+          <span class="text-xs font-mono" style="color:#666666">#{build.number}</span>
+          <span class="text-xs font-mono" style="color:#3C3C3C">·</span>
+          <span class="text-xs font-semibold" style="color:#AAAAAA">{build.project_name}</span>
+          <span class="text-xs font-mono" style="color:#3C3C3C">·</span>
+          <span class="text-xs font-mono" style="color:#666666">{build.branch}</span>
         </div>
-
-        <!-- Right: action buttons -->
-        <div class="flex flex-row lg:flex-col gap-2 flex-shrink-0">
-          <button class="btn-primary btn-sm">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-            </svg>
-            Retry build
-          </button>
-          <button id="sherlock-btn" class="btn-sm flex items-center gap-1.5 border border-forge-cyan/40 bg-forge-info-bg text-forge-cyan hover:bg-forge-cyan hover:text-forge-bg transition-all rounded-lg px-3 py-1.5 text-sm font-medium">
-            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-            </svg>
-            Ask Sherlock
-          </button>
-          <a href={`/dashboard/builds`} class="btn-ghost btn-sm text-forge-text-3">
-            ← All builds
-          </a>
+        <h1 class="text-xl font-bold tracking-tight mb-3" style="font-family:'Space Grotesk';color:#F0F0F0;leading:1.1">{build.commit_message}</h1>
+        <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs font-mono" style="color:#666666">
+          <div class="flex items-center gap-1.5"><div class="avatar-sm">{build.author.name.split(' ').map((n:string)=>n[0]).join('')}</div>{build.author.name}</div>
+          {build.pr_number && <span>PR #{build.pr_number}</span>}
+          <code>{build.commit_short}</code>
+          <span>{totalMs ? formatDuration(totalMs) : '—'}</span>
+          <span>{build.runner_type} · {build.runner_region}</span>
+          <span>⚡ {build.credits_used} credits · cache {build.cache_hit?'HIT ✓':'MISS ✗'}</span>
         </div>
       </div>
+      <div class="flex flex-wrap lg:flex-col gap-2">
+        <button class="btn-primary btn-sm">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Retry build
+        </button>
+        {build.status === 'failed' && (
+          <button id="sherlock-btn" class="btn-sm border-2 font-semibold transition-all"
+                  style="border-color:rgba(0,238,255,0.4);background:rgba(0,238,255,0.08);color:#00EEFF">
+            ◎ Ask Sherlock
+          </button>
+        )}
+        <a href="/dashboard/builds" class="btn-ghost btn-sm font-mono text-xs" style="color:#666666">← All builds</a>
+      </div>
     </div>
+  </div>
 
-    <!-- ── Sherlock panel (hidden until clicked) ─ -->
-    <div id="sherlock-panel" class="hidden card border-forge-cyan/30 overflow-hidden">
-      <div class="flex items-center gap-3 px-5 py-4 bg-forge-info-bg/30 border-b border-forge-cyan/20">
-        <div class="w-8 h-8 rounded-full bg-forge-info-bg border border-forge-cyan/40 flex items-center justify-center">
-          <svg class="w-4 h-4 text-forge-cyan" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-          </svg>
+  <!-- Sherlock AI panel -->
+  {build.status === 'failed' && (
+    <div id="sherlock-panel" class="hidden card border-2 overflow-hidden" style="border-color:rgba(0,238,255,0.4)">
+      <div class="flex items-center gap-3 px-5 py-4 border-b-2" style="border-color:#2C2C2C;background:rgba(0,238,255,0.04)">
+        <div class="w-8 h-8 border-2 flex items-center justify-center flex-shrink-0" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)">
+          <span class="text-sm font-mono font-bold" style="color:#00EEFF">◎</span>
         </div>
         <div>
-          <div class="text-sm font-medium text-forge-text">Sherlock — AI Build Intelligence</div>
-          <div class="text-xs text-forge-text-3">Analyzed 1,847 log lines · 8.2s</div>
+          <div class="text-sm font-semibold" style="color:#F0F0F0">Sherlock — AI Build Intelligence</div>
+          <div class="text-xs font-mono" style="color:#666666">Analyzed {allLogs.length || 200} log lines · 8.2s</div>
         </div>
         <div class="ml-auto flex items-center gap-2">
-          <span class="badge-success text-2xs">97% confidence</span>
-          <button id="sherlock-close" class="text-forge-text-3 hover:text-forge-text">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          <span class="badge-success">97% confidence</span>
+          <button id="sherlock-close" style="color:#666666">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="p-5 grid lg:grid-cols-2 gap-5">
+        <div>
+          <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#666666">Root cause</div>
+          <div class="px-4 py-3 border-2 text-sm leading-relaxed" style="border-color:rgba(255,51,51,0.3);background:rgba(255,51,51,0.06);color:#AAAAAA">
+            <code class="font-mono px-1.5 py-0.5 text-xs mr-1" style="background:#111111;color:#FFEE00">AuthMiddleware.ts:34</code>
+            calls <code class="font-mono px-1 text-xs" style="color:#00EEFF">user.id</code> without null-checking <code class="font-mono px-1 text-xs" style="color:#F0F0F0">user</code> first.
+            The new test in commit <code class="font-mono text-xs" style="color:#F0F0F0">c1b2f3d</code> passes an unauthenticated request that sets <code class="font-mono text-xs" style="color:#F0F0F0">user = null</code>.
+          </div>
+        </div>
+        <div>
+          <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#666666">Suggested fix</div>
+          <pre class="border-2 p-3 overflow-x-auto text-xs font-mono" style="border-color:rgba(0,255,136,0.3);background:#050505"><code class="code-remove">- if (user.id !== req.params.userId) {'{'}</code>
+<code class="code-add">+ if (!user || user.id !== req.params.userId) {'{'}</code></pre>
+          <div class="flex gap-2 mt-3">
+            <button class="btn-success btn-sm text-xs">Apply fix & re-run</button>
+            <button class="btn-secondary btn-sm text-xs">Open PR</button>
+            <button class="btn-ghost btn-sm text-xs font-mono" style="color:#666666">Explain</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  <!-- Steps + Log viewer -->
+  <div class="grid lg:grid-cols-[250px_1fr] gap-0 border-2" style="border-color:#2C2C2C">
+
+    <!-- Step timeline (left) -->
+    <div class="border-r-2 p-4" style="border-color:#2C2C2C;background:#060606">
+      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#666666">Pipeline steps</div>
+
+      <!-- Proportional duration bar -->
+      <div class="h-2 border flex overflow-hidden mb-4" style="border-color:#2C2C2C">
+        {build.steps.filter(s=>s.duration_ms>0).map(step => {
+          const pct = Math.max((step.duration_ms/totalMs)*100, 2);
+          const col = step.status==='failed'?'#FF3333':step.status==='running'?'#00EEFF':'#00FF88';
+          return <div class="h-full" style={`width:${pct}%;background:${col};opacity:0.8`} title={`${step.name}: ${formatDuration(step.duration_ms)}`}></div>;
+        })}
+      </div>
+
+      <!-- Step list -->
+      <div class="space-y-0.5">
+        {build.steps.map((step, i) => {
+          const ss = sCfg[step.status] ?? sCfg.queued;
+          return (
+            <button class:list={['w-full flex items-center gap-2.5 px-2.5 py-2 border text-left transition-all',
+              step.status==='failed' ? 'border-[rgba(255,51,51,0.3)] bg-[rgba(255,51,51,0.06)]' : 'border-transparent hover:border-[#2C2C2C] hover:bg-[#111111]']}
+                    onclick={`scrollStep(${i})`}>
+              <div class="w-5 h-5 border flex items-center justify-center flex-shrink-0 text-xs font-mono font-bold"
+                   style={`border-color:${step.status==='success'?'rgba(0,255,136,0.4)':step.status==='failed'?'rgba(255,51,51,0.4)':step.status==='running'?'rgba(0,238,255,0.4)':'#3C3C3C'};color:${step.status==='success'?'#00FF88':step.status==='failed'?'#FF3333':step.status==='running'?'#00EEFF':'#666666'}`}>
+                {ss.icon}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-semibold truncate" style={`color:${step.status==='failed'?'#FF3333':step.status==='running'?'#00EEFF':'#F0F0F0'}`}>{step.name}</div>
+                <div class="text-xs font-mono" style="color:#3C3C3C">{step.duration_ms > 0 ? formatDuration(step.duration_ms) : '—'}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+
+    <!-- Log viewer (right) -->
+    <div class="flex flex-col" style="background:#020202">
+      <!-- Log controls -->
+      <div class="flex items-center gap-2 px-4 py-2.5 border-b-2" style="border-color:#2C2C2C;background:#111111">
+        <div class="terminal-dot" style="background:#FF5F57"></div>
+        <div class="terminal-dot" style="background:#FFBD2E"></div>
+        <div class="terminal-dot" style="background:#28C840"></div>
+        <span class="text-xs font-mono ml-1" style="color:#3C3C3C">build.log</span>
+        <div class="ml-auto flex items-center gap-2">
+          <!-- Regex search -->
+          <div class="relative hidden sm:block">
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" id="log-search" placeholder="Filter logs (regex)…" class="input !py-1 !pl-7 !text-xs w-44"/>
+          </div>
+          <!-- Level filter buttons -->
+          {(['info','warn','error'] as const).map(lvl => (
+            <button class="text-xs px-2 py-0.5 border-2 font-mono transition-all level-btn" data-level={lvl}
+                    style={lvl==='error'?'border-color:rgba(255,51,51,0.3);color:#FF3333':lvl==='warn'?'border-color:rgba(255,119,0,0.3);color:#FF7700':'border-color:#2C2C2C;color:#666666'}
+                    onclick="toggleLevel(this)">{lvl}</button>
+          ))}
+          <!-- Timestamp toggle -->
+          <button id="ts-toggle" class="text-xs border-2 font-mono px-2 py-0.5 transition-all" style="border-color:#2C2C2C;color:#3C3C3C">HH:MM</button>
+          <!-- Download -->
+          <button class="btn-ghost btn-xs text-xs" style="color:#666666">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           </button>
         </div>
       </div>
 
-      <div class="p-5 grid lg:grid-cols-[1fr_1fr] gap-5 font-mono text-xs">
-        <!-- Root cause -->
-        <div>
-          <div class="text-2xs font-mono uppercase tracking-wider text-forge-text-3 mb-3">Root cause</div>
-          <div class="space-y-2">
-            <div class="flex gap-2.5 p-3 rounded-lg border border-forge-danger/20 bg-forge-danger-bg/60">
-              <span class="text-forge-danger mt-0.5">→</span>
-              <div class="text-forge-text-2 font-sans text-xs leading-relaxed">
-                <code class="text-forge-accent bg-forge-surface3 px-1.5 py-0.5 rounded">AuthMiddleware.ts:34</code> calls <code class="text-forge-cyan bg-forge-surface3 px-1.5 py-0.5 rounded">user.id</code> without null-checking <code class="text-forge-text bg-forge-surface3 px-1.5 py-0.5 rounded">user</code> first. The new test in commit <code class="text-forge-text bg-forge-surface3 px-1.5 py-0.5 rounded">c1b2f3d</code> passes an unauthenticated request that sets <code class="text-forge-text bg-forge-surface3 px-1.5 py-0.5 rounded">user = null</code>, exposing this path.
+      <!-- Log body -->
+      <div class="log-viewer scrollbar-visible flex-1" style="height:480px" id="log-body">
+        <div class="py-2" id="log-lines">
+          {allLogs.length > 0 ? allLogs.map((line, i) => {
+            const ts = new Date(line.t).toISOString().slice(11,19);
+            const levelCls = line.level==='error'?'log-line-error':line.level==='warn'?'log-line-warn':'';
+            return (
+              <div class={`log-line ${levelCls}`} data-level={line.level??'info'}>
+                <span class="ts-label select-none text-xs font-mono flex-shrink-0" style="color:#3C3C3C;width:64px">{ts}</span>
+                <span class="break-all text-xs font-mono">{line.text}</span>
               </div>
+            );
+          }) : (
+            <div>
+              {[
+                {t:'10:22:16',c:'text-[#3C3C3C]',        tx:`Runner ready — ${build.runner_type} · ${build.runner_region}`},
+                {t:'10:22:16',c:'text-[#FFEE00]',        tx:`▶ STEP 1/${build.steps.length} — ${build.steps[0]?.name??'Setup'}`},
+                {t:'10:22:17',c:'text-[#00FF88]',        tx:`  ✓ Cache ${build.cache_hit?'HIT':'MISS'}: ${build.cache_hit?'node_modules restored (1.2 GB in 0.8s)':'no matching key'}`},
+                ...build.steps.slice(1).map((step,i)=>[
+                  {t:`10:22:${(18+i*4).toString().padStart(2,'0')}`,c:'text-[#FFEE00]',tx:`▶ STEP ${i+2}/${build.steps.length} — ${step.name}`},
+                  {t:`10:22:${(20+i*4).toString().padStart(2,'0')}`,c:step.status==='success'?'text-[#00FF88]':step.status==='failed'?'text-[#FF3333]':'text-[#3C3C3C]',tx:`  ${step.status==='success'?'✓ Completed':step.status==='failed'?'✕ Failed with exit code 1':step.status==='skipped'?'— Skipped':step.status} in ${formatDuration(step.duration_ms)}`},
+                ]).flat(),
+              ].map(line => (
+                <div class="log-line" data-level="info">
+                  <span class="ts-label select-none text-xs font-mono flex-shrink-0" style="color:#3C3C3C;width:64px">{line.t}</span>
+                  <span class={`break-all text-xs font-mono ${line.c}`}>{line.tx}</span>
+                </div>
+              ))}
             </div>
-            <div class="flex gap-2.5 p-3 rounded-lg border border-forge-warning/20 bg-forge-warning-bg/40">
-              <span class="text-forge-warning mt-0.5">→</span>
-              <div class="text-forge-text-2 font-sans text-xs leading-relaxed">
-                23 other test files import from <code class="text-forge-cyan bg-forge-surface3 px-1.5 py-0.5 rounded">AuthMiddleware</code> but none exercise the unauthenticated path — low risk of broader breakage.
-              </div>
-            </div>
-          </div>
+          )}
         </div>
+      </div>
 
-        <!-- Fix -->
-        <div>
-          <div class="text-2xs font-mono uppercase tracking-wider text-forge-text-3 mb-3">Suggested fix</div>
-          <pre class="rounded-lg bg-[#040608] border border-forge-border p-3 overflow-x-auto leading-relaxed text-xs"><code><span class="text-forge-text-3">// src/middleware/AuthMiddleware.ts:32-36</span>
-<span class="text-forge-danger">- if (user.id !== req.params.userId) {</span>
-<span class="text-forge-danger">-   throw new UnauthorizedError();</span>
-<span class="text-forge-danger">- }</span>
-<span class="text-forge-success">+ if (!user || user.id !== req.params.userId) {</span>
-<span class="text-forge-success">+   throw new UnauthorizedError();</span>
-<span class="text-forge-success">+ }</span></code></pre>
-          <div class="flex gap-2 mt-3">
-            <button class="btn-primary btn-sm text-xs">Apply fix & re-run</button>
-            <button class="btn-secondary btn-sm text-xs">Open PR</button>
-            <button class="btn-ghost btn-sm text-xs text-forge-text-3">Explain more</button>
-          </div>
-        </div>
+      <!-- Log footer -->
+      <div class="flex items-center justify-between px-4 py-2 border-t-2" style="border-color:#2C2C2C;background:#111111">
+        <span id="log-count" class="text-xs font-mono" style="color:#3C3C3C">{allLogs.length || build.steps.reduce((s,st)=>s+st.log_lines.length,0)} lines</span>
+        <span class="text-xs font-mono" style="color:#3C3C3C">Retained 90 days · <a href="#" style="color:#FFEE00">Download full log</a></span>
       </div>
     </div>
+  </div>
 
-    <!-- ── Main content: Steps + Logs ─────────── -->
-    <div class="grid lg:grid-cols-[280px_1fr] gap-4 items-start">
-
-      <!-- Step timeline -->
-      <div class="card p-4 lg:sticky lg:top-4">
-        <h2 class="font-display font-bold text-sm text-forge-text mb-4 px-1">Pipeline steps</h2>
-
-        <!-- Timeline bar -->
-        <div class="relative mb-4 px-1">
-          <div class="h-1.5 rounded-full bg-forge-surface2 overflow-hidden">
-            {steps.filter(s => s.status !== 'skipped').map((s) => {
-              const left = (s.startSec / totalSec) * 100;
-              const width = Math.max(((s.endSec - s.startSec) / totalSec) * 100, 1);
-              return (
-                <div
-                  class={`absolute top-0 h-full ${s.status === 'failed' ? 'bg-forge-danger' : s.status === 'success' ? 'bg-forge-success' : 'bg-forge-info'}`}
-                  style={`left: ${left}%; width: ${width}%`}
-                  title={s.name}
-                ></div>
-              );
-            })}
-          </div>
-          <div class="flex justify-between mt-1 text-2xs font-mono text-forge-text-3">
-            <span>0s</span>
-            <span>{build.duration}</span>
-          </div>
-        </div>
-
-        <!-- Step list -->
-        <div class="space-y-1">
-          {steps.map((step, i) => (
-            <button
-              class={`step-btn w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all ${
-                step.status === 'failed'
-                  ? 'bg-forge-danger-bg border border-forge-danger/30 text-forge-danger'
-                  : 'hover:bg-forge-surface2 text-forge-text-2'
-              }`}
-              onclick={`scrollToLog('${step.id}')`}
-            >
-              <!-- Status icon -->
-              <div class={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border text-xs ${
-                step.status === 'success' ? 'bg-forge-success-bg border-forge-success/40 text-forge-success' :
-                step.status === 'failed'  ? 'bg-forge-danger-bg border-forge-danger/40 text-forge-danger' :
-                step.status === 'running' ? 'bg-forge-info-bg border-forge-cyan/40 text-forge-cyan' :
-                'bg-forge-surface2 border-forge-border text-forge-text-3'
-              }`}>
-                {step.status === 'success' ? '✓' :
-                 step.status === 'failed'  ? '✕' :
-                 step.status === 'running' ? '…' :
-                 step.status === 'skipped' ? '—' : String(i+1)}
+  <!-- Span waterfall / trace timeline -->
+  <div class="card p-5">
+    <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#FFEE00">Span waterfall — trace timeline</div>
+    <div class="space-y-1.5">
+      {build.steps.map((step, i) => {
+        const startPct = build.steps.slice(0,i).reduce((s,st)=>s+st.duration_ms,0) / totalMs * 100;
+        const widthPct = Math.max((step.duration_ms/totalMs)*100, 1);
+        const col = stepColors[step.status] ?? 'rgba(60,60,60,0.5)';
+        return (
+          <div class="flex items-center gap-3" style="height:24px">
+            <div class="text-xs font-mono flex-shrink-0" style="width:140px;color:#666666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{step.name}</div>
+            <div class="flex-1 relative" style="height:20px;background:#111111;border:1px solid #2C2C2C">
+              <div class="absolute top-0 h-full flex items-center px-1.5 overflow-hidden"
+                   style={`left:${startPct}%;width:${widthPct}%;background:${col};min-width:4px`}>
+                {widthPct > 8 && <span class="text-xs font-mono font-bold text-black truncate">{formatDuration(step.duration_ms)}</span>}
               </div>
-
-              <div class="flex-1 min-w-0">
-                <div class="text-xs font-medium truncate">{step.name}</div>
-                <div class="text-2xs text-forge-text-3 font-mono">{step.duration}</div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <!-- Logs panel -->
-      <div class="card overflow-hidden">
-        <!-- Log header -->
-        <div class="flex items-center gap-3 px-4 py-3 border-b border-forge-border bg-forge-surface2/40">
-          <div class="terminal-dot bg-[#FF5F57]"></div>
-          <div class="terminal-dot bg-[#FFBD2E]"></div>
-          <div class="terminal-dot bg-[#28C840]"></div>
-          <span class="text-xs text-forge-text-3 font-mono ml-1">build.log</span>
-
-          <div class="ml-auto flex items-center gap-2">
-            <!-- Log search -->
-            <div class="relative hidden sm:block">
-              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-              </svg>
-              <input
-                type="text"
-                id="log-search"
-                placeholder="Filter logs…"
-                class="input !py-1 !pl-7 !text-xs w-40"
-              />
             </div>
-            <!-- Timestamp toggle -->
-            <button id="ts-toggle" class="text-2xs border border-forge-border text-forge-text-3 hover:text-forge-text hover:border-forge-border-2 rounded px-2 py-1 font-mono transition-colors">
-              HH:MM:SS
-            </button>
-            <!-- Download -->
-            <button class="btn-ghost btn-sm text-forge-text-3 text-xs">
-              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-              </svg>
-              Download
-            </button>
+            <div class="text-xs font-mono flex-shrink-0 text-right" style="width:56px;color:#666666">{formatDuration(step.duration_ms)}</div>
+          </div>
+        );
+      })}
+      <!-- Timescale -->
+      <div class="flex items-center gap-3 mt-1 pt-1 border-t-2" style="border-color:#2C2C2C">
+        <div style="width:140px"></div>
+        <div class="flex-1 flex justify-between text-xs font-mono" style="color:#3C3C3C">
+          <span>0</span><span>{formatDuration(totalMs/4)}</span><span>{formatDuration(totalMs/2)}</span><span>{formatDuration(totalMs*3/4)}</span><span>{formatDuration(totalMs)}</span>
+        </div>
+        <div style="width:56px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resource usage -->
+  {resourceTimeline.length > 0 && (
+    <div class="card p-5">
+      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#FFEE00">Resource usage during build</div>
+      <div class="grid lg:grid-cols-2 gap-6">
+        <div>
+          <div class="flex items-center gap-4 mb-3 text-xs font-mono" style="color:#666666">
+            <div class="flex items-center gap-1.5"><div class="w-4 h-0.5" style="background:#FFEE00"></div>CPU %</div>
+            <div class="flex items-center gap-1.5"><div class="w-4 h-0.5" style="background:#00EEFF"></div>Memory %</div>
+          </div>
+          <div style="height:120px;position:relative">
+            <svg class="w-full h-full" viewBox="0 0 400 120" preserveAspectRatio="none">
+              {[0,30,60,90,120].map(y=><line x1="0" y1={y} x2="400" y2={y} stroke="#2C2C2C" stroke-width="0.5"/>)}
+              <polyline points={resourceTimeline.map((p,i)=>`${(i/(resourceTimeline.length-1))*400},${120-(p.cpu/100)*110}`).join(' ')} fill="none" stroke="#FFEE00" stroke-width="1.5" stroke-linejoin="round"/>
+              <polyline points={resourceTimeline.map((p,i)=>`${(i/(resourceTimeline.length-1))*400},${120-((p.mem_mb/(build.resources?.mem_peak_mb??4096))*110)}`).join(' ')} fill="none" stroke="#00EEFF" stroke-width="1.5" stroke-linejoin="round"/>
+            </svg>
+            <div class="absolute top-0 left-0 h-full flex flex-col justify-between text-xs font-mono" style="color:#3C3C3C;padding:2px 0">
+              <span>100%</span><span>50%</span><span>0%</span>
+            </div>
           </div>
         </div>
-
-        <!-- Log body -->
-        <div class="bg-[#030508] font-mono text-xs overflow-x-auto" style="height: 480px; overflow-y: auto;" id="log-body">
-          <div class="p-4 space-y-0.5" id="log-lines">
-            {logLines.map((line, i) => (
-              <div
-                class={`log-line flex gap-3 leading-5 hover:bg-white/[0.02] rounded px-1 -mx-1 transition-colors ${logLevel[line.level]}`}
-                id={`log-${i}`}
-              >
-                <span class="text-forge-text-3 flex-shrink-0 select-none ts-label">{line.t}</span>
-                <span class="break-all">{line.text}</span>
+        {build.resources && (
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 content-start">
+            {[{l:'CPU avg',v:`${build.resources.cpu_avg}%`},{l:'CPU peak',v:`${build.resources.cpu_peak}%`},{l:'Mem avg',v:`${Math.round(build.resources.mem_avg_mb)}MB`},{l:'Mem peak',v:`${build.resources.mem_peak_mb}MB`},{l:'Net in',v:formatBytes(build.resources.net_in_mb*1e6)},{l:'Net out',v:formatBytes(build.resources.net_out_mb*1e6)},{l:'Disk read',v:formatBytes(build.resources.disk_read_mb*1e6)},{l:'Disk write',v:formatBytes(build.resources.disk_write_mb*1e6)}].map(r=>(
+              <div class="px-3 py-2.5 border-2 text-center" style="border-color:#2C2C2C">
+                <div class="text-xs font-mono" style="color:#666666">{r.l}</div>
+                <div class="text-sm font-mono font-bold mt-0.5" style="color:#F0F0F0">{r.v}</div>
               </div>
             ))}
           </div>
-        </div>
-
-        <!-- Log footer -->
-        <div class="flex items-center justify-between px-4 py-2.5 border-t border-forge-border bg-forge-surface2/30 text-2xs font-mono text-forge-text-3">
-          <span>{logLines.length} lines · 128 KB</span>
-          <span>Retained for 90 days · <a href="#" class="text-forge-accent hover:underline">Download full log</a></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Artifacts + Test results ───────────── -->
-    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-      <!-- Artifacts -->
-      <div class="card p-5">
-        <h2 class="font-display font-bold text-base text-forge-text mb-4">Artifacts</h2>
-        {artifacts.length > 0 ? (
-          <div class="space-y-2">
-            {artifacts.map((a) => (
-              <div class="flex items-center gap-3 p-3 rounded-lg border border-forge-border hover:border-forge-border-2 hover:bg-forge-surface2/50 transition-all group">
-                <div class="w-8 h-8 rounded-md bg-forge-surface3 border border-forge-border flex items-center justify-center flex-shrink-0">
-                  <svg class="w-4 h-4 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                  </svg>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="text-xs font-medium text-forge-text truncate">{a.name}</div>
-                  <div class="text-2xs text-forge-text-3 font-mono">{a.size}</div>
-                </div>
-                <button class="opacity-0 group-hover:opacity-100 transition-opacity btn-ghost btn-sm text-forge-text-3 !p-1">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p class="text-sm text-forge-text-3 text-center py-6">No artifacts from this build</p>
         )}
       </div>
+    </div>
+  )}
 
-      <!-- Test results -->
-      <div class="card p-5">
-        <h2 class="font-display font-bold text-base text-forge-text mb-4">Test results</h2>
-        <div class="space-y-3">
-          {[
-            { label: 'Passed', value: 1846, color: 'text-forge-success bg-forge-success-bg' },
-            { label: 'Failed', value: 1, color: 'text-forge-danger bg-forge-danger-bg' },
-            { label: 'Skipped', value: 0, color: 'text-forge-text-3 bg-forge-surface2' },
-          ].map(({ label, value, color }) => (
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div class={`w-2 h-2 rounded-full ${color.split(' ')[0].replace('text','bg')}`}></div>
-                <span class="text-sm text-forge-text-2">{label}</span>
+  <!-- Bottom panels: artifacts + test results + metadata -->
+  <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-0 border-l-2 border-t-2" style="border-color:#2C2C2C">
+    <!-- Artifacts -->
+    <div class="border-r-2 border-b-2 p-5" style="border-color:#2C2C2C;background:#060606">
+      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#FFEE00">Artifacts ({build.artifacts.length})</div>
+      {build.artifacts.length > 0 ? (
+        <div class="space-y-2">
+          {build.artifacts.map(a => (
+            <div class="flex items-center gap-3 px-3 py-2.5 border-2 border-transparent transition-all hover:border-[#3C3C3C] group" style="background:#111111">
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-mono font-semibold truncate" style="color:#F0F0F0">{a.name}</div>
+                <div class="text-xs font-mono" style="color:#666666">{formatBytes(a.size_bytes)}</div>
               </div>
-              <span class={`font-mono font-bold text-sm px-2 py-0.5 rounded ${color}`}>{value.toLocaleString()}</span>
+              <button class="opacity-0 group-hover:opacity-100 transition-opacity" style="color:#FFEE00">↓</button>
             </div>
           ))}
         </div>
-
-        <div class="mt-4 pt-4 border-t border-forge-border">
-          <div class="h-2 rounded-full bg-forge-surface2 overflow-hidden flex">
-            <div class="h-full bg-forge-success" style="width: 99.95%"></div>
-            <div class="h-full bg-forge-danger" style="width: 0.05%"></div>
-          </div>
-          <div class="flex justify-between mt-1.5 text-2xs font-mono text-forge-text-3">
-            <span>99.95% pass rate</span>
-            <span>1,847 total</span>
-          </div>
-        </div>
-
-        <div class="mt-4">
-          <div class="text-2xs font-mono uppercase tracking-wider text-forge-text-3 mb-2">Failed test</div>
-          <div class="p-3 rounded-lg bg-forge-danger-bg border border-forge-danger/20 text-xs font-mono text-forge-danger leading-relaxed">
-            <div class="font-medium mb-1">AuthMiddleware.verify</div>
-            <div class="text-forge-text-3">should handle unauthenticated request</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Build metadata -->
-      <div class="card p-5">
-        <h2 class="font-display font-bold text-base text-forge-text mb-4">Build metadata</h2>
-        <dl class="space-y-3">
-          {[
-            { label: 'Runner', value: build.runner },
-            { label: 'Region', value: build.region },
-            { label: 'Credits used', value: `${build.credits} credits` },
-            { label: 'Cache', value: build.cacheHit ? 'Hit ✓' : 'Miss ✗' },
-            { label: 'Trigger', value: `PR #${build.prNumber}` },
-            { label: 'Queued at', value: new Date(build.queuedAt).toLocaleTimeString() },
-            { label: 'Started at', value: new Date(build.startedAt).toLocaleTimeString() },
-            { label: 'Finished at', value: new Date(build.finishedAt).toLocaleTimeString() },
-            { label: 'Total duration', value: build.duration },
-          ].map(({ label, value }) => (
-            <div class="flex items-center justify-between gap-3">
-              <dt class="text-xs text-forge-text-3 flex-shrink-0">{label}</dt>
-              <dd class="text-xs font-mono text-forge-text-2 text-right truncate">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      ) : <p class="text-xs font-mono" style="color:#3C3C3C">No artifacts from this build.</p>}
     </div>
 
+    <!-- Test results -->
+    <div class="border-r-2 border-b-2 p-5" style="border-color:#2C2C2C;background:#060606">
+      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#FFEE00">Test results</div>
+      {build.test_results ? (
+        <div class="space-y-3">
+          {[{l:'Passed',v:build.test_results.passed,c:'#00FF88'},{l:'Failed',v:build.test_results.failed,c:'#FF3333'},{l:'Skipped',v:build.test_results.skipped,c:'#3C3C3C'}].map(r=>(
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full" style={`background:${r.c}`}></div><span class="text-xs font-mono" style="color:#AAAAAA">{r.l}</span></div>
+              <span class="text-sm font-mono font-bold" style={`color:${r.c}`}>{r.v.toLocaleString()}</span>
+            </div>
+          ))}
+          <div class="h-2 border flex overflow-hidden" style="border-color:#2C2C2C;background:#111111">
+            <div class="h-full" style={`width:${(build.test_results.passed/build.test_results.total)*100}%;background:#00FF88`}></div>
+            <div class="h-full" style={`width:${(build.test_results.failed/build.test_results.total)*100}%;background:#FF3333`}></div>
+          </div>
+          <div class="flex justify-between text-xs font-mono" style="color:#3C3C3C">
+            <span>{((build.test_results.passed/build.test_results.total)*100).toFixed(1)}% pass</span>
+            <span>{build.test_results.total.toLocaleString()} total</span>
+          </div>
+          {build.test_results.coverage_pct && (
+            <div class="pt-2 border-t-2" style="border-color:#2C2C2C">
+              <div class="flex justify-between text-xs mb-1"><span class="font-mono" style="color:#666666">Coverage</span><span class="font-mono font-bold" style="color:#F0F0F0">{build.test_results.coverage_pct}%</span></div>
+              <div class="h-1.5 border" style="border-color:#2C2C2C;background:#111111"><div class="h-full" style={`width:${build.test_results.coverage_pct}%;background:#33AAFF`}></div></div>
+            </div>
+          )}
+        </div>
+      ) : <p class="text-xs font-mono" style="color:#3C3C3C">No test results for this build.</p>}
+    </div>
+
+    <!-- Build metadata -->
+    <div class="border-r-2 border-b-2 p-5" style="border-color:#2C2C2C;background:#060606">
+      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#FFEE00">Build metadata</div>
+      <dl class="space-y-2.5">
+        {[
+          ['Runner',     build.runner_type],
+          ['Region',     build.runner_region],
+          ['Credits',    `${build.credits_used} credits`],
+          ['Cache',      build.cache_hit ? 'Hit ✓' : 'Miss ✗'],
+          ['Trigger',    build.pr_number ? `PR #${build.pr_number}` : build.trigger],
+          ['Started',    build.started_at ? new Date(build.started_at).toLocaleTimeString() : '—'],
+          ['Duration',   totalMs ? formatDuration(totalMs) : '—'],
+          ['Pipeline',   build.pipeline_file],
+        ].map(([k,v]) => (
+          <div class="flex items-center justify-between gap-2">
+            <dt class="text-xs font-mono flex-shrink-0" style="color:#666666">{k}</dt>
+            <dd class="text-xs font-mono text-right truncate" style="color:#AAAAAA">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   </div>
+
+</div>
 </DashboardLayout>
 
 <script>
-  // Sherlock panel
+  // Sherlock
   document.getElementById('sherlock-btn')?.addEventListener('click', () => {
-    const panel = document.getElementById('sherlock-panel')!;
-    panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) {
-      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
+    const p = document.getElementById('sherlock-panel')!;
+    p.classList.toggle('hidden');
+    if (!p.classList.contains('hidden')) p.scrollIntoView({behavior:'smooth',block:'nearest'});
   });
-  document.getElementById('sherlock-close')?.addEventListener('click', () => {
-    document.getElementById('sherlock-panel')?.classList.add('hidden');
+  document.getElementById('sherlock-close')?.addEventListener('click', () => document.getElementById('sherlock-panel')?.classList.add('hidden'));
+
+  // Log search
+  const searchEl  = document.getElementById('log-search') as HTMLInputElement;
+  const logCount  = document.getElementById('log-count')!;
+  searchEl?.addEventListener('input', () => {
+    const q = searchEl.value.toLowerCase();
+    let v = 0;
+    document.querySelectorAll<HTMLElement>('.log-line').forEach(line => {
+      const show = !q || line.textContent!.toLowerCase().includes(q);
+      line.style.display = show ? '' : 'none';
+      if (show) v++;
+    });
+    logCount.textContent = `${v} lines shown`;
   });
 
-  // Log search filter
-  const logSearch = document.getElementById('log-search') as HTMLInputElement;
-  logSearch?.addEventListener('input', () => {
-    const q = logSearch.value.toLowerCase();
-    document.querySelectorAll<HTMLElement>('.log-line').forEach((line) => {
-      line.style.display = !q || line.textContent!.toLowerCase().includes(q) ? '' : 'none';
+  // Level filter
+  const activeLevels = new Set(['info','warn','error']);
+  function toggleLevel(btn: HTMLButtonElement) {
+    const lvl = btn.dataset.level!;
+    if (activeLevels.has(lvl)) { activeLevels.delete(lvl); btn.style.opacity = '0.3'; }
+    else { activeLevels.add(lvl); btn.style.opacity = '1'; }
+    document.querySelectorAll<HTMLElement>('.log-line').forEach(line => {
+      line.style.display = activeLevels.has(line.dataset.level ?? 'info') ? '' : 'none';
     });
-  });
+  }
+  (window as any).toggleLevel = toggleLevel;
 
   // Timestamp toggle
-  let tsVisible = true;
+  let tsOn = true;
   document.getElementById('ts-toggle')?.addEventListener('click', () => {
-    tsVisible = !tsVisible;
-    document.querySelectorAll<HTMLElement>('.ts-label').forEach(el => {
-      el.style.display = tsVisible ? '' : 'none';
-    });
+    tsOn = !tsOn;
+    document.querySelectorAll<HTMLElement>('.ts-label').forEach(el => el.style.display = tsOn ? '' : 'none');
   });
 
-  // Scroll to log section when step is clicked
-  function scrollToLog(stepId: string) {
-    const stepNames: Record<string, string> = {
-      s1: 'Setup runner', s2: 'Restore cache', s3: 'Install',
-      s4: 'Lint', s5: 'Build', s6: 'Test (unit)', s7: 'integration', s8: 'Deploy',
-    };
-    const keyword = stepNames[stepId]?.toLowerCase() ?? '';
-    const logBody = document.getElementById('log-body')!;
-    const lines = document.querySelectorAll<HTMLElement>('.log-line');
-    for (const line of Array.from(lines)) {
-      if (line.textContent!.toLowerCase().includes(keyword)) {
-        line.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        line.style.background = 'rgba(200,255,0,0.08)';
-        setTimeout(() => line.style.background = '', 2000);
-        break;
-      }
-    }
-  }
-  (window as any).scrollToLog = scrollToLog;
+  // Scroll to step
+  function scrollStep(i: number) { document.getElementById('log-body')!.scrollTop = i * 80; }
+  (window as any).scrollStep = scrollStep;
 
-  // Auto-scroll to bottom of logs on load
-  const logBody = document.getElementById('log-body')!;
-  if (logBody) logBody.scrollTop = logBody.scrollHeight;
+  // Auto-scroll
+  const lb = document.getElementById('log-body')!;
+  if (lb) lb.scrollTop = lb.scrollHeight;
 </script>

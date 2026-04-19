@@ -53,8 +53,8 @@ const sandboxes = [
 ];
 
 const statusStyle: Record<string, { dot: string; badge: string; label: string }> = {
-  running: { dot: 'bg-forge-success animate-pulse', badge: 'badge-success border border-forge-success/20', label: 'Running' },
-  stopped: { dot: 'bg-forge-text-3',                badge: 'badge-neutral border border-forge-border',     label: 'Stopped' },
+  running: { dot: 'bg-forge-success animate-pulse', badge: 'badge-success border border-[rgba(0,255,136,0.3)]', label: 'Running' },
+  stopped: { dot: 'bg-forge-text-3',                badge: 'badge-neutral border border-[#2C2C2C]',     label: 'Stopped' },
   building:{ dot: 'bg-forge-cyan animate-pulse',    badge: 'running',                                       label: 'Starting' },
 };
 ---
@@ -70,10 +70,10 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <div class="flex items-center gap-2 mb-1">
-          <h1 class="font-display font-bold text-2xl text-forge-text">Sandboxes</h1>
-          <span class="badge-accent border border-forge-accent/20 text-xs">Beta</span>
+          <h1 class="font-bold text-2xl text-[#F0F0F0]">Sandboxes</h1>
+          <span class="badge-accent border border-[rgba(255,238,0,0.3)] text-xs">Beta</span>
         </div>
-        <p class="text-forge-text-3 text-sm">Ephemeral dev environments — spun up from any build in seconds.</p>
+        <p class="text-[#F0F0F0]-3 text-sm">Ephemeral dev environments — spun up from any build in seconds.</p>
       </div>
       <div class="flex gap-2">
         <button id="new-sandbox-btn" class="btn-primary btn-sm">
@@ -89,14 +89,14 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
     <div class="card p-5 border-forge-accent/15 bg-forge-accent-muted/10">
       <div class="flex flex-col sm:flex-row gap-5">
         <div class="flex-1 space-y-3">
-          <h2 class="font-display font-bold text-base text-forge-text">Instant ephemeral environments</h2>
-          <p class="text-sm text-forge-text-2 leading-relaxed">
+          <h2 class="font-bold text-base text-[#F0F0F0]">Instant ephemeral environments</h2>
+          <p class="text-sm text-[#F0F0F0]-2 leading-relaxed">
             Spin up a fully isolated environment from any build — with your exact container image, env vars, and database snapshot — in under 30 seconds. Port-forward to your browser or connect via VS Code. Sandboxes auto-expire after 24 hours.
           </p>
-          <div class="flex flex-wrap gap-4 text-xs text-forge-text-3">
+          <div class="flex flex-wrap gap-4 text-xs text-[#F0F0F0]-3">
             {['Isolated network', 'Port forwarding', 'VS Code connect', 'Live terminal', 'Auto-expire'].map(f => (
               <div class="flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-forge-success" fill="currentColor" viewBox="0 0 20 20">
+                <svg class="w-3.5 h-3.5 text-[#00FF88]" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                 </svg>
                 {f}
@@ -106,12 +106,12 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
         </div>
         <div class="flex flex-col gap-2 flex-shrink-0 sm:text-right">
           <div>
-            <div class="font-mono font-bold text-2xl text-forge-accent">2</div>
-            <div class="text-xs text-forge-text-3">Active sandboxes</div>
+            <div class="font-mono font-bold text-2xl text-[#FFEE00]">2</div>
+            <div class="text-xs text-[#F0F0F0]-3">Active sandboxes</div>
           </div>
           <div>
-            <div class="font-mono font-bold text-2xl text-forge-text">5</div>
-            <div class="text-xs text-forge-text-3">Max concurrent (Team)</div>
+            <div class="font-mono font-bold text-2xl text-[#F0F0F0]">5</div>
+            <div class="text-xs text-[#F0F0F0]-3">Max concurrent (Team)</div>
           </div>
         </div>
       </div>
@@ -130,29 +130,29 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2.5 mb-3 flex-wrap">
                     <div class={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`}></div>
-                    <h2 class="font-display font-bold text-base text-forge-text">{sb.name}</h2>
+                    <h2 class="font-bold text-base text-[#F0F0F0]">{sb.name}</h2>
                     <span class={`badge text-2xs ${s.badge}`}>{s.label}</span>
-                    <span class="text-2xs text-forge-text-3 font-mono">{sb.id}</span>
+                    <span class="text-2xs text-[#F0F0F0]-3 font-mono">{sb.id}</span>
                   </div>
 
                   <!-- Meta row -->
-                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-forge-text-3 mb-4">
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-[#F0F0F0]-3 mb-4">
                     <span class="flex items-center gap-1">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
                       {sb.project}
                     </span>
                     <span class="font-mono">{sb.branch}</span>
-                    <a href={`/dashboard/builds/${sb.buildId}`} class="text-forge-accent hover:text-forge-accent-dim font-mono">#{sb.buildId}</a>
+                    <a href={`/dashboard/builds/${sb.buildId}`} class="text-[#FFEE00] hover:text-[#FFEE00]-dim font-mono">#{sb.buildId}</a>
                     <span>Created {sb.createdAt}</span>
-                    <span class={sb.expiresIn === 'Expired' ? 'text-forge-danger' : 'text-forge-warning'}>
+                    <span class={sb.expiresIn === 'Expired' ? 'text-[#FF3333]' : 'text-[#FF7700]'}>
                       Expires: {sb.expiresIn}
                     </span>
-                    <div class="avatar-sm bg-forge-surface3 border border-forge-border text-forge-accent font-display text-2xs">{sb.creator}</div>
+                    <div class="avatar-sm bg-[#111111]3 border border-[#2C2C2C] text-[#FFEE00] font-display text-2xs">{sb.creator}</div>
                   </div>
 
                   <!-- Image -->
                   <div class="flex items-center gap-2 mb-4">
-                    <code class="text-2xs font-mono text-forge-text-3 bg-forge-surface2 border border-forge-border rounded px-2 py-1">
+                    <code class="text-2xs font-mono text-[#F0F0F0]-3 bg-[#111111]2 border border-[#2C2C2C] rounded px-2 py-1">
                       🐳 {sb.image}
                     </code>
                   </div>
@@ -161,11 +161,11 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
                   {sb.ports.length > 0 && (
                     <div class="flex flex-wrap gap-2">
                       {sb.ports.map(p => (
-                        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-forge-border bg-forge-surface2/50 text-xs">
+                        <div class="flex items-center gap-2 px-3 py-1.5 rounded-none border border-[#2C2C2C] bg-[#111111]2/50 text-xs">
                           <div class={`w-1.5 h-1.5 rounded-full ${p.public ? 'bg-forge-success' : 'bg-forge-text-3'}`}></div>
-                          <span class="font-mono text-forge-accent">:{p.port}</span>
-                          <span class="text-forge-text-2">{p.label}</span>
-                          <span class="text-2xs text-forge-text-3">{p.public ? 'public' : 'internal'}</span>
+                          <span class="font-mono text-[#FFEE00]">:{p.port}</span>
+                          <span class="text-[#F0F0F0]-2">{p.label}</span>
+                          <span class="text-2xs text-[#F0F0F0]-3">{p.public ? 'public' : 'internal'}</span>
                           {p.public && sb.url && (
                             <a href={sb.url} target="_blank" rel="noopener noreferrer"
                                class="text-forge-cyan hover:underline text-2xs font-mono" onclick="event.stopPropagation()">
@@ -181,17 +181,17 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
                 <!-- Right: resource meters + actions -->
                 <div class="flex flex-col gap-3 lg:w-56 flex-shrink-0">
                   {sb.status === 'running' && (
-                    <div class="p-4 rounded-xl bg-forge-surface2/40 border border-forge-border space-y-3">
+                    <div class="p-4 rounded-none bg-[#111111]2/40 border border-[#2C2C2C] space-y-3">
                       {[
                         { label: 'CPU', value: sb.cpu, color: sb.cpu > 80 ? 'bg-forge-danger' : 'bg-forge-accent' },
                         { label: 'Memory', value: sb.mem, color: sb.mem > 80 ? 'bg-forge-danger' : 'bg-forge-cyan' },
                       ].map(({ label, value, color }) => (
                         <div>
                           <div class="flex justify-between text-2xs mb-1">
-                            <span class="text-forge-text-3">{label}</span>
-                            <span class="font-mono text-forge-text-2">{value}%</span>
+                            <span class="text-[#F0F0F0]-3">{label}</span>
+                            <span class="font-mono text-[#F0F0F0]-2">{value}%</span>
                           </div>
-                          <div class="h-1.5 bg-forge-surface3 rounded-full overflow-hidden">
+                          <div class="h-1.5 bg-[#111111]3 rounded-full overflow-hidden">
                             <div class={`h-full rounded-full ${color} transition-all`} style={`width:${value}%`}></div>
                           </div>
                         </div>
@@ -233,22 +233,22 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
             </div>
 
             <!-- Terminal panel (hidden by default) -->
-            <div class="terminal-panel hidden border-t border-forge-border" id={`terminal-${sb.id}`}>
-              <div class="flex items-center justify-between px-4 py-2.5 bg-forge-surface2/60 border-b border-forge-border">
+            <div class="terminal-panel hidden border-t border-[#2C2C2C]" id={`terminal-${sb.id}`}>
+              <div class="flex items-center justify-between px-4 py-2.5 bg-[#111111]2/60 border-b border-[#2C2C2C]">
                 <div class="flex items-center gap-2">
                   <div class="terminal-dot bg-[#FF5F57]"></div>
                   <div class="terminal-dot bg-[#FFBD2E]"></div>
                   <div class="terminal-dot bg-[#28C840]"></div>
-                  <span class="text-xs font-mono text-forge-text-3 ml-1">Terminal — {sb.id}</span>
+                  <span class="text-xs font-mono text-[#F0F0F0]-3 ml-1">Terminal — {sb.id}</span>
                 </div>
-                <button class="text-forge-text-3 hover:text-forge-text transition-colors text-xs" onclick={`closeTerminal('${sb.id}')`}>✕</button>
+                <button class="text-[#F0F0F0]-3 hover:text-[#F0F0F0] transition-colors text-xs" onclick={`closeTerminal('${sb.id}')`}>✕</button>
               </div>
-              <div class="bg-[#030508] p-4 font-mono text-xs h-48 overflow-y-auto text-forge-text-2 space-y-0.5">
-                <div><span class="text-forge-text-3">root@{sb.id}:~#</span> <span class="text-forge-text">cat /etc/hostname</span></div>
+              <div class="bg-[#030508] p-4 font-mono text-xs h-48 overflow-y-auto text-[#F0F0F0]-2 space-y-0.5">
+                <div><span class="text-[#F0F0F0]-3">root@{sb.id}:~#</span> <span class="text-[#F0F0F0]">cat /etc/hostname</span></div>
                 <div>{sb.id}</div>
-                <div class="mt-1"><span class="text-forge-text-3">root@{sb.id}:~#</span> <span class="text-forge-text">ps aux | grep node</span></div>
+                <div class="mt-1"><span class="text-[#F0F0F0]-3">root@{sb.id}:~#</span> <span class="text-[#F0F0F0]">ps aux | grep node</span></div>
                 <div>node     1  0.4  2.1  /usr/local/bin/node server.js</div>
-                <div class="mt-1"><span class="text-forge-text-3">root@{sb.id}:~#</span> <span class="cursor-blink text-forge-text"></span></div>
+                <div class="mt-1"><span class="text-[#F0F0F0]-3">root@{sb.id}:~#</span> <span class="cursor-blink text-[#F0F0F0]"></span></div>
               </div>
             </div>
           </div>
@@ -259,8 +259,8 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
     <!-- Empty state if no sandboxes -->
     <div class="hidden text-center py-16">
       <div class="text-4xl mb-4">📦</div>
-      <h3 class="font-display font-bold text-xl text-forge-text mb-2">No sandboxes yet</h3>
-      <p class="text-forge-text-2 text-sm mb-6">Create a sandbox from any build to get a live environment in seconds.</p>
+      <h3 class="font-bold text-xl text-[#F0F0F0] mb-2">No sandboxes yet</h3>
+      <p class="text-[#F0F0F0]-2 text-sm mb-6">Create a sandbox from any build to get a live environment in seconds.</p>
       <button class="btn-primary btn-md">Create your first sandbox</button>
     </div>
 
@@ -270,10 +270,10 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
   <div id="sandbox-modal" class="fixed inset-0 z-50 hidden" role="dialog">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="sandbox-backdrop"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
-      <div class="w-full max-w-md bg-forge-surface border border-forge-border rounded-2xl shadow-modal animate-scale-in overflow-hidden">
-        <div class="flex items-center justify-between px-6 py-5 border-b border-forge-border">
-          <h2 class="font-display font-bold text-lg text-forge-text">New sandbox</h2>
-          <button id="sandbox-close" class="text-forge-text-3 hover:text-forge-text">
+      <div class="w-full max-w-md bg-[#111111] border border-[#2C2C2C] rounded-none shadow-modal animate-scale-in overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-5 border-b border-[#2C2C2C]">
+          <h2 class="font-bold text-lg text-[#F0F0F0]">New sandbox</h2>
+          <button id="sandbox-close" class="text-[#F0F0F0]-3 hover:text-[#F0F0F0]">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -316,13 +316,13 @@ const statusStyle: Record<string, { dot: string; badge: string; label: string }>
               { label: 'Seed from database snapshot', checked: false },
             ].map(({ label, checked }) => (
               <label class="flex items-center gap-3 cursor-pointer py-1">
-                <input type="checkbox" checked={checked} class="rounded border-forge-border"/>
-                <span class="text-sm text-forge-text-2">{label}</span>
+                <input type="checkbox" checked={checked} class="rounded border-[#2C2C2C]"/>
+                <span class="text-sm text-[#F0F0F0]-2">{label}</span>
               </label>
             ))}
           </div>
         </div>
-        <div class="flex gap-3 px-6 py-4 border-t border-forge-border bg-forge-surface2/30">
+        <div class="flex gap-3 px-6 py-4 border-t border-[#2C2C2C] bg-[#111111]2/30">
           <button id="sandbox-cancel" class="btn-secondary btn-md flex-1 justify-center">Cancel</button>
           <button class="btn-primary btn-md flex-1 justify-center">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

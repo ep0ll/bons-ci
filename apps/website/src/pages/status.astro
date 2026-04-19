@@ -43,12 +43,12 @@ const incidents = [
 ];
 
 const statusConfig: Record<string, { label: string; dot: string; badge: string }> = {
-  operational: { label: 'Operational',    dot: 'bg-forge-success',           badge: 'badge-success border border-forge-success/20' },
-  degraded:    { label: 'Degraded',       dot: 'bg-forge-warning animate-pulse', badge: 'badge-warning border border-forge-warning/20' },
-  partial:     { label: 'Partial outage', dot: 'bg-forge-warning animate-pulse', badge: 'badge-warning border border-forge-warning/20' },
-  outage:      { label: 'Major outage',   dot: 'bg-forge-danger animate-pulse',  badge: 'badge-danger border border-forge-danger/20' },
-  resolved:    { label: 'Resolved',       dot: 'bg-forge-success',           badge: 'badge-success border border-forge-success/20' },
-  monitoring:  { label: 'Monitoring',     dot: 'bg-forge-warning animate-pulse', badge: 'badge-warning border border-forge-warning/20' },
+  operational: { label: 'Operational',    dot: 'bg-forge-success',           badge: 'badge-success border border-[rgba(0,255,136,0.3)]' },
+  degraded:    { label: 'Degraded',       dot: 'bg-forge-warning animate-pulse', badge: 'badge-warning border border-[rgba(255,119,0,0.3)]' },
+  partial:     { label: 'Partial outage', dot: 'bg-forge-warning animate-pulse', badge: 'badge-warning border border-[rgba(255,119,0,0.3)]' },
+  outage:      { label: 'Major outage',   dot: 'bg-forge-danger animate-pulse',  badge: 'badge-danger border border-[rgba(255,51,51,0.3)]' },
+  resolved:    { label: 'Resolved',       dot: 'bg-forge-success',           badge: 'badge-success border border-[rgba(0,255,136,0.3)]' },
+  monitoring:  { label: 'Monitoring',     dot: 'bg-forge-warning animate-pulse', badge: 'badge-warning border border-[rgba(255,119,0,0.3)]' },
 };
 
 const hasAnyIssue = services.some(s => s.status !== 'operational');
@@ -59,24 +59,24 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
     <div class="container-forge max-w-3xl space-y-8">
 
       <!-- Overall status banner -->
-      <div class={`rounded-2xl p-6 border ${hasAnyIssue ? 'border-forge-warning/30 bg-forge-warning-bg/20' : 'border-forge-success/30 bg-forge-success-bg/20'}`}>
+      <div class={`rounded-none p-6 border ${hasAnyIssue ? 'border-forge-warning/30 /20' : 'border-forge-success/30 /20'}`}>
         <div class="flex items-center gap-4">
           <div class={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${hasAnyIssue ? 'bg-forge-warning/10' : 'bg-forge-success/10'}`}>
             {hasAnyIssue ? (
-              <svg class="w-6 h-6 text-forge-warning" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-6 h-6 text-[#FF7700]" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
               </svg>
             ) : (
-              <svg class="w-6 h-6 text-forge-success" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-6 h-6 text-[#00FF88]" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
               </svg>
             )}
           </div>
           <div>
-            <h1 class={`font-display font-bold text-2xl ${hasAnyIssue ? 'text-forge-warning' : 'text-forge-success'}`}>
+            <h1 class={`font-bold text-2xl ${hasAnyIssue ? 'text-[#FF7700]' : 'text-[#00FF88]'}`}>
               {hasAnyIssue ? 'Partial service disruption' : 'All systems operational'}
             </h1>
-            <p class="text-sm text-forge-text-3 mt-0.5">
+            <p class="text-sm text-[#F0F0F0]-3 mt-0.5">
               Last updated: {new Date().toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit', timeZone:'UTC' })} UTC
             </p>
           </div>
@@ -89,21 +89,21 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
       <!-- Uptime metrics strip -->
       <div class="card p-5 grid grid-cols-3 divide-x divide-forge-border text-center">
         {[
-          { label: '30-day uptime', value: '99.97%', color: 'text-forge-success' },
-          { label: 'Incidents (30d)', value: '2', color: 'text-forge-text' },
-          { label: 'Avg response time', value: '48 ms', color: 'text-forge-text' },
+          { label: '30-day uptime', value: '99.97%', color: 'text-[#00FF88]' },
+          { label: 'Incidents (30d)', value: '2', color: 'text-[#F0F0F0]' },
+          { label: 'Avg response time', value: '48 ms', color: 'text-[#F0F0F0]' },
         ].map(({ label, value, color }) => (
           <div class="px-4">
-            <div class={`font-display font-bold text-2xl ${color}`}>{value}</div>
-            <div class="text-xs text-forge-text-3 mt-1">{label}</div>
+            <div class={`font-bold text-2xl ${color}`}>{value}</div>
+            <div class="text-xs text-[#F0F0F0]-3 mt-1">{label}</div>
           </div>
         ))}
       </div>
 
       <!-- Service status list -->
       <div class="card overflow-hidden">
-        <div class="px-5 py-4 border-b border-forge-border">
-          <h2 class="font-display font-bold text-base text-forge-text">Services</h2>
+        <div class="px-5 py-4 border-b border-[#2C2C2C]">
+          <h2 class="font-bold text-base text-[#F0F0F0]">Services</h2>
         </div>
         <div class="divide-y divide-forge-border/50">
           {services.map((svc) => {
@@ -113,12 +113,12 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
                 <div class="flex items-center gap-3">
                   <div class={`w-2 h-2 rounded-full flex-shrink-0 ${s.dot}`}></div>
                   <div>
-                    <div class="text-sm font-medium text-forge-text">{svc.name}</div>
-                    <div class="text-xs text-forge-text-3">{svc.region}</div>
+                    <div class="text-sm font-medium text-[#F0F0F0]">{svc.name}</div>
+                    <div class="text-xs text-[#F0F0F0]-3">{svc.region}</div>
                   </div>
                 </div>
                 <div class="flex items-center gap-4">
-                  <span class="text-xs font-mono text-forge-text-3 hidden sm:inline">{svc.uptime}% uptime</span>
+                  <span class="text-xs font-mono text-[#F0F0F0]-3 hidden sm:inline">{svc.uptime}% uptime</span>
                   <span class={`badge text-2xs ${s.badge}`}>{s.label}</span>
                 </div>
               </div>
@@ -130,8 +130,8 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
       <!-- 90-day uptime bars -->
       <div class="card p-5">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="font-display font-bold text-base text-forge-text">90-day history</h2>
-          <div class="flex items-center gap-4 text-2xs text-forge-text-3">
+          <h2 class="font-bold text-base text-[#F0F0F0]">90-day history</h2>
+          <div class="flex items-center gap-4 text-2xs text-[#F0F0F0]-3">
             <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-forge-success"></div>Operational</div>
             <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-forge-warning"></div>Degraded</div>
             <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-sm bg-forge-danger"></div>Outage</div>
@@ -148,7 +148,7 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
             return <div class={`flex-1 h-8 rounded-sm ${color} opacity-80 hover:opacity-100 transition-opacity cursor-default`} title={`Day ${90-i}: ${color.includes('warning') ? 'Degraded' : color.includes('danger') ? 'Outage' : 'Operational'}`}></div>;
           })}
         </div>
-        <div class="flex justify-between mt-2 text-2xs text-forge-text-3 font-mono">
+        <div class="flex justify-between mt-2 text-2xs text-[#F0F0F0]-3 font-mono">
           <span>90 days ago</span>
           <span>Today</span>
         </div>
@@ -156,7 +156,7 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
 
       <!-- Active / recent incidents -->
       <div>
-        <h2 class="font-display font-bold text-xl text-forge-text mb-4">Incidents</h2>
+        <h2 class="font-bold text-xl text-[#F0F0F0] mb-4">Incidents</h2>
         <div class="space-y-4">
           {incidents.map((inc) => {
             const s = statusConfig[inc.status];
@@ -166,21 +166,21 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
                   <div>
                     <div class="flex items-center gap-2 flex-wrap mb-1">
                       <span class={`badge text-2xs ${s.badge}`}>{s.label}</span>
-                      <span class="text-xs text-forge-text-3 font-mono">{inc.id}</span>
+                      <span class="text-xs text-[#F0F0F0]-3 font-mono">{inc.id}</span>
                     </div>
-                    <h3 class="font-display font-bold text-base text-forge-text">{inc.title}</h3>
-                    <div class="text-xs text-forge-text-3 mt-1">
+                    <h3 class="font-bold text-base text-[#F0F0F0]">{inc.title}</h3>
+                    <div class="text-xs text-[#F0F0F0]-3 mt-1">
                       Started: {inc.startedAt}
                       {inc.resolvedAt && <> · Resolved: {inc.resolvedAt}</>}
                     </div>
                   </div>
                 </div>
 
-                <div class="space-y-3 border-l-2 border-forge-border pl-4 ml-2">
+                <div class="space-y-3 border-l-2 border-[#2C2C2C] pl-4 ml-2">
                   {inc.updates.map((u) => (
                     <div>
-                      <div class="text-2xs font-mono text-forge-text-3 mb-1">{u.time}</div>
-                      <p class="text-sm text-forge-text-2">{u.text}</p>
+                      <div class="text-2xs font-mono text-[#F0F0F0]-3 mb-1">{u.time}</div>
+                      <p class="text-sm text-[#F0F0F0]-2">{u.text}</p>
                     </div>
                   ))}
                 </div>
@@ -188,29 +188,29 @@ const hasAnyIssue = services.some(s => s.status !== 'operational');
             );
           })}
 
-          <div class="card p-5 text-center text-sm text-forge-text-3">
+          <div class="card p-5 text-center text-sm text-[#F0F0F0]-3">
             No major incidents in the last 90 days.
-            <a href="/status/history" class="text-forge-accent ml-1 hover:underline">View full incident history →</a>
+            <a href="/status/history" class="text-[#FFEE00] ml-1 hover:underline">View full incident history →</a>
           </div>
         </div>
       </div>
 
       <!-- Subscribe -->
       <div class="card p-6 text-center">
-        <h3 class="font-display font-bold text-lg text-forge-text mb-2">Stay informed</h3>
-        <p class="text-sm text-forge-text-2 mb-5">Get notified instantly when an incident affects your services.</p>
+        <h3 class="font-bold text-lg text-[#F0F0F0] mb-2">Stay informed</h3>
+        <p class="text-sm text-[#F0F0F0]-2 mb-5">Get notified instantly when an incident affects your services.</p>
         <div class="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
           <input type="email" placeholder="you@company.com" class="input flex-1"/>
           <button class="btn-primary btn-md flex-shrink-0">Subscribe</button>
         </div>
-        <div class="flex items-center justify-center gap-4 mt-4 text-xs text-forge-text-3">
-          <a href="/rss/status.xml" class="hover:text-forge-text transition-colors flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-forge-warning" fill="currentColor" viewBox="0 0 20 20">
+        <div class="flex items-center justify-center gap-4 mt-4 text-xs text-[#F0F0F0]-3">
+          <a href="/rss/status.xml" class="hover:text-[#F0F0F0] transition-colors flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-[#FF7700]" fill="currentColor" viewBox="0 0 20 20">
               <path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3zm.001 5.924a1 1 0 10-.002 2 5.076 5.076 0 015.077 5.077 1 1 0 102 0 7.077 7.077 0 00-7.075-7.077zM4 15a2 2 0 114 0 2 2 0 01-4 0z"/>
             </svg>
             RSS feed
           </a>
-          <a href="https://twitter.com/forgecistatus" class="hover:text-forge-text transition-colors">@forgecistatus</a>
+          <a href="https://twitter.com/forgecistatus" class="hover:text-[#F0F0F0] transition-colors">@forgecistatus</a>
         </div>
       </div>
 

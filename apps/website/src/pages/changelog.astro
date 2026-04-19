@@ -91,10 +91,10 @@ const releases = [
 ];
 
 const changeTypes: Record<string, { color: string; label: string }> = {
-  new:      { color: 'text-forge-success bg-forge-success-bg border-forge-success/20', label: 'New' },
-  improved: { color: 'text-forge-info bg-forge-info-bg border-forge-info/20', label: 'Improved' },
-  fixed:    { color: 'text-forge-warning bg-forge-warning-bg border-forge-warning/20', label: 'Fixed' },
-  breaking: { color: 'text-forge-danger bg-forge-danger-bg border-forge-danger/20', label: 'Breaking' },
+  new:      { color: 'text-[#00FF88]  border-[rgba(0,255,136,0.3)]', label: 'New' },
+  improved: { color: 'text-[#33AAFF]  border-[rgba(51,170,255,0.3)]', label: 'Improved' },
+  fixed:    { color: 'text-[#FF7700]  border-[rgba(255,119,0,0.3)]', label: 'Fixed' },
+  breaking: { color: 'text-[#FF3333]  border-[rgba(255,51,51,0.3)]', label: 'Breaking' },
 };
 
 const tagStyles: Record<string, string> = {
@@ -131,7 +131,7 @@ const tagStyles: Record<string, string> = {
           </div>
           <div class="flex gap-2">
             <a href="/rss/changelog.xml" class="btn-secondary btn-sm flex items-center gap-1.5">
-              <svg class="w-3.5 h-3.5 text-forge-warning" fill="currentColor" viewBox="0 0 20 20">
+              <svg class="w-3.5 h-3.5 text-[#FF7700]" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3zm.001 5.924a1 1 0 10-.002 2 5.076 5.076 0 015.077 5.077 1 1 0 102 0 7.077 7.077 0 00-7.075-7.077zM4 15a2 2 0 114 0 2 2 0 01-4 0z"/>
               </svg>
               RSS feed
@@ -148,9 +148,9 @@ const tagStyles: Record<string, string> = {
     <div class="container-forge">
       <div class="max-w-3xl space-y-12">
         {releases.map((release) => (
-          <article class="relative pl-8 border-l border-forge-border appear">
+          <article class="relative pl-8 border-l border-[#2C2C2C] appear">
             <!-- Timeline dot -->
-            <div class="absolute -left-2 top-1 w-4 h-4 rounded-full border-2 border-forge-border bg-forge-bg flex items-center justify-center">
+            <div class="absolute -left-2 top-1 w-4 h-4 rounded-full border-2 border-[#2C2C2C] bg-[#0A0A0A] flex items-center justify-center">
               <div class={`w-1.5 h-1.5 rounded-full ${
                 release.tagColor === 'accent' ? 'bg-forge-accent' :
                 release.tagColor === 'danger' ? 'bg-forge-danger' :
@@ -160,17 +160,17 @@ const tagStyles: Record<string, string> = {
 
             <div class="flex flex-wrap items-center gap-3 mb-4">
               <span class={tagStyles[release.tagColor]}>{release.tag}</span>
-              <span class="font-mono font-bold text-lg text-forge-text">v{release.version}</span>
-              <time class="text-sm text-forge-text-3" datetime={release.date}>
+              <span class="font-mono font-bold text-lg text-[#F0F0F0]">v{release.version}</span>
+              <time class="text-sm text-[#F0F0F0]-3" datetime={release.date}>
                 {new Date(release.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
               </time>
             </div>
 
-            <h2 class="font-display font-bold text-2xl text-forge-text mb-3">
+            <h2 class="font-bold text-2xl text-[#F0F0F0] mb-3">
               {release.title}
             </h2>
 
-            <p class="text-forge-text-2 mb-6 leading-relaxed">{release.summary}</p>
+            <p class="text-[#F0F0F0]-2 mb-6 leading-relaxed">{release.summary}</p>
 
             <ul class="space-y-2">
               {release.changes.map((change) => {
@@ -178,7 +178,7 @@ const tagStyles: Record<string, string> = {
                 return (
                   <li class="flex items-start gap-3">
                     <span class={`badge border ${style.color} flex-shrink-0 mt-0.5`}>{style.label}</span>
-                    <span class="text-sm text-forge-text-2">{change.text}</span>
+                    <span class="text-sm text-[#F0F0F0]-2">{change.text}</span>
                   </li>
                 );
               })}
@@ -187,7 +187,7 @@ const tagStyles: Record<string, string> = {
         ))}
 
         <!-- Older releases link -->
-        <div class="pl-8 border-l border-forge-border">
+        <div class="pl-8 border-l border-[#2C2C2C]">
           <a href="/changelog/archive" class="btn-ghost btn-md">View all older releases →</a>
         </div>
       </div>

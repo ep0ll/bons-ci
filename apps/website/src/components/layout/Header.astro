@@ -1,99 +1,78 @@
 ---
-export interface Props {
-  transparent?: boolean;
-}
+export interface Props { transparent?: boolean; }
 const { transparent = false } = Astro.props;
-
-const pathname = Astro.url.pathname;
+const path = Astro.url.pathname;
 
 const nav = [
-  {
-    label: 'Product',
-    children: [
-      { label: 'Features', href: '/features', icon: '⚡', description: 'Everything your CI/CD pipeline needs' },
-      { label: 'Pricing', href: '/pricing', icon: '💎', description: 'Simple, transparent plans' },
-      { label: 'Integrations', href: '/integrations', icon: '🔌', description: 'Works with your entire stack' },
-      { label: 'Security', href: '/security', icon: '🔒', description: 'SOC 2 Type II certified' },
-      { label: 'Changelog', href: '/changelog', icon: '📋', description: "What's new in Forge CI" },
-      { label: 'Roadmap', href: '/roadmap', icon: '🗺️', description: "See what's coming next" },
-    ],
-  },
-  {
-    label: 'Solutions',
-    children: [
-      { label: 'Enterprise', href: '/enterprise', icon: '🏢', description: 'SAML, SSO, audit logs & more' },
-      { label: 'Startups', href: '/startups', icon: '🚀', description: 'Free plan + startup credits' },
-      { label: 'Open Source', href: '/open-source', icon: '💚', description: 'Free for OSS projects' },
-      { label: 'BYOC', href: '/byoc', icon: '☁️', description: 'Bring your own cloud runners' },
-    ],
-  },
-  { label: 'Docs',     href: '/docs' },
-  { label: 'Blog',     href: '/blog' },
-  { label: 'Status',   href: '/status' },
+  { label:'Product', mega:[
+    {l:'Features',    href:'/features',     icon:'⚡',desc:'Speed, AI, security — everything'},
+    {l:'Pricing',     href:'/pricing',      icon:'◈', desc:'Transparent plans that scale'},
+    {l:'Sherlock AI', href:'/features#sherlock',icon:'◎',desc:'AI diagnoses build failures'},
+    {l:'Integrations',href:'/integrations', icon:'⬡', desc:'600+ services connected'},
+    {l:'Security',    href:'/security',     icon:'◆', desc:'SOC 2 · GDPR · HIPAA ready'},
+    {l:'Changelog',   href:'/changelog',    icon:'▤', desc:"What's new in Forge CI"},
+  ]},
+  { label:'Solutions', mega:[
+    {l:'Enterprise',  href:'/enterprise',   icon:'▣', desc:'SAML, SCIM, dedicated SLAs'},
+    {l:'Open Source', href:'/open-source',  icon:'◌', desc:'Free for OSS projects forever'},
+    {l:'BYOC',        href:'/byoc',         icon:'◉', desc:'Build in your own cloud'},
+    {l:'Startups',    href:'/startups',     icon:'◬', desc:'Free plan + $10k credits'},
+  ]},
+  { label:'Docs',      href:'/docs' },
+  { label:'Blog',      href:'/blog' },
+  { label:'Customers', href:'/customers' },
+  { label:'Status',    href:'/status' },
 ];
 ---
 
 <header
   id="site-header"
-  class={[
-    'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
-    transparent
-      ? 'bg-transparent'
-      : 'glass border-b border-forge-border/50',
-  ].join(' ')}
+  class:list={['fixed top-0 left-0 right-0 z-50 transition-all duration-200 border-b-2',
+    transparent ? 'bg-transparent border-transparent' : 'border-[#2C2C2C]']}
+  style={transparent ? '' : 'background:#0A0A0A'}
 >
   <div class="container-forge">
-    <div class="flex items-center justify-between h-16">
-
+    <div class="flex items-center h-16 gap-4">
       <!-- Logo -->
-      <a href="/" class="flex items-center gap-2.5 group flex-shrink-0">
-        <div class="relative">
-          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" class="transition-transform duration-300 group-hover:scale-105">
-            <rect width="32" height="32" rx="8" fill="#C8FF00"/>
-            <path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#07090E" stroke="none"/>
-            <circle cx="24" cy="8" r="2.5" fill="#07090E"/>
-          </svg>
-          <div class="absolute inset-0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-               style="box-shadow: 0 0 16px rgba(200,255,0,0.5);"></div>
-        </div>
-        <span class="font-display font-bold text-xl text-forge-text">
-          Forge<span class="text-forge-accent">CI</span>
+      <a href="/" class="flex items-center gap-2.5 flex-shrink-0 group" aria-label="Forge CI">
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="transition:transform 0.15s" class="group-hover:scale-105">
+          <rect width="32" height="32" fill="#FFEE00"/>
+          <path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#0A0A0A"/>
+          <circle cx="24" cy="8" r="2.5" fill="#0A0A0A"/>
+        </svg>
+        <span style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.1rem;color:#F0F0F0">
+          Forge<span style="color:#FFEE00">CI</span>
         </span>
       </a>
 
-      <!-- Desktop Nav -->
-      <nav class="hidden lg:flex items-center gap-1" role="navigation" aria-label="Main navigation">
-        {nav.map((item) => (
-          item.children ? (
+      <!-- Desktop nav -->
+      <nav class="hidden lg:flex items-center gap-0 flex-1" aria-label="Main">
+        {nav.map(item => (
+          item.mega ? (
             <div class="relative group">
-              <button
-                class="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium text-forge-text-2 hover:text-forge-text hover:bg-forge-surface transition-all duration-150"
-                aria-expanded="false"
-                aria-haspopup="true"
-              >
+              <button class="flex items-center gap-1 px-3 py-2 text-sm font-medium transition-all duration-100 border border-transparent" style="color:#AAAAAA;background:transparent"
+                      onmouseover="this.style.color='#FFEE00';this.style.borderColor='#2C2C2C'"
+                      onmouseout="this.style.color='#AAAAAA';this.style.borderColor='transparent'"
+                      aria-haspopup="true">
                 {item.label}
-                <svg class="w-3.5 h-3.5 transition-transform duration-200 group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                <svg class="w-3 h-3 transition-transform duration-150 group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="square" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
                 </svg>
               </button>
-
-              <!-- Mega dropdown -->
-              <div class="absolute top-full left-1/2 -translate-x-1/2 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 translate-y-1 group-hover:translate-y-0">
-                <div class="glass border border-forge-border rounded-xl shadow-modal p-2 min-w-[340px]">
-                  <div class="grid grid-cols-2 gap-1">
-                    {item.children.map((child) => (
-                      <a
-                        href={child.href}
-                        class="flex items-start gap-3 p-3 rounded-lg hover:bg-forge-surface2 transition-colors duration-150 group/item"
-                      >
-                        <span class="text-base mt-0.5 flex-shrink-0" aria-hidden="true">{child.icon}</span>
+              <!-- Flyout -->
+              <div class="absolute top-full left-0 mt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none group-hover:pointer-events-auto"
+                   style="z-index:100">
+                <div class="border-2 border-[#FFEE00] bg-[#0A0A0A] p-2 w-96" style="box-shadow:4px 4px 0 rgba(255,238,0,0.2)">
+                  <div class="grid grid-cols-2 gap-0.5">
+                    {item.mega.map(sub => (
+                      <a href={sub.href} class="flex items-start gap-3 p-3 border border-transparent transition-all duration-100 group/sub"
+                         style="color:#F0F0F0"
+                         onmouseover="this.style.background='#1A1A1A';this.style.borderColor='#3C3C3C'"
+                         onmouseout="this.style.background='transparent';this.style.borderColor='transparent'">
+                        <span class="text-lg flex-shrink-0" style="color:#FFEE00">{sub.icon}</span>
                         <div>
-                          <div class="text-sm font-medium text-forge-text group-hover/item:text-forge-accent transition-colors">
-                            {child.label}
-                          </div>
-                          <div class="text-xs text-forge-text-3 mt-0.5 leading-snug">
-                            {child.description}
-                          </div>
+                          <div class="text-sm font-semibold" style="font-family:'Space Grotesk',sans-serif">{sub.l}</div>
+                          <div class="text-xs mt-0.5" style="color:#666666">{sub.desc}</div>
                         </div>
                       </a>
                     ))}
@@ -102,15 +81,10 @@ const nav = [
               </div>
             </div>
           ) : (
-            <a
-              href={item.href}
-              class={[
-                'px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150',
-                pathname === item.href
-                  ? 'text-forge-accent bg-forge-accent-muted'
-                  : 'text-forge-text-2 hover:text-forge-text hover:bg-forge-surface',
-              ].join(' ')}
-            >
+            <a href={item.href}
+               class:list={['px-3 py-2 text-sm font-medium transition-all duration-100 border border-transparent',
+                 path === item.href ? 'text-[#FFEE00] border-b-2 border-[#FFEE00]' : 'text-[#AAAAAA]']}
+               style={path === item.href ? 'border-bottom-color:#FFEE00' : ''}>
               {item.label}
             </a>
           )
@@ -118,128 +92,97 @@ const nav = [
       </nav>
 
       <!-- Right CTA -->
-      <div class="hidden lg:flex items-center gap-3">
+      <div class="hidden lg:flex items-center gap-3 flex-shrink-0">
         <!-- Status indicator -->
-        <a
-          href="/status"
-          class="flex items-center gap-1.5 text-xs text-forge-success hover:text-forge-success/80 transition-colors"
-          title="All systems operational"
-        >
-          <span class="w-1.5 h-1.5 rounded-full bg-forge-success animate-pulse"></span>
-          <span class="hidden xl:inline">All systems operational</span>
+        <a href="/status" class="flex items-center gap-1.5 text-xs font-mono" style="color:#00FF88">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse"></span>
+          <span class="hidden xl:inline">Operational</span>
         </a>
-
-        <div class="w-px h-4 bg-forge-border"></div>
-
-        <a href="/auth/login" class="text-sm font-medium text-forge-text-2 hover:text-forge-text transition-colors px-3 py-2">
+        <div class="w-px h-4" style="background:#2C2C2C"></div>
+        <a href="/auth/login" class="text-sm font-semibold px-3 py-1.5 border border-transparent transition-all"
+           style="color:#AAAAAA"
+           onmouseover="this.style.color='#FFEE00';this.style.borderColor='#3C3C3C'"
+           onmouseout="this.style.color='#AAAAAA';this.style.borderColor='transparent'">
           Sign in
         </a>
-        <a
-          href="/auth/signup"
-          class="btn-primary btn-md"
-        >
-          Start for free
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+        <a href="/auth/signup" class="btn-primary btn-sm">
+          Start free
+          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="square" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
           </svg>
         </a>
       </div>
 
-      <!-- Mobile hamburger -->
-      <button
-        id="mobile-menu-btn"
-        class="lg:hidden p-2 rounded-lg text-forge-text-2 hover:text-forge-text hover:bg-forge-surface transition-colors"
-        aria-label="Toggle menu"
-        aria-expanded="false"
-      >
-        <svg id="hamburger-icon" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+      <!-- Mobile toggle -->
+      <button id="mobile-toggle" class="lg:hidden ml-auto p-2 border transition-all"
+              style="border-color:#2C2C2C;background:#111111;color:#AAAAAA"
+              aria-label="Menu" aria-expanded="false">
+        <svg id="ico-open" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="square" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
-        <svg id="close-icon" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        <svg id="ico-close" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="square" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
         </svg>
       </button>
     </div>
   </div>
 
   <!-- Mobile menu -->
-  <div
-    id="mobile-menu"
-    class="lg:hidden hidden border-t border-forge-border glass"
-    aria-hidden="true"
-  >
-    <div class="container-forge py-4 space-y-1">
-      {nav.map((item) => (
-        item.children ? (
+  <div id="mobile-menu" class="lg:hidden hidden border-t-2" style="background:#0A0A0A;border-color:#2C2C2C">
+    <div class="container-forge py-4 space-y-0.5">
+      {nav.map(item => (
+        item.mega ? (
           <div>
-            <p class="px-3 py-2 text-2xs font-mono font-medium uppercase tracking-widest text-forge-text-3">
-              {item.label}
-            </p>
-            {item.children.map((child) => (
-              <a
-                href={child.href}
-                class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-forge-text-2 hover:text-forge-text hover:bg-forge-surface2 transition-colors"
-              >
-                <span class="text-base" aria-hidden="true">{child.icon}</span>
-                {child.label}
+            <p class="px-3 py-1.5 text-xs font-mono uppercase tracking-widest" style="color:#3C3C3C">{item.label}</p>
+            {item.mega.map(sub => (
+              <a href={sub.href} class="flex items-center gap-2 px-4 py-2 text-sm transition-all border border-transparent"
+                 style="color:#AAAAAA"
+                 onmouseover="this.style.color='#FFEE00';this.style.borderColor='#3C3C3C';this.style.background='#1A1A1A'"
+                 onmouseout="this.style.color='#AAAAAA';this.style.borderColor='transparent';this.style.background='transparent'">
+                <span style="color:#FFEE00">{sub.icon}</span>{sub.l}
               </a>
             ))}
           </div>
         ) : (
-          <a
-            href={item.href}
-            class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium text-forge-text-2 hover:text-forge-text hover:bg-forge-surface2 transition-colors"
-          >
+          <a href={item.href} class="flex px-3 py-2.5 text-sm font-medium border border-transparent transition-all"
+             style="color:#AAAAAA"
+             onmouseover="this.style.color='#F0F0F0'"
+             onmouseout="this.style.color='#AAAAAA'">
             {item.label}
           </a>
         )
       ))}
-
-      <div class="pt-3 pb-2 border-t border-forge-border flex flex-col gap-2">
-        <a href="/auth/login" class="btn-secondary btn-md w-full justify-center">Sign in</a>
-        <a href="/auth/signup" class="btn-primary btn-md w-full justify-center">Start for free →</a>
+      <div class="pt-4 border-t-2 flex flex-col gap-2" style="border-color:#2C2C2C">
+        <a href="/auth/login"  class="btn-secondary btn-md w-full justify-center">Sign in</a>
+        <a href="/auth/signup" class="btn-primary  btn-md w-full justify-center">Start free →</a>
       </div>
     </div>
   </div>
 </header>
 
-<!-- Header scroll effect -->
 <script>
-  const header = document.getElementById('site-header');
-  const mobileBtn = document.getElementById('mobile-menu-btn');
-  const mobileMenu = document.getElementById('mobile-menu');
-  const hamburgerIcon = document.getElementById('hamburger-icon');
-  const closeIcon = document.getElementById('close-icon');
+  const header = document.getElementById('site-header')!;
+  const btn    = document.getElementById('mobile-toggle')!;
+  const menu   = document.getElementById('mobile-menu')!;
+  const icoOpen  = document.getElementById('ico-open')!;
+  const icoClose = document.getElementById('ico-close')!;
+  let open = false;
 
-  // Scroll effect
   window.addEventListener('scroll', () => {
     if (window.scrollY > 20) {
-      header?.classList.add('glass', 'border-b', 'border-forge-border/50');
-      header?.classList.remove('bg-transparent');
-    } else if (header?.getAttribute('data-transparent') === 'true') {
-      header?.classList.remove('glass', 'border-b', 'border-forge-border/50');
-      header?.classList.add('bg-transparent');
+      header.style.background = '#0A0A0A';
+      header.style.borderBottomColor = '#2C2C2C';
+    } else if (header.classList.contains('border-transparent')) {
+      header.style.background = 'transparent';
+      header.style.borderBottomColor = 'transparent';
     }
   }, { passive: true });
 
-  // Mobile menu toggle
-  let isOpen = false;
-  mobileBtn?.addEventListener('click', () => {
-    isOpen = !isOpen;
-    mobileMenu?.classList.toggle('hidden', !isOpen);
-    mobileBtn.setAttribute('aria-expanded', String(isOpen));
-    mobileMenu?.setAttribute('aria-hidden', String(!isOpen));
-    hamburgerIcon?.classList.toggle('hidden', isOpen);
-    closeIcon?.classList.toggle('hidden', !isOpen);
-  });
-
-  // Close on resize
-  window.addEventListener('resize', () => {
-    if (window.innerWidth >= 1024 && isOpen) {
-      isOpen = false;
-      mobileMenu?.classList.add('hidden');
-      hamburgerIcon?.classList.remove('hidden');
-      closeIcon?.classList.add('hidden');
-    }
+  btn.addEventListener('click', () => {
+    open = !open;
+    menu.classList.toggle('hidden', !open);
+    btn.setAttribute('aria-expanded', String(open));
+    icoOpen.classList.toggle('hidden', open);
+    icoClose.classList.toggle('hidden', !open);
   });
 </script>

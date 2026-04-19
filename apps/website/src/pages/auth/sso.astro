@@ -1,364 +1,167 @@
 ---
-import BaseLayout from '../../layouts/BaseLayout.astro';
+import AuthLayout from '../../layouts/AuthLayout.astro';
+import { FORGE_CI_SAML_ENDPOINTS, SSO_PROVIDER_GUIDES } from '../../lib/auth.ts';
+const endpoints = FORGE_CI_SAML_ENDPOINTS;
+const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
 ---
+<AuthLayout title="Configure SSO — Forge CI">
+<div class="max-w-md w-full">
+  <div class="mb-6">
+    <a href="/auth/login" class="inline-flex items-center gap-2 text-sm font-mono mb-6 transition-colors" style="color:#666666" onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#666666'">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      Back to sign in
+    </a>
+    <h1 style="font-family:'Space Grotesk';font-weight:700;font-size:1.75rem;letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0" class="mb-1">Configure SSO</h1>
+    <p class="text-sm" style="color:#AAAAAA">Set up SAML 2.0 via Ory Kratos for your organization.</p>
+  </div>
 
-<BaseLayout title="Configure SSO — Forge CI" noindex={true}>
-  <div class="min-h-screen bg-forge-bg">
+  <!-- Provider selector -->
+  <div class="mb-5">
+    <label class="input-label">Identity provider</label>
+    <select id="provider-select" class="input" onchange="updateGuide(this.value)">
+      <option value="okta">Okta</option>
+      <option value="azure-ad">Azure AD / Entra ID</option>
+      <option value="google-workspace">Google Workspace</option>
+      <option value="onelogin">OneLogin</option>
+      <option value="pingidentity">PingIdentity</option>
+      <option value="custom">Custom SAML IdP</option>
+    </select>
+  </div>
 
-    <!-- Header -->
-    <header class="border-b border-forge-border glass sticky top-0 z-50">
-      <div class="container-forge h-14 flex items-center gap-4">
-        <a href="/" class="flex items-center gap-2">
-          <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="8" fill="#C8FF00"/>
-            <path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#07090E"/>
-            <circle cx="24" cy="8" r="2.5" fill="#07090E"/>
-          </svg>
-          <span class="font-display font-bold text-base text-forge-text">ForgeCI</span>
-        </a>
-        <div class="w-px h-4 bg-forge-border"></div>
-        <span class="text-sm text-forge-text-2">SSO Configuration</span>
-        <div class="ml-auto">
-          <a href="/dashboard/settings/security" class="btn-ghost btn-sm text-forge-text-3">
-            ← Back to security settings
-          </a>
-        </div>
-      </div>
-    </header>
+  <!-- Setup guide (Ory-powered) -->
+  <div class="card p-4 mb-5" style="border-color:rgba(0,238,255,0.3);background:rgba(0,238,255,0.04)">
+    <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#00EEFF">◎ Setup guide — <span id="provider-name-label">Okta</span></div>
+    <ol class="space-y-2" id="guide-steps">
+      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">1.</span>In Okta Admin → Applications → Create App Integration</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">2.</span>Select SAML 2.0 as sign-on method</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">3.</span>Copy the Forge CI ACS URL and Entity ID below into Okta</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">4.</span>Download the Okta metadata XML and paste below</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">5.</span>Assign users/groups in Okta → your app → Assignments</li>
+    </ol>
+  </div>
 
-    <div class="container-forge py-10 max-w-4xl">
-
-      <div class="mb-8">
-        <h1 class="font-display font-bold text-3xl text-forge-text">Configure SAML 2.0 SSO</h1>
-        <p class="text-forge-text-2 mt-2">
-          Enable single sign-on for your organization. Members will sign in through your identity provider.
-        </p>
-      </div>
-
-      <div class="grid lg:grid-cols-[2fr_1fr] gap-8">
-
-        <!-- Main form -->
-        <div class="space-y-6">
-
-          <!-- IdP selection -->
-          <div class="card p-6">
-            <h2 class="font-display font-bold text-lg text-forge-text mb-4">Identity Provider</h2>
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4" id="idp-grid">
-              {[
-                { id: 'okta', name: 'Okta', icon: 'OK' },
-                { id: 'azure', name: 'Azure AD', icon: 'AZ' },
-                { id: 'google', name: 'Google', icon: 'GW' },
-                { id: 'custom', name: 'Custom SAML', icon: '⚙' },
-              ].map(({ id, name, icon }) => (
-                <button
-                  type="button"
-                  class={`idp-card flex flex-col items-center gap-2 p-3 rounded-lg border transition-all duration-150 ${
-                    id === 'okta'
-                      ? 'border-forge-accent/40 bg-forge-accent-muted/20 text-forge-accent'
-                      : 'border-forge-border text-forge-text-2 hover:border-forge-border-2 hover:text-forge-text'
-                  }`}
-                  data-idp={id}
-                  onclick="selectIdP(this)"
-                >
-                  <div class="w-9 h-9 rounded-lg bg-forge-surface3 border border-forge-border flex items-center justify-center text-sm font-mono font-bold">
-                    {icon}
-                  </div>
-                  <span class="text-xs font-medium">{name}</span>
-                </button>
-              ))}
-            </div>
-
-            <!-- Quick setup guide per IdP -->
-            <div class="p-4 rounded-lg bg-forge-info-bg border border-forge-info/20 text-sm" id="idp-guide">
-              <p class="text-forge-info font-medium mb-2 text-xs font-mono uppercase tracking-wider">Okta Setup Guide</p>
-              <ol class="space-y-1.5 text-forge-text-2 text-xs leading-relaxed list-none">
-                <li>1. In Okta Admin, go to <strong class="text-forge-text">Applications → Create App Integration</strong></li>
-                <li>2. Select <strong class="text-forge-text">SAML 2.0</strong> as the sign-on method</li>
-                <li>3. Paste the Forge CI <strong class="text-forge-text">ACS URL</strong> and <strong class="text-forge-text">Entity ID</strong> below into Okta's Single Sign-On URL and Audience URI fields</li>
-                <li>4. Download the Okta metadata XML and upload it below, or manually enter the SSO URL and certificate</li>
-              </ol>
-            </div>
-          </div>
-
-          <!-- Forge CI SAML endpoints (read-only, copy) -->
-          <div class="card p-6">
-            <h2 class="font-display font-bold text-lg text-forge-text mb-1">Forge CI Service Provider Details</h2>
-            <p class="text-xs text-forge-text-3 mb-4">Copy these values into your identity provider's SAML application configuration.</p>
-
-            <div class="space-y-3">
-              {[
-                { label: 'ACS URL (Assertion Consumer Service)', value: 'https://forge-ci.dev/api/auth/saml/callback' },
-                { label: 'Entity ID (Audience URI)', value: 'https://forge-ci.dev/saml/metadata' },
-                { label: 'SP Metadata URL', value: 'https://forge-ci.dev/saml/metadata.xml' },
-                { label: 'Name ID Format', value: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress' },
-              ].map(({ label, value }) => (
-                <div>
-                  <div class="text-xs text-forge-text-3 mb-1">{label}</div>
-                  <div class="flex items-center gap-2">
-                    <code class="flex-1 text-xs font-mono bg-forge-surface2 border border-forge-border rounded-md px-3 py-2 text-forge-text-2 truncate">
-                      {value}
-                    </code>
-                    <button
-                      type="button"
-                      onclick={`navigator.clipboard.writeText('${value}'); this.textContent='Copied!'; setTimeout(() => this.textContent='Copy', 1500);`}
-                      class="btn-ghost btn-sm text-xs flex-shrink-0 text-forge-text-3"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <!-- IdP configuration -->
-          <div class="card p-6">
-            <h2 class="font-display font-bold text-lg text-forge-text mb-4">Identity Provider Configuration</h2>
-
-            <!-- Metadata upload -->
-            <div class="mb-6">
-              <label class="input-label">Upload IdP Metadata XML <span class="text-forge-text-3 font-normal">(recommended)</span></label>
-              <div
-                id="dropzone"
-                class="border-2 border-dashed border-forge-border rounded-xl p-8 text-center hover:border-forge-accent/40 hover:bg-forge-accent-muted/10 transition-all duration-200 cursor-pointer"
-                onclick="document.getElementById('meta-file').click()"
-                ondragover="event.preventDefault(); this.classList.add('border-forge-accent/40', 'bg-forge-accent-muted/10')"
-                ondragleave="this.classList.remove('border-forge-accent/40', 'bg-forge-accent-muted/10')"
-              >
-                <svg class="w-8 h-8 text-forge-text-3 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                </svg>
-                <p class="text-sm text-forge-text-2 mb-1">Drop your metadata XML here</p>
-                <p class="text-xs text-forge-text-3">or <span class="text-forge-accent">click to browse</span></p>
-                <input type="file" id="meta-file" class="hidden" accept=".xml" />
-              </div>
-            </div>
-
-            <div class="relative mb-6">
-              <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-forge-border"></div></div>
-              <div class="relative flex justify-center text-xs"><span class="bg-forge-surface px-3 text-forge-text-3">or configure manually</span></div>
-            </div>
-
-            <div class="space-y-4">
-              <div>
-                <label class="input-label" for="sso-url">SSO URL (IdP Single Sign-On URL)</label>
-                <input type="url" id="sso-url" class="input" placeholder="https://your-idp.okta.com/app/xxx/sso/saml" />
-              </div>
-
-              <div>
-                <label class="input-label" for="idp-entity">IdP Entity ID</label>
-                <input type="text" id="idp-entity" class="input" placeholder="http://www.okta.com/exk..." />
-              </div>
-
-              <div>
-                <label class="input-label" for="cert">X.509 Certificate</label>
-                <textarea
-                  id="cert"
-                  rows={5}
-                  class="input font-mono text-xs resize-none"
-                  placeholder="-----BEGIN CERTIFICATE-----&#10;MIIDBjCCAe4CCQC...&#10;-----END CERTIFICATE-----"
-                ></textarea>
-              </div>
-            </div>
-          </div>
-
-          <!-- Attribute mapping -->
-          <div class="card p-6">
-            <h2 class="font-display font-bold text-lg text-forge-text mb-1">Attribute Mapping</h2>
-            <p class="text-xs text-forge-text-3 mb-4">Map SAML attributes from your IdP to Forge CI user fields.</p>
-
-            <div class="space-y-3">
-              {[
-                { forge: 'Email', required: true,  placeholder: 'email / NameID / mail' },
-                { forge: 'First Name', required: false, placeholder: 'firstName / givenName' },
-                { forge: 'Last Name',  required: false, placeholder: 'lastName / sn' },
-                { forge: 'Role',       required: false, placeholder: 'role / groups' },
-              ].map(({ forge, required, placeholder }) => (
-                <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                  <div class="text-sm font-medium text-forge-text">
-                    {forge}
-                    {required && <span class="text-forge-danger ml-1 text-xs">*</span>}
-                  </div>
-                  <svg class="w-4 h-4 text-forge-text-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                  </svg>
-                  <input type="text" class="input !py-2" placeholder={placeholder} />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <!-- SCIM provisioning -->
-          <div class="card p-6">
-            <div class="flex items-start justify-between mb-4">
-              <div>
-                <h2 class="font-display font-bold text-lg text-forge-text">SCIM Provisioning</h2>
-                <p class="text-xs text-forge-text-3 mt-0.5">Auto-provision and deprovision users from your IdP.</p>
-              </div>
-              <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="scim-toggle" class="sr-only peer" />
-                <div class="w-10 h-5 bg-forge-surface2 border border-forge-border rounded-full peer
-                            peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted
-                            after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-                            after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all
-                            peer-checked:after:translate-x-5 peer-checked:after:bg-forge-accent relative">
-                </div>
-              </label>
-            </div>
-
-            <div id="scim-config" class="hidden space-y-3">
-              <div>
-                <label class="input-label">SCIM Endpoint URL</label>
-                <div class="flex items-center gap-2">
-                  <code class="flex-1 text-xs font-mono bg-forge-surface2 border border-forge-border rounded-md px-3 py-2 text-forge-text-2">
-                    https://forge-ci.dev/api/scim/v2/acme-corp
-                  </code>
-                  <button class="btn-ghost btn-sm text-xs flex-shrink-0">Copy</button>
-                </div>
-              </div>
-              <div>
-                <label class="input-label">SCIM Bearer Token</label>
-                <div class="flex items-center gap-2">
-                  <code class="flex-1 text-xs font-mono bg-forge-surface2 border border-forge-border rounded-md px-3 py-2 text-forge-text-2">
-                    scim_••••••••••••••••••••••••
-                  </code>
-                  <button class="btn-ghost btn-sm text-xs flex-shrink-0">Reveal</button>
-                  <button class="btn-ghost btn-sm text-xs flex-shrink-0 text-forge-danger">Rotate</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Actions -->
-          <div class="flex flex-col sm:flex-row gap-3">
-            <button type="button" onclick="testConnection()" class="btn-secondary btn-md flex-1 justify-center" id="test-btn">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-              </svg>
-              Test connection
-            </button>
-            <button type="button" class="btn-primary btn-md flex-1 justify-center" id="save-btn">
-              Save & enable SSO
+  <!-- Forge CI endpoints -->
+  <div class="card p-4 mb-5">
+    <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#FFEE00">◆ Forge CI SAML endpoints — copy to your IdP</div>
+    <div class="space-y-3">
+      {[
+        {label:'ACS URL (Assertion Consumer Service)', key:'acsUrl'},
+        {label:'Entity ID (Audience URI)',             key:'entityId'},
+        {label:'SAML Metadata URL',                   key:'metadataUrl'},
+        {label:'SLO URL (Single Logout)',              key:'sloUrl'},
+      ].map(e => (
+        <div>
+          <div class="text-xs font-mono mb-1" style="color:#666666">{e.label}</div>
+          <div class="flex items-center gap-0 border-2" style="border-color:#2C2C2C">
+            <code class="text-xs font-mono flex-1 px-3 py-2 truncate" style="color:#AAAAAA">
+              {(endpoints as Record<string,string>)[e.key] ?? '—'}
+            </code>
+            <button onclick={`navigator.clipboard.writeText(${JSON.stringify((endpoints as Record<string,string>)[e.key]??'')})`}
+                    class="btn-secondary btn-sm flex-shrink-0 text-xs font-mono" style="border-radius:0;border-top:none;border-right:none;border-bottom:none">
+              copy
             </button>
           </div>
-
-          <!-- Test result -->
-          <div id="test-result" class="hidden rounded-lg p-4 text-sm"></div>
         </div>
-
-        <!-- Sidebar: help & status -->
-        <div class="space-y-4">
-          <div class="card p-5">
-            <h3 class="font-medium text-forge-text mb-3 text-sm">SSO Status</h3>
-            <div class="space-y-2">
-              {[
-                { label: 'Configuration', status: 'incomplete' },
-                { label: 'Connection test', status: 'pending' },
-                { label: 'SSO enabled', status: 'disabled' },
-              ].map(({ label, status }) => (
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-forge-text-2">{label}</span>
-                  <span class={
-                    status === 'complete'    ? 'text-forge-success' :
-                    status === 'incomplete'  ? 'text-forge-warning' :
-                    status === 'disabled'    ? 'text-forge-text-3' : 'text-forge-text-3'
-                  }>{status}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div class="card p-5">
-            <h3 class="font-medium text-forge-text mb-3 text-sm">Security options</h3>
-            <div class="space-y-3">
-              {[
-                { label: 'Enforce SSO for all members', id: 'enforce-sso' },
-                { label: 'Disable password login', id: 'disable-pw' },
-                { label: 'Require MFA via SSO', id: 'require-mfa' },
-                { label: 'Bypass SSO for owners', id: 'bypass-owners' },
-              ].map(({ label, id }) => (
-                <label class="flex items-center gap-3 cursor-pointer">
-                  <div class="relative w-9 h-5 flex-shrink-0">
-                    <input type="checkbox" id={id} class="sr-only peer" />
-                    <div class="w-full h-full bg-forge-surface2 border border-forge-border rounded-full peer
-                                peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted
-                                after:content-[''] after:absolute after:top-[2px] after:left-[2px]
-                                after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all
-                                peer-checked:after:translate-x-4 peer-checked:after:bg-forge-accent">
-                    </div>
-                  </div>
-                  <span class="text-xs text-forge-text-2">{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div class="card p-5">
-            <h3 class="font-medium text-forge-text mb-2 text-sm">Need help?</h3>
-            <div class="space-y-2">
-              <a href="/docs/sso/okta" class="flex items-center gap-2 text-xs text-forge-text-2 hover:text-forge-accent transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                Okta SAML setup guide
-              </a>
-              <a href="/docs/sso/azure" class="flex items-center gap-2 text-xs text-forge-text-2 hover:text-forge-accent transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                Azure AD setup guide
-              </a>
-              <a href="/contact/support" class="flex items-center gap-2 text-xs text-forge-text-2 hover:text-forge-accent transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                </svg>
-                Contact Enterprise support
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
+      ))}
     </div>
   </div>
-</BaseLayout>
+
+  <!-- IdP metadata input -->
+  <div class="space-y-4">
+    <div>
+      <label class="input-label">IdP Metadata URL</label>
+      <input type="url" id="metadata-url" class="input input-mono" placeholder="https://your-idp.com/saml/metadata" autocomplete="off"/>
+      <p class="text-xs font-mono mt-1.5" style="color:#666666">We'll fetch and parse automatically from a URL.</p>
+    </div>
+
+    <div class="relative">
+      <div class="absolute inset-0 flex items-center"><div class="w-full border-t" style="border-color:#2C2C2C"></div></div>
+      <div class="relative flex justify-center"><span class="px-3 text-xs font-mono" style="background:#0A0A0A;color:#666666">OR PASTE XML</span></div>
+    </div>
+
+    <div>
+      <label class="input-label">IdP Metadata XML</label>
+      <textarea rows={4} class="input input-mono resize-none text-xs" placeholder={'<?xml version="1.0"?>\n<md:EntityDescriptor …'}></textarea>
+    </div>
+
+    <!-- Attribute mapping -->
+    <div class="card p-4">
+      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#FFEE00">◈ Attribute mapping</div>
+      <div class="space-y-2">
+        {[
+          {l:'Email (required)',      v:'email',                 ph:'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'},
+          {l:'First name',           v:'firstName',             ph:'givenName'},
+          {l:'Last name',            v:'lastName',              ph:'sn'},
+          {l:'Groups / Roles',       v:'groups',                ph:'memberOf'},
+        ].map(a => (
+          <div class="grid grid-cols-[120px_1fr] gap-2 items-center">
+            <label class="text-xs font-mono" style="color:#666666">{a.l}</label>
+            <input type="text" class="input input-mono text-xs" value={a.v} placeholder={a.ph}/>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Enforcement options -->
+    <div class="space-y-3">
+      {[
+        {l:'Enforce SSO for all members',         d:'Disable password login. All members must use SSO.',          on:false},
+        {l:'Auto-provision new members (SCIM)',    d:'Users assigned in your IdP automatically get Forge CI access.',on:false},
+        {l:'Auto-deprovision on removal',          d:'Deassigning in IdP immediately revokes Forge CI access.',    on:false},
+        {l:'Sync group roles',                    d:'Map IdP groups to Forge CI roles (admin, member, viewer).',  on:false},
+      ].map(s => (
+        <label class="flex items-center gap-3 cursor-pointer">
+          <div class="toggle-switch flex-shrink-0" onclick="this.classList.toggle('on')">
+            <div class="toggle-thumb"></div>
+          </div>
+          <div>
+            <div class="text-sm font-semibold" style="color:#F0F0F0">{s.l}</div>
+            <div class="text-xs" style="color:#666666">{s.d}</div>
+          </div>
+        </label>
+      ))}
+    </div>
+
+    <button id="test-btn" class="btn-secondary btn-md w-full justify-center">
+      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="square" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Test SAML connection
+    </button>
+    <button class="btn-primary btn-md w-full justify-center">Save & enable SSO</button>
+  </div>
+
+  <!-- Test result -->
+  <div id="test-result" class="hidden mt-4 card p-4 card-green">
+    <div class="text-xs font-mono font-bold uppercase" style="color:#00FF88">✓ Connection verified</div>
+    <p class="text-xs mt-1" style="color:#AAAAAA">Successfully received SAML response. SSO is ready to enable.</p>
+  </div>
+</div>
+</AuthLayout>
 
 <script>
-  function selectIdP(btn: HTMLButtonElement) {
-    document.querySelectorAll('.idp-card').forEach(b => {
-      b.className = 'idp-card flex flex-col items-center gap-2 p-3 rounded-lg border transition-all duration-150 border-forge-border text-forge-text-2 hover:border-forge-border-2 hover:text-forge-text';
-    });
-    btn.className = 'idp-card flex flex-col items-center gap-2 p-3 rounded-lg border transition-all duration-150 border-forge-accent/40 bg-forge-accent-muted/20 text-forge-accent';
+  const guides: Record<string, {name: string; steps: string[]}> = {
+    okta:              {name:'Okta',                   steps:['In Okta Admin → Applications → Create App Integration','Select SAML 2.0 as sign-on method','Paste the Forge CI ACS URL and Entity ID into Okta','Download metadata XML and paste below','Assign users/groups → Assignments tab']},
+    'azure-ad':        {name:'Azure AD / Entra ID',    steps:['Azure AD → Enterprise Applications → New application → Custom','Set up single sign-on → SAML','Paste Identifier (Entity ID) and Reply URL (ACS URL) from below','Download Federation Metadata XML','Map user.mail → emailAddress claim']},
+    'google-workspace':{name:'Google Workspace',       steps:['Google Admin → Apps → Web and mobile apps → Add SAML app','Copy Forge CI ACS URL and Entity ID into Google','Download Google IdP metadata','Map Primary email → NameID (email format)','Assign to org units or groups']},
+    onelogin:          {name:'OneLogin',                steps:['OneLogin Admin → Applications → Add App → search "SAML Custom"','Configure SSO → paste ACS URL and Entity ID from below','Download OneLogin SAML metadata XML','Map attributes: email, first_name, last_name']},
+    pingidentity:      {name:'PingIdentity',            steps:['PingFederate/PingOne → Applications → Add','Select SAML 2.0 → SP-initiated','Enter ACS URL and Entity ID from below','Export IdP metadata and paste below','Configure attribute contracts (email required)']},
+    custom:            {name:'Custom SAML IdP',         steps:['Get your IdP\'s metadata XML or SSO URL','Configure: ACS URL (Reply URL) from below','Configure: Entity ID (Audience URI) from below','Map email attribute to NameID','Test the SAML assertion before enforcing']},
+  };
+
+  function updateGuide(val: string) {
+    const g = guides[val];
+    if (!g) return;
+    document.getElementById('provider-name-label')!.textContent = g.name;
+    document.getElementById('guide-steps')!.innerHTML = g.steps
+      .map((s, i) => `<li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">${i+1}.</span>${s}</li>`)
+      .join('');
   }
+  (window as any).updateGuide = updateGuide;
 
-  async function testConnection() {
-    const btn = document.getElementById('test-btn')!;
-    const result = document.getElementById('test-result')!;
-    btn.textContent = 'Testing…';
-    btn.setAttribute('disabled', 'true');
-    result.classList.add('hidden');
-
-    await new Promise(r => setTimeout(r, 2000));
-
-    result.classList.remove('hidden');
-    result.className = 'rounded-lg p-4 text-sm bg-forge-success-bg border border-forge-success/30 text-forge-success';
-    result.innerHTML = `
-      <div class="font-medium mb-1">✓ Connection successful</div>
-      <div class="text-forge-text-2 text-xs space-y-1">
-        <div>IdP responded in 312ms</div>
-        <div>Certificate valid until 2026-08-01</div>
-        <div>Test user attribute mapping: email ✓, name ✓</div>
-      </div>
-    `;
-
-    btn.textContent = 'Test connection';
-    btn.removeAttribute('disabled');
-  }
-
-  document.getElementById('scim-toggle')?.addEventListener('change', (e) => {
-    const config = document.getElementById('scim-config')!;
-    config.classList.toggle('hidden', !(e.target as HTMLInputElement).checked);
+  document.getElementById('test-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('test-btn') as HTMLButtonElement;
+    btn.textContent = 'Testing…'; btn.disabled = true;
+    await new Promise(r => setTimeout(r, 1500));
+    document.getElementById('test-result')?.classList.remove('hidden');
+    btn.textContent = '✓ Test passed'; btn.style.borderColor = '#00FF88'; btn.style.color = '#00FF88';
   });
-
-  (window as any).selectIdP = selectIdP;
-  (window as any).testConnection = testConnection;
 </script>

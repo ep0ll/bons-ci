@@ -42,21 +42,21 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
   <div class="p-4 sm:p-6 lg:p-8 max-w-[1100px] mx-auto space-y-6">
 
     <div>
-      <h1 class="font-display font-bold text-2xl text-forge-text">Cache & Network</h1>
-      <p class="text-forge-text-3 text-sm mt-0.5">Manage cache storage, retention, and network egress controls.</p>
+      <h1 class="font-bold text-2xl text-[#F0F0F0]">Cache & Network</h1>
+      <p class="text-[#F0F0F0]-3 text-sm mt-0.5">Manage cache storage, retention, and network egress controls.</p>
     </div>
 
     <!-- ── Cache section ──────────────────────── -->
     <div class="space-y-4">
-      <h2 class="font-display font-bold text-lg text-forge-text">Cache storage</h2>
+      <h2 class="font-bold text-lg text-[#F0F0F0]">Cache storage</h2>
 
       <!-- Cache stats bar -->
       <div class="card p-5">
         <div class="flex flex-col sm:flex-row sm:items-center gap-5">
           <div class="flex-1">
             <div class="flex justify-between mb-2 text-xs">
-              <span class="text-forge-text-2">Cache storage used</span>
-              <span class="font-mono text-forge-text">{fmtBytes(totalCache)} / 100 GB · {usedPct}%</span>
+              <span class="text-[#F0F0F0]-2">Cache storage used</span>
+              <span class="font-mono text-[#F0F0F0]">{fmtBytes(totalCache)} / 100 GB · {usedPct}%</span>
             </div>
             <div class="progress h-2.5">
               <div class="progress-bar" style={`width: ${usedPct}%`}></div>
@@ -64,13 +64,13 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
           </div>
           <div class="flex gap-6 text-center">
             {[
-              { label: 'Avg hit rate', value: '94.5%', color: 'text-forge-success' },
-              { label: 'Cache keys', value: cacheEntries.length.toString(), color: 'text-forge-text' },
-              { label: 'Total hits (30d)', value: cacheEntries.reduce((s,e) => s+e.hits,0).toLocaleString(), color: 'text-forge-text' },
+              { label: 'Avg hit rate', value: '94.5%', color: 'text-[#00FF88]' },
+              { label: 'Cache keys', value: cacheEntries.length.toString(), color: 'text-[#F0F0F0]' },
+              { label: 'Total hits (30d)', value: cacheEntries.reduce((s,e) => s+e.hits,0).toLocaleString(), color: 'text-[#F0F0F0]' },
             ].map(({ label, value, color }) => (
               <div>
                 <div class={`font-mono font-bold text-lg ${color}`}>{value}</div>
-                <div class="text-2xs text-forge-text-3">{label}</div>
+                <div class="text-2xs text-[#F0F0F0]-3">{label}</div>
               </div>
             ))}
           </div>
@@ -79,7 +79,7 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
 
       <!-- Global cache settings -->
       <div class="card p-5 space-y-4">
-        <h3 class="font-display font-bold text-sm text-forge-text border-b border-forge-border pb-3">Global defaults</h3>
+        <h3 class="font-bold text-sm text-[#F0F0F0] border-b border-[#2C2C2C] pb-3">Global defaults</h3>
         <div class="grid sm:grid-cols-3 gap-4">
           <div>
             <label class="input-label">Default TTL</label>
@@ -114,14 +114,14 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
             { label:'Cache on failed builds',     desc:'Save cache even when the build fails', checked:false },
             { label:'Cross-branch cache sharing', desc:'Warm branches from main branch cache', checked:true },
           ].map(({ label, desc, checked }) => (
-            <div class="flex items-center justify-between py-2 border-t border-forge-border/50">
+            <div class="flex items-center justify-between py-2 border-t border-[#2C2C2C]/50">
               <div>
-                <div class="text-sm font-medium text-forge-text">{label}</div>
-                <div class="text-xs text-forge-text-3">{desc}</div>
+                <div class="text-sm font-medium text-[#F0F0F0]">{label}</div>
+                <div class="text-xs text-[#F0F0F0]-3">{desc}</div>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" checked={checked} class="sr-only peer"/>
-                <div class="w-9 h-5 bg-forge-surface2 border border-forge-border rounded-full peer peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all peer-checked:after:translate-x-4 peer-checked:after:bg-forge-accent relative"></div>
+                <div class="w-9 h-5 bg-[#111111]2 border border-[#2C2C2C] rounded-full peer peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all peer-checked:after:translate-x-4 peer-checked:after:bg-forge-accent relative"></div>
               </label>
             </div>
           ))}
@@ -133,8 +133,8 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
 
       <!-- Cache keys table -->
       <div class="card overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
-          <h3 class="font-display font-bold text-sm text-forge-text">Cache keys ({cacheEntries.length})</h3>
+        <div class="flex items-center justify-between px-5 py-4 border-b border-[#2C2C2C]">
+          <h3 class="font-bold text-sm text-[#F0F0F0]">Cache keys ({cacheEntries.length})</h3>
           <div class="flex gap-2">
             <button class="btn-danger btn-sm text-xs">Invalidate all</button>
           </div>
@@ -156,30 +156,30 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
             {cacheEntries.map(e => (
               <tr class="group">
                 <td>
-                  <code class="text-xs font-mono text-forge-accent">{e.key}</code>
+                  <code class="text-xs font-mono text-[#FFEE00]">{e.key}</code>
                 </td>
                 <td>
-                  <span class="text-xs text-forge-text-2">{e.project}</span>
+                  <span class="text-xs text-[#F0F0F0]-2">{e.project}</span>
                 </td>
                 <td>
-                  <span class="text-xs font-mono text-forge-text-2">{fmtBytes(e.size)}</span>
+                  <span class="text-xs font-mono text-[#F0F0F0]-2">{fmtBytes(e.size)}</span>
                 </td>
                 <td>
                   <div class="flex items-center gap-2">
-                    <div class="w-16 h-1.5 rounded-full bg-forge-surface2 overflow-hidden">
+                    <div class="w-16 h-1.5 rounded-full bg-[#111111]2 overflow-hidden">
                       <div class={`h-full rounded-full ${e.hitRate > 95 ? 'bg-forge-success' : e.hitRate > 85 ? 'bg-forge-warning' : 'bg-forge-danger'}`} style={`width:${e.hitRate}%`}></div>
                     </div>
-                    <span class={`text-xs font-mono ${e.hitRate > 95 ? 'text-forge-success' : e.hitRate > 85 ? 'text-forge-warning' : 'text-forge-danger'}`}>{e.hitRate}%</span>
+                    <span class={`text-xs font-mono ${e.hitRate > 95 ? 'text-[#00FF88]' : e.hitRate > 85 ? 'text-[#FF7700]' : 'text-[#FF3333]'}`}>{e.hitRate}%</span>
                   </div>
                 </td>
                 <td class="hidden md:table-cell">
-                  <span class="text-xs font-mono text-forge-text-2">{e.hits} / {e.misses}</span>
+                  <span class="text-xs font-mono text-[#F0F0F0]-2">{e.hits} / {e.misses}</span>
                 </td>
                 <td class="hidden lg:table-cell">
-                  <span class="text-xs text-forge-text-3">{e.lastHit}</span>
+                  <span class="text-xs text-[#F0F0F0]-3">{e.lastHit}</span>
                 </td>
                 <td class="hidden xl:table-cell">
-                  <span class="text-xs font-mono text-forge-text-3">{e.ttl}d</span>
+                  <span class="text-xs font-mono text-[#F0F0F0]-3">{e.ttl}d</span>
                 </td>
                 <td>
                   <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -197,8 +197,8 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
     <div class="space-y-4">
       <div class="flex items-center justify-between">
         <div>
-          <h2 class="font-display font-bold text-lg text-forge-text">Network egress rules</h2>
-          <p class="text-xs text-forge-text-3 mt-0.5">Control outbound network access from build runners. Rules are evaluated top to bottom.</p>
+          <h2 class="font-bold text-lg text-[#F0F0F0]">Network egress rules</h2>
+          <p class="text-xs text-[#F0F0F0]-3 mt-0.5">Control outbound network access from build runners. Rules are evaluated top to bottom.</p>
         </div>
         <button id="add-rule-btn" class="btn-primary btn-sm">
           <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -209,14 +209,14 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
       </div>
 
       <!-- Info banner -->
-      <div class="card p-4 border-forge-warning/20 bg-forge-warning-bg/20 flex items-start gap-3">
-        <svg class="w-4 h-4 text-forge-warning flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+      <div class="card p-4 border-[rgba(255,119,0,0.3)] /20 flex items-start gap-3">
+        <svg class="w-4 h-4 text-[#FF7700] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
           <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
         </svg>
-        <div class="text-sm text-forge-text-2">
-          <strong class="text-forge-warning">Egress filtering is active.</strong> Rules apply to all runners in acme-corp.
+        <div class="text-sm text-[#F0F0F0]-2">
+          <strong class="text-[#FF7700]">Egress filtering is active.</strong> Rules apply to all runners in acme-corp.
           Project-level overrides can be set in each project's settings.
-          Default policy: <strong class="text-forge-text">Deny all</strong> except rules below.
+          Default policy: <strong class="text-[#F0F0F0]">Deny all</strong> except rules below.
         </div>
       </div>
 
@@ -226,7 +226,7 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
           <thead>
             <tr>
               <th class="w-8">
-                <svg class="w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
               </th>
@@ -243,42 +243,42 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
             {egressRules.map((rule, i) => (
               <tr class="group" draggable="true">
                 <!-- Drag handle -->
-                <td class="cursor-grab text-forge-text-3 hover:text-forge-text">
+                <td class="cursor-grab text-[#F0F0F0]-3 hover:text-[#F0F0F0]">
                   <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z"/>
                   </svg>
                 </td>
                 <td>
-                  <span class={`badge text-2xs border ${rule.type === 'allow' ? 'badge-success border-forge-success/20' : 'badge-danger border-forge-danger/20'}`}>
+                  <span class={`badge text-2xs border ${rule.type === 'allow' ? 'badge-success border-[rgba(0,255,136,0.3)]' : 'badge-danger border-[rgba(255,51,51,0.3)]'}`}>
                     {rule.type === 'allow' ? '✓ Allow' : '✕ Block'}
                   </span>
                 </td>
                 <td>
-                  <code class="text-xs font-mono text-forge-text-2">{rule.target}</code>
+                  <code class="text-xs font-mono text-[#F0F0F0]-2">{rule.target}</code>
                 </td>
                 <td class="hidden sm:table-cell">
-                  <span class="badge-neutral border border-forge-border text-2xs">{rule.proto}</span>
+                  <span class="badge-neutral border border-[#2C2C2C] text-2xs">{rule.proto}</span>
                 </td>
                 <td class="hidden md:table-cell">
-                  <span class="text-xs font-mono text-forge-text-3">{rule.port ?? 'Any'}</span>
+                  <span class="text-xs font-mono text-[#F0F0F0]-3">{rule.port ?? 'Any'}</span>
                 </td>
                 <td>
-                  <span class="text-xs text-forge-text-3">{rule.desc}</span>
+                  <span class="text-xs text-[#F0F0F0]-3">{rule.desc}</span>
                 </td>
                 <td>
                   <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" checked={rule.enabled} class="sr-only peer"/>
-                    <div class="w-9 h-5 bg-forge-surface2 border border-forge-border rounded-full peer peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all peer-checked:after:translate-x-4 peer-checked:after:bg-forge-accent relative"></div>
+                    <div class="w-9 h-5 bg-[#111111]2 border border-[#2C2C2C] rounded-full peer peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all peer-checked:after:translate-x-4 peer-checked:after:bg-forge-accent relative"></div>
                   </label>
                 </td>
                 <td>
                   <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3 hover:text-forge-text">
+                    <button class="btn-ghost btn-sm !p-1.5 text-[#F0F0F0]-3 hover:text-[#F0F0F0]">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                       </svg>
                     </button>
-                    <button class="btn-ghost btn-sm !p-1.5 text-forge-danger">
+                    <button class="btn-ghost btn-sm !p-1.5 text-[#FF3333]">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                       </svg>
@@ -291,9 +291,9 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
         </table>
 
         <!-- Default policy footer -->
-        <div class="px-5 py-3.5 border-t border-forge-border bg-forge-danger-bg/30 flex items-center gap-3">
-          <span class="badge-danger border border-forge-danger/20 text-2xs">Default</span>
-          <span class="text-xs text-forge-text-2">Deny all other outbound traffic</span>
+        <div class="px-5 py-3.5 border-t border-[#2C2C2C] /30 flex items-center gap-3">
+          <span class="badge-danger border border-[rgba(255,51,51,0.3)] text-2xs">Default</span>
+          <span class="text-xs text-[#F0F0F0]-2">Deny all other outbound traffic</span>
           <div class="ml-auto">
             <select class="input !py-1 !text-xs w-32">
               <option selected>Deny all</option>
@@ -310,10 +310,10 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
   <div id="rule-modal" class="fixed inset-0 z-50 hidden" role="dialog">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="rule-backdrop"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
-      <div class="w-full max-w-md bg-forge-surface border border-forge-border rounded-2xl shadow-modal animate-scale-in overflow-hidden">
-        <div class="flex items-center justify-between px-6 py-5 border-b border-forge-border">
-          <h2 class="font-display font-bold text-lg text-forge-text">Add egress rule</h2>
-          <button id="rule-close" class="text-forge-text-3 hover:text-forge-text">
+      <div class="w-full max-w-md bg-[#111111] border border-[#2C2C2C] rounded-none shadow-modal animate-scale-in overflow-hidden">
+        <div class="flex items-center justify-between px-6 py-5 border-b border-[#2C2C2C]">
+          <h2 class="font-bold text-lg text-[#F0F0F0]">Add egress rule</h2>
+          <button id="rule-close" class="text-[#F0F0F0]-3 hover:text-[#F0F0F0]">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -321,13 +321,13 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
           <div>
             <label class="input-label">Action</label>
             <div class="grid grid-cols-2 gap-2">
-              <label class="flex items-center gap-2 p-3 rounded-lg border border-forge-success/40 bg-forge-success-bg/30 cursor-pointer has-[:checked]:ring-1 has-[:checked]:ring-forge-success/40">
+              <label class="flex items-center gap-2 p-3 rounded-none border border-forge-success/40 /30 cursor-pointer has-[:checked]:ring-1 has-[:checked]:ring-forge-success/40">
                 <input type="radio" name="action" value="allow" checked class="accent-forge-success"/>
-                <span class="text-sm text-forge-success font-medium">Allow</span>
+                <span class="text-sm text-[#00FF88] font-medium">Allow</span>
               </label>
-              <label class="flex items-center gap-2 p-3 rounded-lg border border-forge-border cursor-pointer hover:border-forge-danger/30 has-[:checked]:border-forge-danger/40 has-[:checked]:bg-forge-danger-bg/30">
+              <label class="flex items-center gap-2 p-3 rounded-none border border-[#2C2C2C] cursor-pointer hover:border-forge-danger/30 has-[:checked]:border-forge-danger/40 has-[:checked]:/30">
                 <input type="radio" name="action" value="block" class="accent-forge-danger"/>
-                <span class="text-sm text-forge-text-2 font-medium">Block</span>
+                <span class="text-sm text-[#F0F0F0]-2 font-medium">Block</span>
               </label>
             </div>
           </div>
@@ -356,7 +356,7 @@ const usedPct = Math.round((totalCache / totalLimit) * 100);
             <input type="text" class="input" placeholder="e.g. Allow npm registry access"/>
           </div>
         </div>
-        <div class="flex gap-3 px-6 py-4 border-t border-forge-border bg-forge-surface2/30">
+        <div class="flex gap-3 px-6 py-4 border-t border-[#2C2C2C] bg-[#111111]2/30">
           <button id="rule-cancel" class="btn-secondary btn-md flex-1 justify-center">Cancel</button>
           <button class="btn-primary btn-md flex-1 justify-center">Add rule</button>
         </div>

@@ -1,370 +1,270 @@
 ---
 import BaseLayout from './BaseLayout.astro';
+import { MOCK_ORG, formatBytes } from '../data/mock.ts';
 
 export interface Props {
-  title?: string;
-  description?: string;
-  activeNav?: string;
+  title?: string; activeNav?: string;
   breadcrumbs?: { label: string; href?: string }[];
 }
+const { title = 'Dashboard', activeNav = '', breadcrumbs = [] } = Astro.props;
+const org = MOCK_ORG;
+const minutesPct = Math.round((org.build_minutes_used / org.build_minutes_limit) * 100);
 
-const {
-  title = 'Dashboard',
-  description,
-  activeNav = 'overview',
-  breadcrumbs = [],
-} = Astro.props;
-
-const fullTitle = `${title} — Forge CI`;
-
-const navSections = [
-  {
-    label: null,
-    items: [
-      { id: 'overview',     href: '/dashboard',           icon: 'grid',       label: 'Overview' },
-      { id: 'builds',       href: '/dashboard/builds',    icon: 'play',       label: 'Builds',      badge: '3' },
-      { id: 'projects',     href: '/dashboard/projects',  icon: 'folder',     label: 'Projects' },
-      { id: 'sandboxes',    href: '/dashboard/sandboxes', icon: 'box',        label: 'Sandboxes',   badge: 'New' },
-    ],
-  },
-  {
-    label: 'Registry & Artifacts',
-    items: [
-      { id: 'registry',     href: '/dashboard/registry',    icon: 'container', label: 'Image Registry' },
-      { id: 'artifacts',    href: '/dashboard/artifacts',   icon: 'archive',   label: 'Artifacts' },
-      { id: 'cache',        href: '/dashboard/cache',       icon: 'zap',       label: 'Cache' },
-    ],
-  },
-  {
-    label: 'Pipelines',
-    items: [
-      { id: 'templates',    href: '/dashboard/templates',   icon: 'layout',    label: 'Templates' },
-      { id: 'marketplace',  href: '/dashboard/marketplace', icon: 'store',     label: 'Marketplace' },
-    ],
-  },
-  {
-    label: 'Intelligence',
-    items: [
-      { id: 'ai-agents',    href: '/dashboard/ai-agents',   icon: 'brain',     label: 'AI Agents',   badge: 'Beta' },
-      { id: 'insights',     href: '/dashboard/insights',    icon: 'bar-chart', label: 'Insights' },
-    ],
-  },
-  {
-    label: 'Configuration',
-    items: [
-      { id: 'secrets',      href: '/dashboard/settings/secrets',      icon: 'lock',    label: 'Secrets' },
-      { id: 'tokens',       href: '/dashboard/settings/tokens',       icon: 'key',     label: 'API Tokens' },
-      { id: 'members',      href: '/dashboard/settings/members',      icon: 'users',   label: 'Members' },
-      { id: 'integrations', href: '/dashboard/settings/integrations', icon: 'plug',    label: 'Integrations' },
-      { id: 'settings',     href: '/dashboard/settings',             icon: 'settings', label: 'Settings' },
-    ],
-  },
+const navGroups = [
+  { label: null, items:[
+    {id:'overview',  href:'/dashboard',          svg:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',  label:'Overview'},
+    {id:'builds',    href:'/dashboard/builds',   svg:'M5 3l14 9-14 9V3z',                                     label:'Builds',badge:'3'},
+    {id:'projects',  href:'/dashboard/projects', svg:'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',label:'Projects'},
+    {id:'sandboxes', href:'/dashboard/sandboxes',svg:'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z',label:'Sandboxes',badge:'Beta'},
+  ]},
+  { label:'Registry & Artifacts', items:[
+    {id:'registry',  href:'/dashboard/registry', svg:'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10', label:'Image Registry'},
+    {id:'artifacts', href:'/dashboard/artifacts',svg:'M21 8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16V8z',label:'Artifacts'},
+    {id:'cache',     href:'/dashboard/cache',    svg:'M13 10V3L4 14h7v7l9-11h-7z',                             label:'Cache'},
+  ]},
+  { label:'Pipelines', items:[
+    {id:'templates',   href:'/dashboard/templates',  svg:'M3 3h18v4H3zM3 10h11v11H3zM17 10h4v11h-4z',          label:'Templates'},
+    {id:'marketplace', href:'/dashboard/marketplace',svg:'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17',label:'Marketplace'},
+  ]},
+  { label:'Intelligence', items:[
+    {id:'ai-agents',href:'/dashboard/ai-agents',svg:'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z',label:'Sherlock AI',badge:'New'},
+    {id:'insights', href:'/dashboard/insights', svg:'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',label:'Insights'},
+  ]},
+  { label:'Settings', items:[
+    {id:'secrets',     href:'/dashboard/settings/secrets',      svg:'M12 1a5 5 0 015 5v3H7V6a5 5 0 015-5zm-7 9h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2z', label:'Secrets & Tokens'},
+    {id:'members',     href:'/dashboard/settings/members',      svg:'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 110 8 4 4 0 010-8zm14 14v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75', label:'Members'},
+    {id:'integrations',href:'/dashboard/settings/integrations', svg:'M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z', label:'Integrations'},
+    {id:'settings',    href:'/dashboard/settings',              svg:'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z', label:'Settings'},
+  ]},
 ];
-
-const iconPaths: Record<string, string> = {
-  grid:       'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
-  play:       'M5 3l14 9-14 9V3z',
-  folder:     'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z',
-  box:        'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z',
-  container:  'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-  archive:    'M21 8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16V8z',
-  zap:        'M13 10V3L4 14h7v7l9-11h-7z',
-  layout:     'M3 3h18v4H3zM3 10h11v11H3zM17 10h4v11h-4z',
-  store:      'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
-  brain:      'M9.5 2A2.5 2.5 0 017 4.5v.5H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V7a2 2 0 00-2-2h-3v-.5A2.5 2.5 0 0014.5 2h-5z',
-  'bar-chart':'M18 20V10M12 20V4M6 20v-6',
-  lock:       'M12 1a5 5 0 015 5v3H7V6a5 5 0 015-5zm-7 9h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8a2 2 0 012-2z',
-  key:        'M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4',
-  users:      'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 110 8 4 4 0 010-8zm14 14v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75',
-  plug:       'M7 16V4m10 12V4M5 8h14M5 16h14M3 20h18',
-  settings:   'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
-};
 ---
+<BaseLayout title={`${title} — Forge CI`} noindex={true}>
+<div class="flex h-screen overflow-hidden" style="background:#0A0A0A">
 
-<BaseLayout title={fullTitle} description={description} class="overflow-hidden">
-  <div class="flex h-screen bg-forge-bg overflow-hidden">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="flex flex-col w-58 flex-shrink-0 border-r-2 fixed lg:relative inset-y-0 left-0 z-40 -translate-x-full lg:translate-x-0 transition-transform duration-200"
+         style="width:232px;border-color:#2C2C2C;background:#060606">
 
-    <!-- ── Sidebar ───────────────────────────────── -->
-    <aside
-      id="sidebar"
-      class="flex flex-col w-64 flex-shrink-0 border-r border-forge-border bg-forge-surface
-             transition-all duration-300 ease-spring
-             fixed lg:relative inset-y-0 left-0 z-40
-             -translate-x-full lg:translate-x-0"
-    >
-      <!-- Sidebar header -->
-      <div class="flex items-center justify-between px-4 h-14 border-b border-forge-border flex-shrink-0">
-        <a href="/" class="flex items-center gap-2 group">
-          <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
-            <rect width="32" height="32" rx="8" fill="#C8FF00"/>
-            <path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#07090E"/>
-            <circle cx="24" cy="8" r="2.5" fill="#07090E"/>
-          </svg>
-          <span class="font-display font-bold text-base text-forge-text">Forge<span class="text-forge-accent">CI</span></span>
-        </a>
-        <button id="sidebar-close" class="lg:hidden text-forge-text-3 hover:text-forge-text">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
+    <!-- Sidebar header -->
+    <div class="flex items-center justify-between h-14 px-4 border-b-2 flex-shrink-0" style="border-color:#2C2C2C">
+      <a href="/" class="flex items-center gap-2">
+        <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+          <rect width="32" height="32" fill="#FFEE00"/>
+          <path d="M8 24L14 8H18L20 14L24 8H28L22 24H18L16 17L12 24H8Z" fill="#0A0A0A"/>
+          <circle cx="24" cy="8" r="2.5" fill="#0A0A0A"/>
+        </svg>
+        <span style="font-family:'Space Grotesk';font-weight:700;font-size:0.9rem;color:#F0F0F0">Forge<span style="color:#FFEE00">CI</span></span>
+      </a>
+      <button id="sidebar-close" class="lg:hidden border p-1 transition-all" style="border-color:#2C2C2C;color:#666666">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Org switcher -->
+    <div class="px-3 py-2 border-b-2" style="border-color:#2C2C2C">
+      <button class="w-full flex items-center gap-2.5 px-2 py-2 border border-transparent transition-all"
+              style="color:#F0F0F0"
+              onmouseover="this.style.borderColor='#3C3C3C';this.style.background='#1A1A1A'"
+              onmouseout="this.style.borderColor='transparent';this.style.background='transparent'">
+        <div class="w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0" style="background:#FFEE00;color:#0A0A0A;font-family:'JetBrains Mono'">A</div>
+        <div class="flex-1 text-left min-w-0">
+          <div class="text-xs font-semibold truncate" style="font-family:'Space Grotesk'">{org.name}</div>
+          <div class="text-xs font-mono capitalize" style="color:#666666">{org.plan} plan</div>
+        </div>
+        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+      </button>
+    </div>
+
+    <!-- Nav -->
+    <nav class="flex-1 overflow-y-auto no-scrollbar py-2 px-3 space-y-0.5">
+      {navGroups.map(group => (
+        <div class="mb-1">
+          {group.label && (
+            <div class="px-2 py-2 text-xs font-mono uppercase tracking-widest" style="color:#3C3C3C">{group.label}</div>
+          )}
+          {group.items.map(item => {
+            const isActive = activeNav === item.id;
+            return (
+              <a href={item.href}
+                 class="flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold transition-all duration-75 border mb-0.5"
+                 style={isActive
+                   ? 'background:rgba(255,238,0,0.08);color:#FFEE00;border-color:#FFEE00;border-left-width:2px;border-left-color:#FFEE00;border-top-color:transparent;border-right-color:transparent;border-bottom-color:transparent'
+                   : 'color:#AAAAAA;border-color:transparent;background:transparent'}
+                 onmouseover={!isActive ? "this.style.background='#1A1A1A';this.style.color='#F0F0F0';this.style.borderColor='#2C2C2C'" : ''}
+                 onmouseout={!isActive ? "this.style.background='transparent';this.style.color='#AAAAAA';this.style.borderColor='transparent'" : ''}>
+                <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
+                  <path stroke-linecap="square" stroke-linejoin="miter" d={item.svg}/>
+                </svg>
+                <span class="flex-1 truncate">{item.label}</span>
+                {item.badge && (
+                  <span class="text-xs px-1.5 py-0.5 font-mono font-bold border"
+                        style={item.badge==='Beta'?'background:rgba(51,170,255,0.1);color:#33AAFF;border-color:rgba(51,170,255,0.3)':item.badge==='New'?'background:rgba(255,238,0,0.1);color:#FFEE00;border-color:rgba(255,238,0,0.3)':'background:rgba(255,51,51,0.1);color:#FF3333;border-color:rgba(255,51,51,0.3)'}>
+                    {item.badge}
+                  </span>
+                )}
+              </a>
+            );
+          })}
+        </div>
+      ))}
+    </nav>
+
+    <!-- Usage + user -->
+    <div class="border-t-2 p-3 space-y-2 flex-shrink-0" style="border-color:#2C2C2C">
+      <div class="px-2 py-2 border border-transparent">
+        <div class="flex justify-between text-xs mb-1.5">
+          <span class="font-mono" style="color:#666666">Build minutes</span>
+          <span class="font-mono" style="color:#AAAAAA">{org.build_minutes_used.toLocaleString()}/{org.build_minutes_limit.toLocaleString()}</span>
+        </div>
+        <div class="progress"><div class="progress-bar" style={`width:${minutesPct}%`}></div></div>
       </div>
 
-      <!-- Org switcher -->
-      <div class="px-3 py-2 border-b border-forge-border flex-shrink-0">
-        <button class="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-forge-surface2 transition-colors group">
-          <div class="w-6 h-6 rounded-md bg-forge-accent flex items-center justify-center text-xs font-bold text-forge-bg font-display flex-shrink-0">A</div>
-          <div class="flex-1 text-left min-w-0">
-            <div class="text-sm font-medium text-forge-text truncate">acme-corp</div>
-            <div class="text-2xs text-forge-text-3 truncate">Team plan · 23 members</div>
-          </div>
-          <svg class="w-3.5 h-3.5 text-forge-text-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
-          </svg>
-        </button>
-      </div>
+      <!-- Identity / user -->
+      <button class="w-full flex items-center gap-2.5 px-2 py-2 border border-transparent transition-all"
+              style="color:#F0F0F0"
+              onmouseover="this.style.borderColor='#3C3C3C';this.style.background='#1A1A1A'"
+              onmouseout="this.style.borderColor='transparent';this.style.background='transparent'">
+        <div class="avatar-sm flex-shrink-0">AL</div>
+        <div class="flex-1 text-left min-w-0">
+          <div class="text-xs font-semibold truncate">Ada Lovelace</div>
+          <div class="text-xs font-mono truncate" style="color:#666666">ada@acme-corp.io</div>
+        </div>
+        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+      </button>
+    </div>
+  </aside>
 
-      <!-- Navigation -->
-      <nav class="flex-1 overflow-y-auto no-scrollbar py-2 px-3 space-y-0.5">
-        {navSections.map((section) => (
-          <div class="mb-1">
-            {section.label && (
-              <div class="px-2 py-2 text-2xs font-mono uppercase tracking-widest text-forge-text-3">
-                {section.label}
-              </div>
-            )}
-            {section.items.map((item) => {
-              const isActive = activeNav === item.id;
-              const path = iconPaths[item.icon] ?? '';
-              return (
-                <a
-                  href={item.href}
-                  class={[
-                    'flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-all duration-150 group',
-                    isActive
-                      ? 'bg-forge-accent-muted text-forge-accent'
-                      : 'text-forge-text-2 hover:bg-forge-surface2 hover:text-forge-text',
-                  ].join(' ')}
-                  style={isActive ? 'box-shadow: inset 2px 0 0 var(--accent)' : ''}
-                >
-                  <svg class={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-forge-accent' : 'text-forge-text-3 group-hover:text-forge-text'}`}
-                       fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
-                    <path stroke-linecap="round" stroke-linejoin="round" d={path}/>
-                  </svg>
-                  <span class="flex-1 truncate">{item.label}</span>
-                  {item.badge && (
-                    <span class={`text-2xs font-mono px-1.5 py-0.5 rounded-md flex-shrink-0 ${
-                      item.badge === 'New' ? 'bg-forge-accent-muted text-forge-accent border border-forge-accent/20' :
-                      item.badge === 'Beta' ? 'bg-forge-info-bg text-forge-cyan border border-forge-cyan/20' :
-                      'bg-forge-danger-bg text-forge-danger border border-forge-danger/20'
-                    }`}>{item.badge}</span>
-                  )}
-                </a>
-              );
-            })}
-          </div>
+  <!-- Overlay -->
+  <div id="sidebar-overlay" class="fixed inset-0 z-30 hidden lg:hidden" style="background:rgba(0,0,0,0.7)"></div>
+
+  <!-- Main -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+    <!-- Topbar -->
+    <header class="h-14 flex items-center gap-3 px-4 sm:px-6 border-b-2 flex-shrink-0" style="border-color:#2C2C2C;background:#060606">
+
+      <button id="sidebar-open" class="lg:hidden border p-1.5 transition-all" style="border-color:#2C2C2C;color:#AAAAAA">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
+      <!-- Breadcrumbs -->
+      <nav class="flex items-center gap-1.5 text-sm font-mono min-w-0 flex-1" aria-label="Breadcrumb">
+        <a href="/dashboard" class="transition-colors hover:text-[#FFEE00] flex-shrink-0" style="color:#666666">Dashboard</a>
+        {breadcrumbs.map((c, i) => (
+          <>
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            {c.href && i < breadcrumbs.length - 1
+              ? <a href={c.href} class="hover:text-[#FFEE00] transition-colors truncate" style="color:#AAAAAA">{c.label}</a>
+              : <span class="font-semibold truncate" style="color:#F0F0F0">{c.label}</span>
+            }
+          </>
         ))}
       </nav>
 
-      <!-- Sidebar footer: usage + user -->
-      <div class="flex-shrink-0 border-t border-forge-border p-3 space-y-2">
-        <!-- Usage bar -->
-        <a href="/dashboard/settings" class="block px-2 py-2.5 rounded-lg hover:bg-forge-surface2 transition-colors group">
-          <div class="flex items-center justify-between mb-1.5">
-            <span class="text-2xs text-forge-text-3">Build minutes</span>
-            <span class="text-2xs font-mono text-forge-text-2">62,450 / 100k</span>
-          </div>
-          <div class="progress">
-            <div class="progress-bar" style="width: 62.4%"></div>
-          </div>
-        </a>
+      <!-- Search -->
+      <button id="cmd-trigger" class="hidden sm:flex items-center gap-2 px-3 py-1.5 border text-xs font-mono transition-all flex-shrink-0"
+              style="border-color:#2C2C2C;background:#0A0A0A;color:#666666"
+              onmouseover="this.style.borderColor='#FFEE00';this.style.color='#FFEE00'"
+              onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#666666'">
+        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        Search…
+        <kbd class="hidden xl:inline text-xs border px-1 font-mono" style="border-color:#3C3C3C;color:#444444">⌘K</kbd>
+      </button>
 
-        <!-- User menu -->
-        <button class="w-full flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-forge-surface2 transition-colors">
-          <div class="avatar-sm bg-forge-surface3 border border-forge-border-2 text-forge-accent font-display font-bold flex-shrink-0">AL</div>
-          <div class="flex-1 text-left min-w-0">
-            <div class="text-sm font-medium text-forge-text truncate">Ada Lovelace</div>
-            <div class="text-2xs text-forge-text-3 truncate">ada@acme-corp.com</div>
-          </div>
-          <svg class="w-3.5 h-3.5 text-forge-text-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
-          </svg>
-        </button>
-      </div>
-    </aside>
+      <!-- Status dot -->
+      <a href="/status" class="hidden sm:flex items-center gap-1.5 text-xs font-mono border px-2 py-1 flex-shrink-0"
+         style="border-color:rgba(0,255,136,0.3);color:#00FF88">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse"></span>
+        All systems go
+      </a>
 
-    <!-- Sidebar overlay for mobile -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-30 hidden lg:hidden" aria-hidden="true"></div>
+      <!-- Notifications -->
+      <button class="relative border p-2 transition-all"
+              style="border-color:#2C2C2C;color:#AAAAAA"
+              onmouseover="this.style.borderColor='#3C3C3C';this.style.color='#F0F0F0'"
+              onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#AAAAAA'">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="1.75" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        <span class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border" style="background:#FF3333;border-color:#0A0A0A"></span>
+      </button>
+    </header>
 
-    <!-- ── Main content ──────────────────────────── -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-      <!-- Top bar -->
-      <header class="h-14 flex items-center gap-3 px-4 sm:px-6 border-b border-forge-border bg-forge-surface/80 backdrop-blur-sm flex-shrink-0">
-
-        <!-- Mobile sidebar toggle -->
-        <button id="sidebar-open" class="lg:hidden text-forge-text-2 hover:text-forge-text transition-colors">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-          </svg>
-        </button>
-
-        <!-- Breadcrumbs -->
-        <nav class="flex items-center gap-1.5 text-sm min-w-0 flex-1" aria-label="Breadcrumb">
-          <a href="/dashboard" class="text-forge-text-3 hover:text-forge-text transition-colors flex-shrink-0">Dashboard</a>
-          {breadcrumbs.map((crumb, i) => (
-            <>
-              <svg class="w-3 h-3 text-forge-text-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-              </svg>
-              {crumb.href && i < breadcrumbs.length - 1 ? (
-                <a href={crumb.href} class="text-forge-text-2 hover:text-forge-text transition-colors truncate flex-shrink-0">{crumb.label}</a>
-              ) : (
-                <span class="text-forge-text font-medium truncate">{crumb.label}</span>
-              )}
-            </>
-          ))}
-        </nav>
-
-        <!-- Command palette trigger -->
-        <button
-          id="cmd-trigger"
-          class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-forge-border bg-forge-surface text-forge-text-3 text-xs hover:border-forge-border-2 hover:text-forge-text transition-all duration-150"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          <span>Search…</span>
-          <kbd class="hidden xl:inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded text-2xs border border-forge-border bg-forge-surface3 font-mono">⌘K</kbd>
-        </button>
-
-        <!-- Status pill -->
-        <a href="/status" class="hidden sm:flex items-center gap-1.5 text-xs text-forge-success border border-forge-success/20 bg-forge-success-bg rounded-full px-2.5 py-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-forge-success animate-pulse"></span>
-          All systems go
-        </a>
-
-        <!-- Notification bell -->
-        <div class="relative">
-          <button class="relative p-2 text-forge-text-2 hover:text-forge-text hover:bg-forge-surface2 rounded-lg transition-all">
-            <svg class="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-            </svg>
-            <!-- Unread badge -->
-            <span class="absolute top-1 right-1 w-2 h-2 bg-forge-danger rounded-full border border-forge-surface"></span>
-          </button>
-        </div>
-
-        <!-- Docs link -->
-        <a href="/docs" class="hidden md:flex items-center gap-1.5 text-xs text-forge-text-2 hover:text-forge-text transition-colors px-2">
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-          Docs
-        </a>
-      </header>
-
-      <!-- Page content -->
-      <main class="flex-1 overflow-y-auto bg-forge-bg">
-        <slot />
-      </main>
-    </div>
+    <!-- Page content -->
+    <main class="flex-1 overflow-y-auto" style="background:#0A0A0A"><slot/></main>
   </div>
+</div>
 
-  <!-- ── Command palette ───────────────────────── -->
-  <div id="cmd-palette" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-label="Command palette">
-    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="cmd-backdrop"></div>
-    <div class="relative flex justify-center pt-[15vh] px-4">
-      <div class="w-full max-w-xl bg-forge-surface border border-forge-border rounded-2xl shadow-modal overflow-hidden animate-scale-in">
-        <div class="flex items-center gap-3 px-4 py-3.5 border-b border-forge-border">
-          <svg class="w-4 h-4 text-forge-text-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          <input
-            type="text"
-            id="cmd-input"
-            placeholder="Search builds, projects, settings…"
-            class="flex-1 bg-transparent text-forge-text text-sm placeholder:text-forge-text-3 outline-none"
-            autocomplete="off"
-          />
-          <kbd class="text-2xs text-forge-text-3 border border-forge-border rounded px-1.5 py-0.5 font-mono">ESC</kbd>
-        </div>
-        <div class="p-2 max-h-80 overflow-y-auto" id="cmd-results">
-          {[
-            { section: 'Quick actions', items: [
-              { label: 'Trigger new build', sub: 'Run pipeline on current branch', icon: '▶' },
-              { label: 'View latest build', sub: '#1842 · main · 1m 24s ago', icon: '📋' },
-              { label: 'Add team member', sub: 'Invite via email or link', icon: '👤' },
-              { label: 'Create API token', sub: 'Settings → API Tokens', icon: '🔑' },
-            ]},
-            { section: 'Navigate', items: [
-              { label: 'Dashboard', sub: 'Overview & metrics', icon: '⊞' },
-              { label: 'Builds', sub: 'All build history', icon: '▶' },
-              { label: 'Secrets', sub: 'Environment secrets', icon: '🔒' },
-              { label: 'Integrations', sub: 'Connected services', icon: '🔌' },
-            ]},
-          ].map(({ section, items }) => (
-            <div class="mb-2">
-              <div class="px-3 py-1.5 text-2xs font-mono uppercase tracking-wider text-forge-text-3">{section}</div>
-              {items.map((item) => (
-                <button class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-forge-surface2 transition-colors group">
-                  <span class="text-base w-5 flex-shrink-0 text-center">{item.icon}</span>
-                  <div>
-                    <div class="text-sm text-forge-text group-hover:text-forge-accent transition-colors">{item.label}</div>
-                    <div class="text-xs text-forge-text-3">{item.sub}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div class="px-4 py-2.5 border-t border-forge-border flex items-center gap-4 text-2xs text-forge-text-3 font-mono">
-          <span>↑↓ navigate</span>
-          <span>↵ select</span>
-          <span>ESC close</span>
-        </div>
+<!-- Command palette -->
+<div id="cmd-palette" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+  <div class="absolute inset-0" id="cmd-backdrop" style="background:rgba(0,0,0,0.8)"></div>
+  <div class="relative flex justify-center pt-[14vh] px-4">
+    <div class="w-full max-w-xl border-2 overflow-hidden" style="border-color:#FFEE00;background:#0A0A0A;box-shadow:6px 6px 0 rgba(255,238,0,0.2)">
+      <!-- Search input -->
+      <div class="flex items-center gap-3 px-4 py-3.5 border-b-2" style="border-color:#2C2C2C">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#FFEE00"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="text" id="cmd-input" placeholder="Search builds, projects, settings…"
+               class="flex-1 text-sm font-mono bg-transparent outline-none" style="color:#F0F0F0"
+               autocomplete="off" spellcheck="false"/>
+        <kbd class="text-xs font-mono border px-1.5 py-0.5" style="border-color:#3C3C3C;color:#666666">ESC</kbd>
+      </div>
+      <!-- Results -->
+      <div class="p-2 max-h-72 overflow-y-auto">
+        {[
+          {section:'Quick actions',items:[
+            {l:'Trigger new build',s:'Run pipeline now',i:'▶'},
+            {l:'View latest build', s:'#1847 · main · 2m ago',i:'◈'},
+            {l:'Add team member',   s:'Invite via email',i:'◎'},
+            {l:'Create API token',  s:'Settings → Tokens',i:'◆'},
+          ]},
+          {section:'Navigate',items:[
+            {l:'Dashboard',  s:'Overview & metrics',i:'▣'},
+            {l:'Builds',     s:'All build history',i:'▶'},
+            {l:'Sherlock AI',s:'AI failure analysis',i:'◉'},
+            {l:'Secrets',    s:'Env secrets & tokens',i:'◊'},
+          ]},
+        ].map(({section,items}) => (
+          <div class="mb-2">
+            <div class="px-3 py-1.5 text-xs font-mono uppercase tracking-widest" style="color:#3C3C3C">{section}</div>
+            {items.map(item => (
+              <button class="w-full flex items-center gap-3 px-3 py-2.5 border border-transparent text-left transition-all"
+                      onmouseover="this.style.background='#1A1A1A';this.style.borderColor='#2C2C2C'"
+                      onmouseout="this.style.background='transparent';this.style.borderColor='transparent'">
+                <span class="text-base w-5 text-center flex-shrink-0" style="color:#FFEE00">{item.i}</span>
+                <div>
+                  <div class="text-sm font-semibold" style="color:#F0F0F0">{item.l}</div>
+                  <div class="text-xs font-mono" style="color:#666666">{item.s}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div class="px-4 py-2.5 border-t-2 flex gap-4 text-xs font-mono" style="border-color:#2C2C2C;color:#444444">
+        <span>↑↓ navigate</span><span>↵ select</span><span>ESC close</span>
       </div>
     </div>
   </div>
+</div>
 
-  <script>
-    // Sidebar toggle (mobile)
-    const sidebar = document.getElementById('sidebar')!;
-    const overlay = document.getElementById('sidebar-overlay')!;
-    const openBtn = document.getElementById('sidebar-open')!;
-    const closeBtn = document.getElementById('sidebar-close')!;
+<script>
+  // Sidebar
+  const sidebar  = document.getElementById('sidebar')!;
+  const overlay  = document.getElementById('sidebar-overlay')!;
+  const open  = () => { sidebar.classList.remove('-translate-x-full'); overlay.classList.remove('hidden'); };
+  const close = () => { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); };
+  document.getElementById('sidebar-open')?.addEventListener('click', open);
+  document.getElementById('sidebar-close')?.addEventListener('click', close);
+  overlay.addEventListener('click', close);
 
-    function openSidebar() {
-      sidebar.classList.remove('-translate-x-full');
-      overlay.classList.remove('hidden');
-    }
-    function closeSidebar() {
-      sidebar.classList.add('-translate-x-full');
-      overlay.classList.add('hidden');
-    }
-
-    openBtn?.addEventListener('click', openSidebar);
-    closeBtn?.addEventListener('click', closeSidebar);
-    overlay?.addEventListener('click', closeSidebar);
-
-    // Command palette
-    const cmdPalette = document.getElementById('cmd-palette')!;
-    const cmdInput = document.getElementById('cmd-input') as HTMLInputElement;
-    const cmdBackdrop = document.getElementById('cmd-backdrop')!;
-
-    function openCmd() {
-      cmdPalette.classList.remove('hidden');
-      setTimeout(() => cmdInput?.focus(), 50);
-    }
-    function closeCmd() {
-      cmdPalette.classList.add('hidden');
-    }
-
-    document.getElementById('cmd-trigger')?.addEventListener('click', openCmd);
-    cmdBackdrop?.addEventListener('click', closeCmd);
-
-    document.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openCmd(); }
-      if (e.key === 'Escape') closeCmd();
-    });
-  </script>
+  // Command palette
+  const pal = document.getElementById('cmd-palette')!;
+  const inp = document.getElementById('cmd-input') as HTMLInputElement;
+  const openPal  = () => { pal.classList.remove('hidden'); setTimeout(() => inp?.focus(), 50); };
+  const closePal = () => { pal.classList.add('hidden'); };
+  document.getElementById('cmd-trigger')?.addEventListener('click', openPal);
+  document.getElementById('cmd-backdrop')?.addEventListener('click', closePal);
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openPal(); }
+    if (e.key === 'Escape') closePal();
+  });
+</script>
 </BaseLayout>

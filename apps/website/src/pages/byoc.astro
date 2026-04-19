@@ -2,55 +2,57 @@
 import MarketingLayout from '../layouts/MarketingLayout.astro';
 
 const clouds = [
-  { name:'AWS',   logo:'AW', color:'#FF9900',  desc:'EC2, EKS, Fargate, Graviton ARM64. OIDC-based auth — no long-lived credentials.' },
-  { name:'GCP',   logo:'GC', color:'#4285F4',  desc:'GCE, GKE, Cloud Run. Workload Identity Federation out of the box.' },
-  { name:'Azure', logo:'AZ', color:'#0078D4',  desc:'AKS, Azure VMs. Managed Identity and AD workload federation supported.' },
-  { name:'On-prem',logo:'OP',color:'#10B981',  desc:'Bare metal, VMware, Proxmox, or any Linux host. Register via the runner agent.' },
+  { name:'AWS',     emoji:'☁',  color:'#FF9900', desc:'EC2, EKS, Fargate. Graviton3 ARM64. OIDC-based auth — no long-lived keys stored anywhere.' },
+  { name:'GCP',     emoji:'🌐', color:'#4285F4', desc:'GCE, GKE, Cloud Run. Workload Identity Federation. Multi-region support.' },
+  { name:'Azure',   emoji:'💙', color:'#0078D4', desc:'AKS, Azure VMs. Managed Identity and AD Workload Federation supported out of the box.' },
+  { name:'On-prem', emoji:'🖥', color:'#00FF88', desc:'Bare metal, VMware, Proxmox, or any Linux x64/ARM64 host. Register via the runner agent.' },
 ];
 
 const steps = [
-  { n:'1', title:'Install the runner agent', body:'One-line install on any Linux or macOS host. Docker, systemd, or Kubernetes DaemonSet.' },
-  { n:'2', title:'Register with your org', body:'Run forge runner register with your org token. The agent authenticates via mTLS.' },
-  { n:'3', title:'Label your runners', body:'Tag runners by size, region, OS, or any custom label. Route jobs with runs-on:.' },
-  { n:'4', title:'Build on your infrastructure', body:'Builds run exclusively on your machines. Data never leaves your network.' },
+  { n:1, title:'Install the runner agent', body:'One-line install script. Works on any Linux (x64 or ARM64) or macOS host. Systemd, Docker, or Kubernetes DaemonSet.' },
+  { n:2, title:'Register with your org',   body:'Run `forge runner register` with your org token. Authentication uses mTLS — no inbound firewall rules needed.' },
+  { n:3, title:'Label your runners',       body:'Tag runners by size, region, GPU, OS, or any custom label. Route jobs with `runs-on:` in your pipeline YAML.' },
+  { n:4, title:'Build on your infra',      body:'Builds run exclusively on your machines. Source code, artifacts, and secrets never leave your network.' },
+];
+
+const benefits = [
+  { icon:'🔒', title:'Zero data egress',        desc:'Source code, secrets, and build artifacts stay inside your VPC. Forge CI sends only job metadata and log streaming.' },
+  { icon:'💸', title:'Use your existing budget', desc:'Runs on your existing AWS, GCP, or Azure committed spend. No surprise Forge CI network egress costs.' },
+  { icon:'⚡', title:'Full Forge CI feature set', desc:'Caching, Sherlock AI, matrix builds, waterfall metrics, and real-time dashboards all work on BYOC runners.' },
+  { icon:'🌍', title:'Any region, any latency',  desc:'Run runners co-located with your data — same region as your RDS instance, Kubernetes cluster, or artifact store.' },
 ];
 ---
 
-<MarketingLayout
-  title="BYOC Runners — Forge CI"
-  description="Bring Your Own Cloud. Run Forge CI builds on your AWS, GCP, Azure, or on-premise infrastructure. Zero data egress, full compliance."
->
+<MarketingLayout title="BYOC Runners — Forge CI" description="Bring your own cloud. Run Forge CI builds on AWS, GCP, Azure, or bare metal. Source code never leaves your perimeter.">
+
+  <!-- Hero -->
   <section class="relative pt-32 pb-20 overflow-hidden">
-    <div class="absolute inset-0 bg-grid opacity-25 pointer-events-none" aria-hidden="true"></div>
+    <div class="absolute inset-0 bg-grid opacity-25 pointer-events-none"></div>
+    <div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(ellipse 1000px 500px at 50% 0,rgba(0,238,255,0.06),transparent 60%)"></div>
     <div class="container-forge relative z-10 text-center max-w-3xl mx-auto">
       <div class="section-label mb-6">BYOC Runners</div>
-      <h1 class="section-title mb-6">
-        Your cloud.
-        <span class="text-gradient"> Our brains.</span>
-      </h1>
-      <p class="text-lg text-forge-text-2 mb-10 mx-auto leading-relaxed">
+      <h1 class="section-title mb-6">Your cloud. <span class="text-gradient">Our brains.</span></h1>
+      <p class="section-subtitle mx-auto text-center mb-10">
         Register your own EC2 instances, GKE nodes, or bare-metal machines as Forge CI runners.
-        Full CI orchestration, zero data leaving your perimeter.
+        Full CI/CD orchestration, Sherlock AI, and real-time metrics — zero data leaving your perimeter.
       </p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
-        <a href="/docs/byoc" class="btn-primary btn-xl">Read the docs</a>
+        <a href="/docs/byoc" class="btn-primary btn-xl">Read the BYOC docs</a>
         <a href="/auth/signup?plan=team" class="btn-secondary btn-xl">Start free trial</a>
       </div>
     </div>
   </section>
 
   <!-- Cloud providers -->
-  <section class="section border-t border-forge-border">
+  <section class="section border-t border-[#2C2C2C]">
     <div class="container-forge">
-      <h2 class="font-display font-bold text-3xl text-center text-forge-text mb-10">Works with any cloud or on-premise host</h2>
+      <h2 class="font-bold text-3xl text-[#F0F0F0] text-center mb-10">Works with any cloud or host</h2>
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {clouds.map(c => (
-          <div class="card p-6 text-center hover:border-forge-accent/20 transition-colors">
-            <div class="w-12 h-12 rounded-xl border border-forge-border flex items-center justify-center text-sm font-mono font-bold text-forge-text-2 mx-auto mb-4 bg-forge-surface3">
-              {c.logo}
-            </div>
-            <h3 class="font-display font-bold text-lg text-forge-text mb-2">{c.name}</h3>
-            <p class="text-xs text-forge-text-3 leading-relaxed">{c.desc}</p>
+        {clouds.map(c=>(
+          <div class="card p-6 hover:border-[rgba(255,238,0,0.2)] transition-colors">
+            <div class="text-4xl mb-4">{c.emoji}</div>
+            <h3 class="font-bold text-xl text-[#F0F0F0] mb-2">{c.name}</h3>
+            <p class="text-sm text-[#AAAAAA] leading-relaxed">{c.desc}</p>
           </div>
         ))}
       </div>
@@ -58,62 +60,68 @@ const steps = [
   </section>
 
   <!-- How it works -->
-  <section class="section border-t border-forge-border bg-forge-surface/20">
+  <section class="section border-t border-[#2C2C2C] bg-[rgba(12,16,24,0.4)]">
     <div class="container-forge max-w-3xl">
-      <h2 class="font-display font-bold text-3xl text-forge-text text-center mb-12">Set up in 4 steps</h2>
-      <div class="space-y-6">
-        {steps.map(({ n, title, body }) => (
-          <div class="flex gap-5 items-start">
-            <div class="w-10 h-10 rounded-full bg-forge-accent flex items-center justify-center font-display font-bold text-forge-bg flex-shrink-0">
-              {n}
-            </div>
+      <h2 class="font-bold text-3xl text-[#F0F0F0] text-center mb-12">Set up in 4 steps</h2>
+      <div class="space-y-6 mb-10">
+        {steps.map(s=>(
+          <div class="flex gap-5 items-start appear">
+            <div class="w-10 h-10 rounded-full bg-[#FFEE00] flex items-center justify-center font-bold text-[#0A0A0A] flex-shrink-0">{s.n}</div>
             <div>
-              <h3 class="font-display font-bold text-lg text-forge-text mb-1">{title}</h3>
-              <p class="text-forge-text-2 leading-relaxed">{body}</p>
+              <h3 class="font-bold text-lg text-[#F0F0F0] mb-1">{s.title}</h3>
+              <p class="text-[#AAAAAA] leading-relaxed">{s.body}</p>
             </div>
           </div>
         ))}
       </div>
 
-      <!-- Code snippet -->
-      <div class="terminal mt-10">
+      <!-- CLI snippet -->
+      <div class="terminal">
         <div class="terminal-header">
           <div class="terminal-dot bg-[#FF5F57]"></div>
           <div class="terminal-dot bg-[#FFBD2E]"></div>
           <div class="terminal-dot bg-[#28C840]"></div>
-          <span class="font-mono text-xs text-forge-text-3 ml-2">Install runner agent</span>
+          <span class="text-xs font-mono text-[#666666] ml-2">Install runner agent</span>
         </div>
-        <pre class="p-5 font-mono text-xs text-forge-text-2 leading-relaxed overflow-x-auto"><code><span class="text-forge-text-3"># Install on any Linux host</span>
-<span class="text-forge-accent">curl -sSL https://install.forge-ci.dev/runner | bash</span>
+        <pre class="p-5 font-mono text-xs text-[#AAAAAA] leading-relaxed overflow-x-auto"><code><span class="text-[#666666]"># Install on any Linux host (x64 or ARM64)</span>
+<span class="text-[#FFEE00]">curl -sSL https://install.forge-ci.dev/runner | bash</span>
 
-<span class="text-forge-text-3"># Register with your org</span>
-<span class="text-forge-text">forge runner register \
+<span class="text-[#666666]"># Register with your organization</span>
+<span class="text-[#F0F0F0]">forge runner register \
   --org acme-corp \
   --token $FORGE_RUNNER_TOKEN \
   --labels linux,x64,large,us-west-2 \
   --concurrency 4</span>
 
-<span class="text-forge-text-3"># Runner is now active ✓</span>
-<span class="text-forge-success">✓ Runner sb-r8f2 registered and listening for jobs</span></code></pre>
+<span class="text-[#666666]"># Runner is now active</span>
+<span class="text-[#00FF88]">✓ Runner acme-r8f2 registered · waiting for jobs</span></code></pre>
       </div>
     </div>
   </section>
 
   <!-- Benefits -->
-  <section class="section border-t border-forge-border">
+  <section class="section border-t border-[#2C2C2C]">
     <div class="container-forge">
-      <div class="grid sm:grid-cols-3 gap-6 text-center">
-        {[
-          { icon:'🔒', title:'Zero data egress', desc:'Source code, secrets, and artifacts stay inside your VPC. Forge CI only sends job metadata.' },
-          { icon:'💸', title:'Use your existing budget', desc:'Leverages existing AWS, GCP, or Azure spend commitments. No surprise Forge CI egress bills.' },
-          { icon:'⚡', title:'Full Forge CI features', desc:'Intelligent caching, matrix builds, Sherlock AI, and real-time metrics work on your runners.' },
-        ].map(({ icon, title, desc }) => (
-          <div class="card p-8">
-            <div class="text-4xl mb-4">{icon}</div>
-            <h3 class="font-display font-bold text-lg text-forge-text mb-2">{title}</h3>
-            <p class="text-sm text-forge-text-2 leading-relaxed">{desc}</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {benefits.map(b=>(
+          <div class="card p-6 text-center hover:border-[rgba(255,238,0,0.2)] transition-colors">
+            <div class="text-4xl mb-4">{b.icon}</div>
+            <h3 class="font-bold text-base text-[#F0F0F0] mb-2">{b.title}</h3>
+            <p class="text-sm text-[#AAAAAA] leading-relaxed">{b.desc}</p>
           </div>
         ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section border-t border-[#2C2C2C] bg-[rgba(12,16,24,0.4)]">
+    <div class="container-forge max-w-xl text-center">
+      <h2 class="font-bold text-3xl text-[#F0F0F0] mb-4">BYOC is available on Team and Enterprise plans.</h2>
+      <p class="text-[#AAAAAA] mb-8">Start a 14-day free trial, or talk to our team about enterprise licensing.</p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="/auth/signup?plan=team" class="btn-primary btn-xl">Start free trial</a>
+        <a href="/enterprise" class="btn-secondary btn-xl">Talk to enterprise sales</a>
       </div>
     </div>
   </section>

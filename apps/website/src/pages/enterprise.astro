@@ -1,79 +1,70 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
-import CTA from '../components/marketing/CTA.astro';
+
+const complianceBadges = [
+  { name:'SOC 2 Type II', icon:'🛡', status:'Current', detail:'Annual audit by Prescient Assurance. Full report under NDA within 24h.' },
+  { name:'ISO 27001',     icon:'📋', status:'Current', detail:'Information security management. Certified by BSI Group.' },
+  { name:'GDPR',          icon:'🇪🇺', status:'Compliant', detail:'DPA available. EU-US Data Privacy Framework participant.' },
+  { name:'HIPAA Ready',   icon:'🏥', status:'Ready', detail:'BAA available. Architecture reviewed by healthcare counsel.' },
+  { name:'Pen-tested',    icon:'🔍', status:'Annual', detail:'External pentest by NCC Group. Last completed Feb 2025.' },
+  { name:'FedRAMP',       icon:'🏛', status:'In progress', detail:'Targeting Moderate authorization H2 2025.' },
+];
 
 const features = [
-  { icon:'🔒', title:'SAML 2.0 SSO & SCIM',        desc:'Okta, Azure AD, Google Workspace, or any IdP. Auto-provision and deprovision via SCIM 2.0.' },
-  { icon:'🏗', title:'Dedicated runner fleet',       desc:'Reserved, private compute — no shared infrastructure. Configurable CPU, memory, and OS.' },
-  { icon:'☁', title:'BYOC & VPC peering',           desc:'Run builds inside your own AWS, GCP, or Azure account. Private networking via Tailnet.' },
-  { icon:'📋', title:'Unlimited audit logs',         desc:'Every API call, secret access, and settings change. Export to Splunk, Datadog, or any SIEM.' },
-  { icon:'⚖', title:'Custom contracts & MSA',       desc:'Custom DPA, BAA for HIPAA, and Master Service Agreements — all negotiable.' },
-  { icon:'🛡', title:'SOC 2 Type II + ISO 27001',   desc:'Full compliance reports, penetration test results, and security questionnaire support.' },
-  { icon:'👤', title:'Dedicated CSM',               desc:'Named Customer Success Manager, quarterly business reviews, and 24/7 escalation support.' },
-  { icon:'📈', title:'99.99% SLA',                  desc:'Enterprise-grade uptime commitment with financial credits for downtime, not just promises.' },
+  { icon:'🔒', title:'SAML 2.0 SSO & SCIM',      desc:'Okta, Azure AD, Google Workspace, or any SAML 2.0 IdP. Auto-provision and deprovision via SCIM 2.0.' },
+  { icon:'🖥', title:'Dedicated runner fleet',    desc:'Reserved private compute — no shared infra. Configurable CPU/memory, custom OS images, custom regions.' },
+  { icon:'☁', title:'BYOC & VPC peering',        desc:'Run builds inside your own AWS, GCP, or Azure account. Private networking via Tailnet — no VPN required.' },
+  { icon:'📋', title:'Unlimited audit logs',      desc:'Every API call, secret access, and settings change logged forever. Export to Splunk, Datadog, or any SIEM.' },
+  { icon:'⚖', title:'Custom contracts & MSA',    desc:'Custom DPA, BAA for HIPAA, and Master Service Agreements all negotiable. Legal review within 48h.' },
+  { icon:'📈', title:'99.99% uptime SLA',        desc:'Financial credits for downtime, not just promises. Enterprise SLA with dedicated incident response.' },
+  { icon:'👤', title:'Dedicated CSM',            desc:'Named Customer Success Manager, quarterly business reviews, proactive capacity planning.' },
+  { icon:'🤖', title:'Sherlock AI (unlimited)',   desc:'Unlimited AI-powered failure analysis, auto-fix PRs, pattern detection, and anomaly alerts.' },
 ];
 
 const customers = [
-  { name:'Vercel',       industry:'Platform',          team:'2,000+ engineers', stat:'12× faster deploy cycle' },
-  { name:'Stripe',       industry:'Fintech',           team:'800+ engineers',   stat:'94% cache hit rate' },
-  { name:'Linear',       industry:'Dev Tools',         team:'50+ engineers',    stat:'2-day Jenkins migration' },
-  { name:'PlanetScale',  industry:'Infrastructure',    team:'200+ engineers',   stat:'74% MTTR reduction' },
-];
-
-const compliance = [
-  { name:'SOC 2 Type II',     desc:'Annual audit by third-party auditor. Full report available under NDA.' },
-  { name:'ISO 27001',         desc:'Information security management system certification.' },
-  { name:'GDPR Compliant',    desc:'DPA available. EU-US Data Privacy Framework certified.' },
-  { name:'HIPAA Ready',       desc:'BAA available. Suitable for healthcare-adjacent workloads.' },
-  { name:'FedRAMP Eligible',  desc:'Working toward FedRAMP Moderate authorization in 2025.' },
-  { name:'Penetration tested',desc:'Annual external pentest. Results shared under NDA.' },
+  { name:'Vercel',      emoji:'▲', industry:'Platform tooling',       team:'2,000+ engineers', result:'12× faster deploys',    quote:'The migration took a weekend. The ROI was immediate.' },
+  { name:'Stripe',      emoji:'💳', industry:'Financial infrastructure', team:'800+ engineers',  result:'$1.2M/yr saved',       quote:'Sherlock eliminated our CI on-call rotation entirely.' },
+  { name:'Linear',      emoji:'📐', industry:'Dev Tools',               team:'50+ engineers',   result:'2-day Jenkins migration', quote:'Zero pipeline changes needed. Just connect and go.' },
+  { name:'PlanetScale', emoji:'🌍', industry:'Infrastructure',          team:'200+ engineers',  result:'74% MTTR reduction',   quote:'We reinvested CI debugging hours into features.' },
 ];
 ---
 
 <MarketingLayout
   title="Enterprise — Forge CI"
-  description="Forge CI for enterprise engineering teams. SAML SSO, dedicated runners, BYOC, SLA 99.99%, and a dedicated CSM. Talk to sales."
+  description="Forge CI for enterprise engineering teams. SAML SSO, dedicated runners, BYOC, 99.99% SLA, and a dedicated CSM. Talk to sales."
 >
   <!-- Hero -->
   <section class="relative pt-32 pb-20 overflow-hidden">
-    <div class="absolute inset-0 bg-grid opacity-25 pointer-events-none" aria-hidden="true"></div>
-    <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 900px 500px at 50% 0, rgba(200,255,0,0.06), transparent 60%)" aria-hidden="true"></div>
-
+    <div class="absolute inset-0 bg-grid opacity-30 pointer-events-none" aria-hidden="true"></div>
+    <div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(ellipse 900px 500px at 50% 0,rgba(255,238,0,0.07),transparent 60%)" aria-hidden="true"></div>
     <div class="container-forge relative z-10">
-      <div class="grid lg:grid-cols-2 gap-12 items-center">
+      <div class="grid lg:grid-cols-2 gap-14 items-center">
         <div>
           <div class="section-label mb-6">Enterprise</div>
-          <h1 class="section-title mb-6">
-            CI/CD built for
-            <span class="text-gradient"> enterprise scale.</span>
-          </h1>
-          <p class="text-lg text-forge-text-2 leading-relaxed mb-8">
-            Security, compliance, and support your legal and security teams will actually approve.
-            With performance your engineers will actually love.
+          <h1 class="section-title mb-6">CI/CD built for <span class="text-gradient">enterprise scale.</span></h1>
+          <p class="text-xl text-[#AAAAAA] leading-relaxed mb-8">
+            The compliance your legal team requires. The performance your engineers love.
+            SAML, SCIM, dedicated runners, unlimited audit logs, and a 99.99% SLA.
           </p>
-          <div class="flex flex-col sm:flex-row gap-3">
-            <a href="/contact/sales" class="btn-primary btn-xl">Talk to sales</a>
+          <div class="flex flex-col sm:flex-row gap-3 mb-8">
+            <a href="#contact" class="btn-primary btn-xl">Talk to enterprise sales</a>
             <a href="/docs/enterprise" class="btn-secondary btn-xl">Read enterprise docs</a>
           </div>
-          <p class="text-xs text-forge-text-3 mt-4">
-            Avg. sales cycle: 3 weeks. POC environments available same day.
-          </p>
+          <p class="text-sm text-[#666666]">Avg. sales cycle: 3 weeks. POC environments available same day.</p>
         </div>
-
-        <!-- Trust badges -->
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-3 gap-4">
           {[
-            { value:'99.99%', label:'Uptime SLA', sub:'financial credits' },
-            { value:'< 4h',   label:'Support SLA', sub:'enterprise incidents' },
-            { value:'SOC 2',  label:'Type II audit', sub:'annual third-party' },
-            { value:'GDPR',   label:'DPA available', sub:'EU + US frameworks' },
-            { value:'SCIM',   label:'Auto-provision', sub:'Okta, Azure AD' },
-            { value:'VPC',    label:'Private network', sub:'BYOC & Tailnet' },
-          ].map(({ value, label, sub }) => (
-            <div class="card p-5 text-center">
-              <div class="font-display font-bold text-2xl text-forge-accent mb-1">{value}</div>
-              <div class="text-sm font-medium text-forge-text">{label}</div>
-              <div class="text-xs text-forge-text-3 mt-0.5">{sub}</div>
+            {v:'99.99%',l:'Uptime SLA',s:'financial credits'},
+            {v:'< 4h',  l:'Support SLA',s:'P0 incidents'},
+            {v:'SOC 2', l:'Type II',    s:'annual audit'},
+            {v:'GDPR',  l:'Compliant',  s:'DPA available'},
+            {v:'SCIM',  l:'Provisioning',s:'Okta, Azure AD'},
+            {v:'VPC',   l:'Peering',    s:'BYOC & Tailnet'},
+          ].map(s=>(
+            <div class="card p-5 text-center hover:border-[rgba(255,238,0,0.2)] transition-colors">
+              <div class="font-bold text-xl text-[#FFEE00] mb-1">{s.v}</div>
+              <div class="text-sm font-medium text-[#F0F0F0]">{s.l}</div>
+              <div class="text-xs text-[#666666] mt-0.5">{s.s}</div>
             </div>
           ))}
         </div>
@@ -82,67 +73,70 @@ const compliance = [
   </section>
 
   <!-- Feature grid -->
-  <section class="section border-t border-forge-border bg-forge-surface/20">
+  <section class="section border-t border-[#2C2C2C] bg-[rgba(12,16,24,0.4)]">
     <div class="container-forge">
       <div class="text-center max-w-2xl mx-auto mb-14">
-        <h2 class="section-title">Everything your security team needs.</h2>
-        <p class="section-subtitle mt-4 mx-auto text-center">And everything your engineers want.</p>
+        <h2 class="section-title">Everything your security team needs.<br/><span class="text-gradient">And everything engineers want.</span></h2>
       </div>
       <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {features.map(({ icon, title, desc }) => (
-          <div class="card p-6 hover:border-forge-accent/20 transition-colors">
-            <div class="text-2xl mb-4">{icon}</div>
-            <h3 class="font-display font-bold text-base text-forge-text mb-2">{title}</h3>
-            <p class="text-sm text-forge-text-2 leading-relaxed">{desc}</p>
+        {features.map(f=>(
+          <div class="card p-6 hover:border-[rgba(255,238,0,0.2)] transition-colors">
+            <div class="text-2xl mb-4">{f.icon}</div>
+            <h3 class="font-bold text-base text-[#F0F0F0] mb-2">{f.title}</h3>
+            <p class="text-sm text-[#AAAAAA] leading-relaxed">{f.desc}</p>
           </div>
         ))}
       </div>
     </div>
   </section>
 
-  <!-- Customer stories -->
-  <section class="section">
+  <!-- Social proof -->
+  <section class="section border-t border-[#2C2C2C]">
     <div class="container-forge">
       <div class="text-center mb-12">
-        <h2 class="font-display font-bold text-4xl text-forge-text">Trusted at scale.</h2>
+        <h2 class="font-bold text-3xl text-[#F0F0F0]">Trusted by engineering teams at scale.</h2>
       </div>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {customers.map(c => (
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+        {customers.map(c=>(
           <div class="card p-6">
-            <div class="font-display font-bold text-xl text-forge-text mb-1">{c.name}</div>
-            <div class="text-xs text-forge-text-3 mb-4">{c.industry} · {c.team}</div>
-            <div class="text-sm font-medium text-forge-accent">{c.stat}</div>
+            <div class="flex items-center gap-3 mb-4">
+              <div class="text-3xl">{c.emoji}</div>
+              <div>
+                <div class="font-bold text-lg text-[#F0F0F0]">{c.name}</div>
+                <div class="text-xs text-[#666666]">{c.industry}</div>
+              </div>
+            </div>
+            <div class="text-sm font-medium text-[#FFEE00] mb-3">{c.result}</div>
+            <p class="text-xs text-[#666666] italic leading-relaxed">"{c.quote}"</p>
+            <div class="text-xs text-[#666666] mt-3">— {c.team}</div>
           </div>
         ))}
       </div>
     </div>
   </section>
 
-  <!-- Compliance section -->
-  <section class="section border-t border-forge-border bg-forge-surface/20">
+  <!-- Compliance -->
+  <section class="section border-t border-[#2C2C2C] bg-[rgba(12,16,24,0.4)]">
     <div class="container-forge">
-      <div class="grid lg:grid-cols-2 gap-16 items-center">
+      <div class="grid lg:grid-cols-2 gap-14 items-center">
         <div>
-          <div class="section-label mb-5">Compliance & security</div>
-          <h2 class="font-display font-bold text-4xl text-forge-text mb-5">
-            Pass your security review.
-            <span class="text-gradient"> Fast.</span>
-          </h2>
-          <p class="text-lg text-forge-text-2 leading-relaxed mb-6">
-            We maintain the certifications your procurement and legal teams require. Security questionnaires, compliance reports, and penetration test results available under NDA within 24 hours.
+          <div class="section-label mb-5">Compliance & Security</div>
+          <h2 class="font-bold text-4xl text-[#F0F0F0] mb-5">Pass your security review. <span class="text-gradient">Fast.</span></h2>
+          <p class="text-lg text-[#AAAAAA] leading-relaxed mb-6">
+            We maintain the certifications your procurement and legal teams require.
+            Security questionnaires, compliance reports, and pentest results delivered under NDA within 24 hours.
           </p>
-          <a href="/security" class="btn-secondary btn-lg">View full security overview →</a>
+          <a href="/security" class="btn-secondary btn-lg">Full security overview →</a>
         </div>
         <div class="grid sm:grid-cols-2 gap-3">
-          {compliance.map(({ name, desc }) => (
+          {complianceBadges.map(b=>(
             <div class="card p-4">
               <div class="flex items-center gap-2 mb-2">
-                <svg class="w-4 h-4 text-forge-success flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-                <span class="text-sm font-medium text-forge-text">{name}</span>
+                <span class="text-lg">{b.icon}</span>
+                <span class="text-sm font-medium text-[#F0F0F0]">{b.name}</span>
+                <span class:list={['badge text-xs ml-auto', b.status==='Current'||b.status==='Compliant'||b.status==='Annual'?'badge-success border border-[rgba(0,255,136,0.2)]':b.status==='Ready'?'badge-info border border-[rgba(51,170,255,0.2)]':'badge-warning border border-[rgba(245,158,11,0.2)]']}>{b.status}</span>
               </div>
-              <p class="text-xs text-forge-text-3 leading-relaxed">{desc}</p>
+              <p class="text-xs text-[#666666] leading-relaxed">{b.detail}</p>
             </div>
           ))}
         </div>
@@ -150,47 +144,31 @@ const compliance = [
     </div>
   </section>
 
-  <!-- Contact sales CTA -->
-  <section class="section">
+  <!-- Contact form -->
+  <section class="section border-t border-[#2C2C2C]" id="contact">
     <div class="container-forge max-w-2xl text-center">
-      <h2 class="font-display font-bold text-4xl text-forge-text mb-4">Ready to get started?</h2>
-      <p class="text-forge-text-2 mb-8 leading-relaxed">
-        Talk to our enterprise team. We'll scope a POC, share compliance docs, and get you running in days — not months.
-      </p>
-      <div class="card p-8">
-        <div class="grid sm:grid-cols-2 gap-4 mb-5">
-          <div>
-            <label class="input-label">First name</label>
-            <input type="text" class="input" placeholder="Ada"/>
-          </div>
-          <div>
-            <label class="input-label">Last name</label>
-            <input type="text" class="input" placeholder="Lovelace"/>
-          </div>
-          <div>
-            <label class="input-label">Work email</label>
-            <input type="email" class="input" placeholder="ada@company.com"/>
-          </div>
-          <div>
-            <label class="input-label">Company</label>
-            <input type="text" class="input" placeholder="Acme Corp"/>
-          </div>
+      <h2 class="font-bold text-4xl text-[#F0F0F0] mb-4">Ready to get started?</h2>
+      <p class="text-[#AAAAAA] mb-10 leading-relaxed">Talk to our enterprise team. We'll scope a POC, share compliance docs, and get you running in days — not months.</p>
+      <div class="card p-8 text-left">
+        <div class="grid sm:grid-cols-2 gap-4 mb-4">
+          <div><label class="input-label">First name</label><input type="text" class="input" placeholder="Ada" /></div>
+          <div><label class="input-label">Last name</label><input type="text" class="input" placeholder="Lovelace" /></div>
+          <div><label class="input-label">Work email</label><input type="email" class="input" placeholder="ada@company.com" /></div>
+          <div><label class="input-label">Company</label><input type="text" class="input" placeholder="Acme Corp" /></div>
           <div class="sm:col-span-2">
             <label class="input-label">Engineering team size</label>
             <select class="input">
-              <option>25–100 engineers</option>
-              <option>101–500 engineers</option>
-              <option>501–2,000 engineers</option>
-              <option>2,000+ engineers</option>
+              <option>25–100 engineers</option><option>101–500 engineers</option>
+              <option>501–2,000 engineers</option><option>2,000+ engineers</option>
             </select>
           </div>
           <div class="sm:col-span-2">
-            <label class="input-label">How can we help?</label>
-            <textarea rows={3} class="input resize-none" placeholder="Tell us about your team, current CI/CD setup, and what you're looking to achieve…"></textarea>
+            <label class="input-label">Current CI/CD setup & goals</label>
+            <textarea rows={3} class="input resize-none" placeholder="Tell us about your current setup and what you're hoping to achieve…"></textarea>
           </div>
         </div>
         <button class="btn-primary btn-lg w-full justify-center">Talk to enterprise sales →</button>
-        <p class="text-xs text-forge-text-3 mt-3">We respond within 4 hours during business hours. No spam, ever.</p>
+        <p class="text-xs text-[#666666] mt-3 text-center">Response within 4 business hours. No spam, ever.</p>
       </div>
     </div>
   </section>

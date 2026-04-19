@@ -1,91 +1,433 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
-import Hero from '../components/marketing/Hero.astro';
-import Features from '../components/marketing/Features.astro';
-import SherlockShowcase from '../components/marketing/SherlockShowcase.astro';
-import Testimonials from '../components/marketing/Testimonials.astro';
-import Integrations from '../components/marketing/Integrations.astro';
-import Pricing from '../components/marketing/Pricing.astro';
-import CTA from '../components/marketing/CTA.astro';
+import { MOCK_TESTIMONIALS, MOCK_CASE_STUDIES, PRICING_TIERS, MOCK_BLOG_POSTS } from '../data/mock.ts';
+
+const testimonials = MOCK_TESTIMONIALS;
+const studies      = MOCK_CASE_STUDIES;
+const tiers        = PRICING_TIERS;
+const posts        = MOCK_BLOG_POSTS.slice(0, 3);
+
+const companies = ['Vercel','Stripe','Linear','Notion','Figma','Supabase','PlanetScale','Railway','Liveblocks','Raycast','Cal.com','Dub.co','Resend','Trigger.dev','Neon','Fly.io'];
+
+const benchmarks = [
+  {name:'Forge CI',       time:'1m 26s', pct:8,   accent:true},
+  {name:'CircleCI',       time:'6m 14s', pct:36,  accent:false},
+  {name:'GitHub Actions', time:'14m 32s',pct:82,  accent:false},
+  {name:'Jenkins',        time:'17m 44s',pct:100, accent:false},
+];
+
+const features = [
+  {icon:'⚡',cat:'Speed',       title:'10× Faster Builds',    desc:'Pre-warmed runners start in <2s. Content-addressed caching means 89% of builds skip installs entirely.',       metric:'89% avg cache hit'},
+  {icon:'◎', cat:'Intelligence',title:'Sherlock AI Agent',    desc:'One click. Sherlock reads your logs, config, and git diff simultaneously — then gives you the exact fix.',      metric:'74% MTTR reduction'},
+  {icon:'⬡', cat:'Scale',       title:'Limitless Parallelism',desc:'Matrix builds, fan-out to 10,000 concurrent jobs. All declarative in your .forge/pipeline.yml.',               metric:'Up to 10K concurrent'},
+  {icon:'◆', cat:'Security',    title:'Zero-Trust Security',  desc:'Ory Kratos/Hydra/Keto identity stack. OIDC secrets, ephemeral runners, network-isolated sandboxes, full RBAC.', metric:'SOC 2 Type II'},
+  {icon:'◉', cat:'Cloud',       title:'Any Cloud, Any Runner',desc:'AWS, GCP, Azure, on-prem. BYOC via runner agent v2. Tailnet for private networking — no VPN required.',        metric:'4 global regions'},
+  {icon:'▤', cat:'Observability',title:'Full Observability',  desc:'Waterfall, Gantt, Flame graphs, DAG views, span timelines, heatmaps, log streaming — all built in.',           metric:'P99 build analytics'},
+];
+
+const logLines = [
+  {t:0,   cls:'text-[#666666]',               txt:'$ forge run pipeline --branch main'},
+  {t:180, cls:'text-[#00EEFF]',               txt:'→ Fetching pipeline config... [0.12s]'},
+  {t:400, cls:'text-[#00FF88]',               txt:'→ Cache HIT! node_modules (1.2 GB restored in 0.8s)'},
+  {t:700, cls:'text-[#AAAAAA]',               txt:'→ Runner: linux-x64-medium | Region: us-east-1'},
+  {t:1000,cls:'text-[#AAAAAA]',               txt:'→ Running 24 test workers in parallel'},
+  {t:1500,cls:'text-[#00FF88]',               txt:'  ✓ 1,847 tests passed [12.4s] ↓ was 3m 22s'},
+  {t:1800,cls:'text-[#AAAAAA]',               txt:'→ Building optimized production bundle...'},
+  {t:2200,cls:'text-[#00FF88]',               txt:'  ✓ Build complete: dist/ 2.4 MB [8.1s]'},
+  {t:2500,cls:'text-[#AAAAAA]',               txt:'→ Deploying to prod-k8s via Ory OIDC...'},
+  {t:2900,cls:'text-[#00FF88]',               txt:'  ✓ Deployed to production [4.2s]'},
+  {t:3200,cls:'text-[#FFEE00] font-semibold', txt:'✓ Pipeline passed · 25.8s · 10.2× faster · 12 credits used'},
+];
 ---
 
 <MarketingLayout
   title="Forge CI — Build at the Speed of Thought"
-  description="The fastest CI/CD platform for modern engineering teams. 10x faster builds, intelligent caching, Sherlock AI agent, any cloud. Start free."
+  description="The fastest CI/CD platform. 10× faster builds, Sherlock AI, Ory identity stack. 50K+ teams."
   transparentHeader={true}
 >
-  <Hero />
 
-  <!-- Speed benchmark section -->
-  <section class="py-16 border-y border-forge-border overflow-hidden bg-forge-surface/20">
-    <div class="container-forge">
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 text-center">
-        {[
-          { value: '10×', label: 'Faster builds', sub: 'vs. GitHub Actions' },
-          { value: '89%', label: 'Cache hit rate', sub: 'global average' },
-          { value: '< 2s', label: 'Queue time', sub: 'p99 at peak' },
-          { value: '99.99%', label: 'Uptime SLA', sub: 'last 12 months' },
-        ].map(({ value, label, sub }) => (
-          <div class="appear">
-            <div class="font-display font-bold text-4xl sm:text-5xl text-forge-accent mb-1">{value}</div>
-            <div class="text-sm font-medium text-forge-text">{label}</div>
-            <div class="text-xs text-forge-text-3 mt-0.5">{sub}</div>
+<!-- ── HERO ─────────────────────────────────────────────────── -->
+<section class="relative min-h-[100svh] flex flex-col justify-center overflow-hidden pt-16">
+  <!-- Grid background -->
+  <div class="absolute inset-0 bg-grid-brut pointer-events-none" aria-hidden="true"></div>
+  <!-- Accent glow -->
+  <div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(ellipse 1200px 600px at 50% -50px,rgba(255,238,0,0.06),transparent 60%)" aria-hidden="true"></div>
+
+  <div class="container-forge relative z-10 py-20 lg:py-28">
+    <div class="max-w-4xl">
+
+      <!-- Label -->
+      <div class="section-label mb-6 inline-flex">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#FFEE00] animate-pulse mr-2"></span>
+        v2.4 — Sherlock AI is now GA · Ory identity stack included
+      </div>
+
+      <!-- Headline -->
+      <h1 class="section-title mb-6" style="font-size:clamp(2.5rem,7vw,5rem)">
+        <span style="color:#F0F0F0">Build at the</span><br/>
+        <span class="text-gradient-brut">speed of thought.</span>
+      </h1>
+
+      <p class="section-subtitle mb-8 max-w-2xl" style="font-size:1.125rem">
+        The CI/CD platform engineered for velocity. <strong style="color:#F0F0F0">10× faster builds</strong>,
+        intelligent caching, Ory-powered identity (SAML, WebAuthn, TOTP, Passkeys), and an AI agent that actually understands your failures.
+      </p>
+
+      <!-- CTAs -->
+      <div class="flex flex-col sm:flex-row gap-3 mb-10">
+        <a href="/auth/signup" class="btn-primary btn-xl">
+          Start building free
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+        </a>
+        <a href="#demo" class="btn-secondary btn-xl">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg>
+          Watch 90s demo
+        </a>
+      </div>
+
+      <!-- Trust chips -->
+      <div class="flex flex-wrap gap-3 mb-14">
+        {['No credit card required','Free plan forever','Set up in 2 minutes','SOC 2 Type II','Ory-powered identity'].map(t => (
+          <div class="flex items-center gap-1.5 text-sm font-mono" style="color:#666666">
+            <svg class="w-3.5 h-3.5" fill="#00FF88" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+            {t}
+          </div>
+        ))}
+      </div>
+
+      <!-- Stats -->
+      <div class="grid grid-cols-3 gap-8 max-w-md mb-16">
+        {[{n:'50K+',l:'Teams building'},{n:'2.4B',l:'Builds run'},{n:'99.99%',l:'Uptime SLA'}].map(s => (
+          <div>
+            <div class="text-3xl sm:text-4xl font-bold" style="font-family:'Space Grotesk';color:#FFEE00;letter-spacing:-0.04em">{s.n}</div>
+            <div class="text-xs font-mono mt-0.5" style="color:#666666">{s.l}</div>
           </div>
         ))}
       </div>
     </div>
-  </section>
 
-  <Features />
-  <SherlockShowcase />
-  <Testimonials />
-  <Integrations />
+    <!-- Terminal demo -->
+    <div class="terminal shadow-brut-lg-accent max-w-3xl" id="demo">
+      <div class="terminal-header">
+        <div class="terminal-dot" style="background:#FF5F57"></div>
+        <div class="terminal-dot" style="background:#FFBD2E"></div>
+        <div class="terminal-dot" style="background:#28C840"></div>
+        <div class="flex-1"></div>
+        <div class="flex items-center gap-2 text-xs font-mono" style="color:#666666">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse"></span>
+          forge-ci · main · build #1847 · ory/kratos auth
+        </div>
+        <div class="flex-1"></div>
+      </div>
+      <div class="p-5 space-y-1 font-mono text-sm overflow-x-auto" style="min-height:240px">
+        {logLines.map(line => (
+          <div class={`log-entry opacity-0 ${line.cls}`} style={`--d:${line.t}ms`}>{line.txt}</div>
+        ))}
+      </div>
+    </div>
 
-  <!-- Speed comparison section -->
-  <section class="section">
-    <div class="container-forge">
-      <div class="text-center max-w-2xl mx-auto mb-12 appear">
-        <div class="section-label mb-5">Performance</div>
-        <h2 class="section-title">
-          The numbers
-          <span class="text-gradient"> don't lie.</span>
+    <!-- Company marquee -->
+    <div class="mt-16">
+      <p class="text-xs font-mono uppercase tracking-widest mb-6" style="color:#3C3C3C">Trusted by engineering teams at</p>
+      <div class="relative overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-20 z-10 pointer-events-none" style="background:linear-gradient(to right,#0A0A0A,transparent)"></div>
+        <div class="absolute right-0 top-0 bottom-0 w-20 z-10 pointer-events-none" style="background:linear-gradient(to left,#0A0A0A,transparent)"></div>
+        <div class="flex gap-12 items-center" style="animation:marquee 30s linear infinite;width:max-content">
+          {[...companies,...companies].map(co => (
+            <div class="font-bold text-xl whitespace-nowrap cursor-default transition-colors"
+                 style="font-family:'Space Grotesk';color:#2C2C2C;letter-spacing:-0.02em"
+                 onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#2C2C2C'">{co}</div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BENCHMARKS ─────────────────────────────────────────────── -->
+<section class="py-16 border-y-2" style="border-color:#2C2C2C;background:#060606">
+  <div class="container-forge">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-8 text-center mb-14 appear">
+      {[{v:'10×',l:'Faster builds',s:'vs GitHub Actions'},{v:'89%',l:'Cache hit rate',s:'global average'},{v:'<2s',l:'Queue time',s:'p99 at peak'},{v:'99.99%',l:'Uptime SLA',s:'last 12 months'}].map(m => (
+        <div>
+          <div class="text-4xl sm:text-5xl font-bold mb-1" style="font-family:'Space Grotesk';color:#FFEE00;letter-spacing:-0.04em">{m.v}</div>
+          <div class="text-sm font-semibold" style="color:#F0F0F0">{m.l}</div>
+          <div class="text-xs font-mono mt-0.5" style="color:#666666">{m.s}</div>
+        </div>
+      ))}
+    </div>
+
+    <!-- Benchmark bars -->
+    <div class="max-w-3xl mx-auto space-y-3 appear">
+      <p class="text-xs font-mono text-center mb-5" style="color:#3C3C3C">Node.js monorepo · 1,800 tests · 3-service Docker build · c5.2xlarge · warm cache</p>
+      {benchmarks.map(b => (
+        <div class:list={['flex items-center gap-4 p-4 border-2', b.accent ? 'border-[#FFEE00]' : 'border-[#2C2C2C]']} style={b.accent ? 'background:rgba(255,238,0,0.04)' : ''}>
+          <div class="text-sm font-semibold w-36 flex-shrink-0" style={b.accent ? 'color:#FFEE00' : 'color:#AAAAAA'}>
+            {b.name}
+            {b.accent && <span class="badge-accent text-xs ml-2">Fastest</span>}
+          </div>
+          <div class="flex-1 h-2 border border-[#2C2C2C] overflow-hidden" style="background:#0A0A0A">
+            <div class="h-full transition-all duration-1000" style={`width:${b.pct}%;background:${b.accent ? '#FFEE00' : '#2C2C2C'}`}></div>
+          </div>
+          <div class="text-sm font-mono w-16 text-right flex-shrink-0 font-bold" style={b.accent ? 'color:#FFEE00' : 'color:#3C3C3C'}>{b.time}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES ───────────────────────────────────────────────── -->
+<section class="section">
+  <div class="container-forge">
+    <div class="max-w-3xl mb-14 appear">
+      <div class="section-label mb-5">Platform Features</div>
+      <h2 class="section-title">Every tool your team needs.<br/><span class="text-gradient-brut">Zero compromise.</span></h2>
+      <p class="section-subtitle mt-5">From solo devs to 2,000-person platform teams.</p>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-0 border-l-2 border-t-2" style="border-color:#2C2C2C">
+      {features.map((f, i) => (
+        <div class="card-hover border-r-2 border-b-2 p-6 group" style="border-color:#2C2C2C;border-radius:0;box-shadow:none" data-delay={i*60}>
+          <div class="flex items-start gap-4 mb-4">
+            <div class="text-2xl w-10 h-10 flex items-center justify-center border-2 flex-shrink-0 transition-all"
+                 style="border-color:#2C2C2C;color:#FFEE00">
+              {f.icon}
+            </div>
+            <div>
+              <div class="text-xs font-mono uppercase tracking-widest mb-0.5" style="color:#666666">{f.cat}</div>
+              <h3 class="text-base font-bold transition-colors" style="font-family:'Space Grotesk';color:#F0F0F0">{f.title}</h3>
+            </div>
+          </div>
+          <p class="text-sm leading-relaxed mb-4" style="color:#AAAAAA">{f.desc}</p>
+          <div class="text-xs font-mono font-bold" style="color:#FFEE00">→ {f.metric}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ── SHERLOCK SHOWCASE ──────────────────────────────────────── -->
+<section class="section border-y-2" style="border-color:#2C2C2C;background:#060606">
+  <div class="container-forge">
+    <div class="grid lg:grid-cols-2 gap-14 items-center">
+      <!-- Sherlock mock UI -->
+      <div class="appear">
+        <div class="card" style="border-color:#2C2C2C;box-shadow:5px 5px 0 #FFEE00">
+          <div class="flex items-center gap-3 px-5 py-4 border-b-2" style="border-color:#2C2C2C;background:#111111">
+            <div class="w-8 h-8 border-2 flex items-center justify-center flex-shrink-0" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)">
+              <span class="text-sm font-mono font-bold" style="color:#00EEFF">◎</span>
+            </div>
+            <div>
+              <div class="text-sm font-bold" style="color:#F0F0F0">Sherlock — AI Build Intelligence</div>
+              <div class="text-xs font-mono" style="color:#666666">Build #1845 failed · analyzed in 8.2s</div>
+            </div>
+            <div class="ml-auto badge-danger">Build failed</div>
+          </div>
+          <div class="p-5 space-y-4">
+            <div class="flex items-center gap-3 px-3 py-2.5 border-2" style="border-color:rgba(255,51,51,0.3);background:rgba(255,51,51,0.06)">
+              <span class="text-sm" style="color:#FF3333">✕</span>
+              <span class="text-xs font-mono" style="color:#FF3333">Step <strong>Test (unit)</strong> exited code 1 after 14.2s</span>
+            </div>
+            <div class="flex gap-3">
+              <div class="w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 mt-0.5" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)">
+                <span class="text-xs font-mono font-bold" style="color:#00EEFF">S</span>
+              </div>
+              <div class="text-xs leading-relaxed" style="color:#AAAAAA">
+                I analyzed <strong style="color:#F0F0F0">1,847 log lines</strong>, <strong style="color:#F0F0F0">jest.config.ts</strong>, and the git diff from <strong style="color:#F0F0F0">fix/null-pointer</strong>. The failure is <strong style="color:#FF3333">deterministic</strong>, not flaky. Root cause found.
+              </div>
+            </div>
+            <div class="border-2 p-4" style="border-color:rgba(0,255,136,0.3);background:rgba(0,255,136,0.04)">
+              <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#00FF88">Suggested fix</div>
+              <pre class="text-xs font-mono overflow-x-auto border border-[#2C2C2C] p-3" style="background:#050505"><code><span class="text-[#FF3333]">- if (user.id !== req.params.userId) {'{'}</span>
+<span class="text-[#00FF88]">+ if (!user || user.id !== req.params.userId) {'{'}</span></code></pre>
+              <div class="flex gap-2 mt-3">
+                <button class="btn-success btn-sm text-xs">Apply fix & re-run</button>
+                <button class="btn-secondary btn-sm text-xs">Open PR</button>
+                <button class="btn-ghost btn-sm text-xs" style="color:#666666">Explain more</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 text-xs font-mono" style="color:#666666">
+              <div class="flex gap-0.5">{Array.from({length:5}).map(()=><div class="w-5 h-1.5" style="background:#00FF88"></div>)}</div>
+              97% confidence · 8.2s analysis
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Copy -->
+      <div class="appear">
+        <div class="section-label mb-6">Sherlock AI Agent</div>
+        <h2 class="font-bold tracking-tight mb-5" style="font-family:'Space Grotesk';font-size:clamp(2rem,4vw,3rem);letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0">
+          Your build failed.<br/><span style="color:#00EEFF">Sherlock knows why.</span>
         </h2>
-        <p class="section-subtitle mt-5 mx-auto text-center">
-          Head-to-head benchmark: a Node.js monorepo with 1,800 tests and a 3-service Docker build.
+        <p class="text-lg leading-relaxed mb-6" style="color:#AAAAAA">
+          Stop scrolling 2,000 log lines. One click and Sherlock reads your logs, config, and git diff simultaneously — then hands you the exact file, line, and fix.
         </p>
-      </div>
-
-      <div class="max-w-3xl mx-auto space-y-4 appear">
-        {[
-          { name: 'Forge CI', time: '1m 26s', pct: 8, color: 'bg-forge-accent', highlight: true },
-          { name: 'CircleCI', time: '6m 14s', pct: 35, color: 'bg-forge-text-3' },
-          { name: 'GitHub Actions', time: '14m 32s', pct: 82, color: 'bg-forge-text-3' },
-          { name: 'Jenkins', time: '17m 44s', pct: 100, color: 'bg-forge-text-3' },
-        ].map(({ name, time, pct, color, highlight }) => (
-          <div class={`flex items-center gap-4 p-4 rounded-xl border ${highlight ? 'border-forge-accent/30 bg-forge-accent-muted/30' : 'border-forge-border'}`}>
-            <div class={`text-sm font-medium w-36 flex-shrink-0 ${highlight ? 'text-forge-accent' : 'text-forge-text-2'}`}>
-              {name}
-              {highlight && <span class="ml-2 badge-accent text-2xs">Fastest</span>}
-            </div>
-            <div class="flex-1 h-2 bg-forge-surface2 rounded-full overflow-hidden">
-              <div
-                class={`h-full rounded-full transition-all duration-1000 ${color}`}
-                style={`width: ${pct}%`}
-              ></div>
-            </div>
-            <div class={`text-sm font-mono font-medium w-16 text-right flex-shrink-0 ${highlight ? 'text-forge-accent' : 'text-forge-text-3'}`}>
-              {time}
-            </div>
-          </div>
-        ))}
-
-        <p class="text-xs text-center text-forge-text-3 mt-4">
-          Test conditions: c5.2xlarge equivalent, warm cache, Ubuntu 22.04. <a href="/benchmarks" class="text-forge-text-2 hover:text-forge-accent transition-colors underline-accent">Full methodology →</a>
-        </p>
+        <ul class="space-y-4 mb-8">
+          {[
+            ['Root-cause analysis','Traces failures through logs, env vars, and config at once.'],
+            ['Code-level fix suggestions','Shows exact diff needed — not vague "check your config" advice.'],
+            ['One-click PR creation','Sherlock opens a PR with the fix applied, ready for review.'],
+            ['Flaky test detection','Distinguishes intermittent failures from real regressions.'],
+          ].map(([t,d]) => (
+            <li class="flex gap-3">
+              <div class="w-5 h-5 border-2 flex items-center justify-center flex-shrink-0 mt-0.5" style="border-color:#00EEFF">
+                <div class="w-2 h-2" style="background:#00EEFF"></div>
+              </div>
+              <div>
+                <div class="text-sm font-semibold mb-0.5" style="color:#F0F0F0">{t}</div>
+                <div class="text-sm" style="color:#666666">{d}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div class="flex gap-3">
+          <a href="/features#sherlock" class="btn-secondary btn-lg">Learn about Sherlock</a>
+          <a href="/auth/signup" class="btn-ghost btn-lg font-mono" style="color:#00EEFF">Try it free →</a>
+        </div>
       </div>
     </div>
-  </section>
+  </div>
+</section>
 
-  <Pricing />
-  <CTA />
+<!-- ── TESTIMONIALS ───────────────────────────────────────────── -->
+<section class="section">
+  <div class="container-forge">
+    <div class="mb-12 appear">
+      <div class="section-label mb-5">Customer Stories</div>
+      <h2 class="section-title">Teams ship faster.<br/><span class="text-gradient-brut">They say it best.</span></h2>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-0 border-l-2 border-t-2" style="border-color:#2C2C2C">
+      {testimonials.map(t => (
+        <div class="border-r-2 border-b-2 p-6 flex flex-col gap-4 appear" style="border-color:#2C2C2C">
+          <div class="flex gap-0.5">
+            {Array.from({length:5}).map(()=>(
+              <svg class="w-4 h-4" fill="#FFEE00" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+            ))}
+          </div>
+          <blockquote class="text-sm leading-relaxed flex-1 italic" style="color:#AAAAAA">"{t.quote}"</blockquote>
+          <span class="badge-accent self-start">{t.metric}</span>
+          <div class="flex items-center gap-3 pt-3 border-t-2" style="border-color:#2C2C2C">
+            <div class="avatar-md">{t.initials}</div>
+            <div>
+              <div class="text-sm font-semibold" style="color:#F0F0F0">{t.author}</div>
+              <div class="text-xs font-mono" style="color:#666666">{t.title} · {t.company}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ── CASE STUDIES ───────────────────────────────────────────── -->
+<section class="section border-y-2" style="border-color:#2C2C2C;background:#060606">
+  <div class="container-forge">
+    <div class="text-center mb-12 appear">
+      <div class="section-label mb-5">Case Studies</div>
+      <h2 class="section-title">Trusted at scale.</h2>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-0 border-l-2 border-t-2" style="border-color:#2C2C2C">
+      {studies.map(cs => (
+        <div class="border-r-2 border-b-2 p-8 appear" style="border-color:#2C2C2C">
+          <div class="flex items-center gap-4 mb-5">
+            <div class="text-4xl">{cs.logo_emoji}</div>
+            <div>
+              <div class="text-xl font-bold" style="font-family:'Space Grotesk';color:#F0F0F0">{cs.company}</div>
+              <div class="text-xs font-mono" style="color:#666666">{cs.industry} · {cs.team_size}</div>
+            </div>
+          </div>
+          <h3 class="text-lg font-bold mb-5 leading-tight" style="font-family:'Space Grotesk';color:#F0F0F0">{cs.headline}</h3>
+          <div class="space-y-2 mb-6">
+            {cs.results.map(r => (
+              <div class="flex items-center justify-between p-3 border-2" style="border-color:#2C2C2C;background:#111111">
+                <span class="text-sm" style="color:#AAAAAA">{r.metric}</span>
+                <div class="flex items-center gap-3 text-sm font-mono">
+                  <span style="color:#3C3C3C;text-decoration:line-through">{r.before}</span>
+                  <span style="color:#FFEE00">→</span>
+                  <strong style="color:#FFEE00">{r.after}</strong>
+                </div>
+              </div>
+            ))}
+          </div>
+          <blockquote class="text-sm italic leading-relaxed border-l-2 border-[#FFEE00] pl-4" style="color:#AAAAAA">
+            "{cs.quote}"
+            <footer class="text-xs font-mono mt-2 not-italic" style="color:#666666">— {cs.quote_author}</footer>
+          </blockquote>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ── PRICING PREVIEW ────────────────────────────────────────── -->
+<section class="section">
+  <div class="container-forge">
+    <div class="text-center mb-12 appear">
+      <div class="section-label mb-5">Pricing</div>
+      <h2 class="section-title">Simple pricing.<br/><span class="text-gradient-brut">No surprises.</span></h2>
+      <p class="section-subtitle mt-5 mx-auto">Start free. Scale as you grow. Transparent overages.</p>
+    </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-0 border-l-2 border-t-2 mb-8" style="border-color:#2C2C2C">
+      {tiers.map(tier => (
+        <div class:list={['border-r-2 border-b-2 p-6 flex flex-col', tier.featured ? 'bg-[rgba(255,238,0,0.03)]' : '']} style="border-color:#2C2C2C">
+          {tier.badge && <div class="badge-accent mb-3 self-start">{tier.badge}</div>}
+          <div class="text-xs font-mono uppercase tracking-widest mb-1" style="color:#666666">{tier.name}</div>
+          <div class="text-3xl font-bold mb-0.5" style={`font-family:'Space Grotesk';letter-spacing:-0.04em;color:${tier.featured?'#FFEE00':'#F0F0F0'}`}>
+            {tier.custom ? 'Custom' : tier.monthly_price === 0 ? 'Free' : `$${tier.monthly_price}`}
+            {!tier.custom && tier.monthly_price! > 0 && <span class="text-sm font-normal" style="color:#666666">/user/mo</span>}
+          </div>
+          <p class="text-xs font-mono mb-5" style="color:#666666">{tier.tagline}</p>
+          <ul class="space-y-2 mb-5 flex-1">
+            {tier.features.slice(0,5).map(f => (
+              <li class="flex items-start gap-2 text-xs" style="color:#AAAAAA">
+                <span style="color:#00FF88;flex-shrink:0">✓</span>{f}
+              </li>
+            ))}
+          </ul>
+          <a href={tier.cta_href} class={tier.featured ? 'btn-primary btn-md w-full justify-center' : 'btn-secondary btn-md w-full justify-center'}>{tier.cta}</a>
+        </div>
+      ))}
+    </div>
+    <div class="text-center appear">
+      <a href="/pricing" class="text-sm font-mono font-bold transition-colors" style="color:#FFEE00" onmouseover="this.style.color='#FFD700'" onmouseout="this.style.color='#FFEE00'">View full feature comparison →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FINAL CTA ──────────────────────────────────────────────── -->
+<section class="section border-t-2 relative overflow-hidden" style="border-color:#2C2C2C;background:#060606">
+  <div class="absolute inset-0 bg-grid-brut opacity-30 pointer-events-none"></div>
+  <div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(ellipse 800px 400px at 50% 50%,rgba(255,238,0,0.05),transparent 60%)"></div>
+  <div class="container-forge relative z-10 text-center max-w-3xl mx-auto appear">
+    <div class="section-label mb-8 justify-center">Get started today</div>
+    <h2 class="font-bold tracking-tight mb-8" style="font-family:'Space Grotesk';font-size:clamp(2rem,5vw,3.5rem);letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0">
+      Your next build<br/><span class="text-gradient-brut">starts in 2 minutes.</span>
+    </h2>
+    <p class="text-xl mb-10 max-w-xl mx-auto" style="color:#666666">
+      Connect your repo, push a commit, and watch Forge CI do the rest. Free forever. No credit card. No lock-in.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-3 justify-center mb-14">
+      <a href="/auth/signup" class="btn-primary btn-xl">Start building free →</a>
+      <a href="/contact/sales" class="btn-secondary btn-xl">Talk to sales</a>
+    </div>
+    <div class="grid sm:grid-cols-4 gap-0 border-l-2 border-t-2 mx-auto max-w-2xl" style="border-color:#2C2C2C">
+      {[['⚡','<2 min setup','Connect repo and go'],['◆','SOC 2 certified','Enterprise security'],['◉','Ory identity','MFA, SAML, WebAuthn'],['◎','Sherlock AI','AI finds your bugs']].map(([i,t,d]) => (
+        <div class="border-r-2 border-b-2 p-5 text-center" style="border-color:#2C2C2C">
+          <div class="text-2xl mb-2" style="color:#FFEE00">{i}</div>
+          <div class="text-xs font-semibold mb-1" style="color:#F0F0F0">{t}</div>
+          <div class="text-xs font-mono" style="color:#666666">{d}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
 </MarketingLayout>
+
+<script>
+  // Terminal log animation
+  document.querySelectorAll<HTMLElement>('.log-entry').forEach(el => {
+    const d = parseInt(el.style.getPropertyValue('--d') || '0', 10);
+    setTimeout(() => { el.style.transition='opacity 0.3s'; el.style.opacity='1'; }, d + 600);
+  });
+</script>

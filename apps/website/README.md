@@ -1,32 +1,24 @@
-# Forge CI — Website
+# Forge CI — Website Source
 
 > **The fastest CI/CD platform for modern engineering teams.**
-> 10× faster builds · Sherlock AI agent · any cloud · fully responsive.
+> 10× faster builds · Sherlock AI agent · any cloud · SOC 2 Type II
 
-This is the full marketing + product website for Forge CI, built with [Astro](https://astro.build), Tailwind CSS, and TypeScript. It covers every major page a CI/CD SaaS platform needs — from landing pages and pricing to a complete authenticated dashboard.
+Full-stack marketing + product website for Forge CI. Built with Astro 4, TypeScript strict mode, Tailwind CSS, and zero external UI dependencies.
 
 ---
 
 ## 🚀 Quick start
 
 ```bash
-# Clone and install
 git clone https://github.com/forge-ci/website
-cd website
+cd forge-ci
 npm install
-
-# Start dev server
-npm run dev
-# → http://localhost:4321
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
+npm run dev      # → http://localhost:4321
+npm run build    # Production build → dist/
+npm run test     # Run 37 unit tests
 ```
 
-**Requirements:** Node.js ≥ 18, npm ≥ 9
+**Requirements:** Node.js ≥ 18 · npm ≥ 9
 
 ---
 
@@ -39,72 +31,77 @@ forge-ci/
 │
 ├── src/
 │   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Header.astro       # Marketing nav with mega-menu + mobile drawer
-│   │   │   └── Footer.astro       # Full footer with newsletter + social links
-│   │   │
-│   │   ├── marketing/
-│   │   │   ├── Hero.astro         # Animated pipeline terminal hero
-│   │   │   ├── Features.astro     # 8-card feature grid + enterprise pillars
-│   │   │   ├── Pricing.astro      # Tier cards + FAQ accordion
-│   │   │   ├── Testimonials.astro # Quote cards + logo marquee
-│   │   │   ├── Integrations.astro # 6-category integration grid
-│   │   │   ├── SherlockShowcase.astro  # Sherlock AI feature demo
-│   │   │   └── CTA.astro          # Bottom conversion section
-│   │   │
-│   │   └── ui/
-│   │       ├── Button.astro       # All button variants + sizes
-│   │       ├── Badge.astro        # Status badge variants
-│   │       └── Card.astro         # Card with hover/glow variants
+│   │   └── layout/
+│   │       ├── Header.astro      # Sticky glass header with mega-menu flyouts
+│   │       └── Footer.astro      # 5-column nav + newsletter + social + trust badges
+│   │
+│   ├── data/
+│   │   └── mock.ts               # 600+ lines of typed, deterministic mock data
 │   │
 │   ├── layouts/
-│   │   ├── BaseLayout.astro       # HTML shell, SEO meta, OG tags, fonts
-│   │   ├── MarketingLayout.astro  # Header + Footer wrapper
-│   │   ├── AuthLayout.astro       # Split panel: form + live build stream
-│   │   └── DashboardLayout.astro  # Sidebar + topbar + command palette
+│   │   ├── BaseLayout.astro      # HTML shell, SEO meta, OG/Twitter, structured data
+│   │   ├── MarketingLayout.astro # Header + Footer wrapper
+│   │   ├── AuthLayout.astro      # Split panel: form left, live build stream right
+│   │   └── DashboardLayout.astro # Sidebar + topbar + ⌘K command palette
 │   │
-│   ├── pages/
-│   │   ├── index.astro            # Landing page
-│   │   ├── features.astro         # Deep feature breakdown (5 categories)
-│   │   ├── pricing.astro          # Pricing + full feature comparison matrix
-│   │   ├── integrations.astro     # 36+ integrations with live search/filter
-│   │   ├── changelog.astro        # Versioned release timeline
-│   │   ├── docs.astro             # Documentation hub
-│   │   ├── status.astro           # System status + incident history
-│   │   ├── 404.astro              # Custom not-found page
+│   ├── lib/
+│   │   ├── auth.ts               # RBAC, sessions, SSO, password strength, slugify
+│   │   └── charts.ts             # Pure TS SVG chart utilities (no DOM deps, SSR-safe)
+│   │
+│   ├── pages/                    # 37 total pages
+│   │   ├── index.astro           # Landing page
+│   │   ├── features.astro        # Feature deep-dive
+│   │   ├── pricing.astro         # Pricing + full comparison matrix
+│   │   ├── integrations.astro    # 15+ integrations with search/filter
+│   │   ├── changelog.astro       # Versioned release timeline
+│   │   ├── blog.astro            # Blog listing + category filter
+│   │   ├── blog/[slug].astro     # Blog post detail
+│   │   ├── customers.astro       # Case studies + testimonials
+│   │   ├── enterprise.astro      # Enterprise landing + contact form
+│   │   ├── security.astro        # Security trust page
+│   │   ├── byoc.astro            # BYOC runners page
+│   │   ├── docs.astro            # Documentation hub
+│   │   ├── status.astro          # System status + incident history
+│   │   ├── 404.astro             # Custom 404
 │   │   │
 │   │   ├── auth/
-│   │   │   ├── login.astro        # Email/OAuth/SSO + MFA panel
-│   │   │   ├── signup.astro       # 4-step wizard: account → org → plan → verify
-│   │   │   ├── sso.astro          # SAML 2.0 IdP config + SCIM setup
-│   │   │   └── onboarding.astro   # Connect repo → pipeline → secrets → first build
+│   │   │   ├── login.astro       # OAuth + SSO + email/password + MFA
+│   │   │   ├── signup.astro      # 4-step wizard: account → org → plan → verify
+│   │   │   ├── forgot-password.astro
+│   │   │   ├── sso.astro         # SAML 2.0 IdP config
+│   │   │   └── onboarding.astro  # 4-step: repo → pipeline → secrets → first build
 │   │   │
 │   │   └── dashboard/
-│   │       ├── index.astro        # Overview: metrics, charts, recent builds
-│   │       ├── projects.astro     # Project cards + new project modal
-│   │       ├── artifacts.astro    # Artifact browser with type filter
-│   │       ├── registry.astro     # OCI image registry + tag management
-│   │       ├── templates.astro    # Pipeline template gallery + preview drawer
-│   │       ├── marketplace.astro  # Plugin marketplace + install flow
-│   │       ├── ai-agents.astro    # Sherlock AI hub + chat interface
-│   │       ├── sandboxes.astro    # Ephemeral dev environments
-│   │       ├── insights.astro     # Analytics, heatmaps, cost attribution
-│   │       │
+│   │       ├── index.astro       # Overview with real charts from chart utilities
 │   │       ├── builds/
-│   │       │   ├── index.astro    # Build list with filters + search
-│   │       │   └── [id].astro     # Build detail: logs + steps + Sherlock + artifacts
-│   │       │
+│   │       │   ├── index.astro   # Build list with filters, search, Sherlock button
+│   │       │   └── [id].astro    # Build detail: logs, steps, resource charts, Sherlock
+│   │       ├── projects.astro
+│   │       ├── registry.astro    # OCI image registry + vulnerability scan
+│   │       ├── artifacts.astro
+│   │       ├── templates.astro   # Pipeline templates + YAML preview drawer
+│   │       ├── marketplace.astro # Plugin marketplace + install/remove
+│   │       ├── ai-agents.astro   # Sherlock AI hub + live chat interface
+│   │       ├── sandboxes.astro   # Ephemeral dev environments
+│   │       ├── insights.astro    # Analytics: heatmap, team activity, anomalies
+│   │       ├── cache.astro       # Cache key management + hit rate charts
 │   │       └── settings/
-│   │           ├── index.astro    # General + billing + plan + danger zone
-│   │           ├── members.astro  # RBAC + team members + invitations
-│   │           ├── secrets.astro  # Env secrets + API tokens
-│   │           └── cache.astro    # Cache keys + egress firewall rules
+│   │           ├── index.astro   # General, billing, plan, danger zone (tabbed)
+│   │           ├── members.astro # RBAC table, invite modal, permissions matrix
+│   │           ├── secrets.astro # Env secrets + API tokens with scope badges
+│   │           ├── security.astro # SSO, MFA enforcement, sessions, audit log
+│   │           ├── integrations.astro
+│   │           └── cache.astro   # Cache defaults + egress firewall rules
 │   │
 │   ├── styles/
-│   │   └── global.css             # Design tokens, component classes, animations
+│   │   └── global.css            # Full design system: tokens, components, animations
+│   │
+│   ├── tests/
+│   │   └── unit/
+│   │       └── core.test.ts      # 37 unit tests (all passing)
 │   │
 │   └── types/
-│       └── index.ts               # Shared TypeScript interfaces
+│       └── index.ts              # 400+ lines of strict TypeScript interfaces
 │
 ├── astro.config.mjs
 ├── tailwind.config.mjs
@@ -118,169 +115,150 @@ forge-ci/
 
 ### Color palette
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| `forge-bg` | `#07090E` | Page background |
-| `forge-surface` | `#0C1018` | Cards, sidebar |
-| `forge-surface2` | `#111827` | Hover states |
-| `forge-border` | `#1E2D42` | Dividers, card borders |
-| `forge-accent` | `#C8FF00` | CTA, active states, highlights |
-| `forge-cyan` | `#22D3EE` | Secondary accent, Sherlock |
-| `forge-text` | `#E8F0FF` | Primary text |
-| `forge-text-2` | `#94A3B8` | Secondary text |
-| `forge-text-3` | `#4B5E7A` | Muted / placeholder |
+| Token              | Value      | Usage                            |
+|--------------------|------------|----------------------------------|
+| `--bg`             | `#07090E`  | Page background                  |
+| `--surface`        | `#0C1018`  | Cards, sidebar, panels           |
+| `--surface-2`      | `#111827`  | Hover states, table rows         |
+| `--border`         | `#1E2D42`  | Dividers, card borders           |
+| `--accent`         | `#C8FF00`  | CTAs, active states, highlights  |
+| `--cyan`           | `#22D3EE`  | Sherlock AI, info, secondary     |
+| `--text-1`         | `#E8F0FF`  | Primary text                     |
+| `--text-2`         | `#94A3B8`  | Secondary/body text              |
+| `--text-3`         | `#4B5E7A`  | Muted, placeholder               |
+| `--success`        | `#10B981`  | Pass, connected, operational     |
+| `--warning`        | `#F59E0B`  | Degraded, caution, expiring      |
+| `--danger`         | `#EF4444`  | Failed, blocked, critical        |
+| `--info`           | `#3B82F6`  | Info badges, running             |
 
 ### Typography
 
-| Font | Usage |
-|------|-------|
-| **Syne** | Headings, display text (`font-display`) |
-| **Plus Jakarta Sans** | Body text, UI copy (`font-sans`) |
-| **JetBrains Mono** | Code, terminals, metrics (`font-mono`) |
+| Font              | Variable           | Usage                     |
+|-------------------|--------------------|---------------------------|
+| Syne              | `font-display`     | All headings and display  |
+| Plus Jakarta Sans | `font-sans`        | Body text, UI copy        |
+| JetBrains Mono    | `font-mono`        | Code, terminals, metrics  |
 
-### Component classes (global.css)
+### CSS component classes
 
 ```css
-/* Buttons */
-.btn-primary    /* Lime accent CTA */
-.btn-secondary  /* Bordered ghost */
-.btn-ghost      /* Transparent */
-.btn-danger     /* Destructive actions */
-.btn-sm / .btn-md / .btn-lg / .btn-xl
-
-/* Cards */
-.card           /* Base card */
-.card-hover     /* Card with hover lift */
-
-/* Inputs */
-.input          /* Standard text input */
-.input-label    /* Form label */
-
-/* Badges */
-.badge-success / .badge-warning / .badge-danger / .badge-info / .badge-accent / .badge-neutral
-
-/* Typography */
-.section-title  /* Large heading */
-.section-label  /* Pill label */
-.text-gradient  /* White → lime gradient text */
-
-/* Layout */
-.container-forge  /* Max-width centered container */
-.section          /* Vertical section padding */
+/* Buttons */       .btn-primary .btn-secondary .btn-ghost .btn-danger .btn-sm .btn-md .btn-lg .btn-xl
+/* Cards */         .card .card-hover .card-glow
+/* Inputs */        .input .input-label
+/* Badges */        .badge .badge-success .badge-warning .badge-danger .badge-info .badge-accent .badge-neutral
+/* Tables */        .table-forge
+/* Layout */        .container-forge .section .section-title .section-label .section-subtitle
+/* Typography */    .text-gradient .text-gradient-lime .glow-text
+/* Misc */          .glass .terminal .terminal-header .terminal-dot .progress .progress-bar .avatar
 ```
 
 ---
 
 ## 🛠 Tech stack
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | [Astro 4](https://astro.build) — static output, island architecture |
-| Styling | [Tailwind CSS 3](https://tailwindcss.com) + custom design tokens |
-| Types | TypeScript strict mode |
-| Icons | Hand-crafted SVG — no external icon library |
-| Fonts | Google Fonts (Syne, Plus Jakarta Sans, JetBrains Mono) |
-| Animations | Pure CSS keyframes (no JS animation libraries) |
-| Interactivity | Vanilla TS via `<script>` tags (minimal JS) |
+| Layer            | Technology                              |
+|------------------|-----------------------------------------|
+| Framework        | Astro 4 (static output, SSR-compatible) |
+| Styling          | Tailwind CSS 3 + CSS custom properties  |
+| Language         | TypeScript (strict mode throughout)     |
+| Fonts            | Google Fonts (Syne, Plus Jakarta, JetBrains Mono) |
+| Icons            | Hand-crafted inline SVG (zero deps)     |
+| Animations       | Pure CSS keyframes                      |
+| Interactivity    | Vanilla TypeScript via `<script>` tags  |
+| Charts           | Custom SVG generation (no chart libs)   |
 
 ---
 
-## 📄 Page inventory
+## 📄 Page inventory (37 pages)
 
-### Marketing (9 pages)
-| Page | Route |
-|------|-------|
-| Landing | `/` |
-| Features | `/features` |
-| Pricing | `/pricing` |
-| Integrations | `/integrations` |
-| Changelog | `/changelog` |
-| Documentation | `/docs` |
-| Status | `/status` |
-| 404 | `/404` |
+### Marketing (14)
+`/` `/features` `/pricing` `/integrations` `/changelog` `/blog` `/blog/[slug]`
+`/customers` `/enterprise` `/security` `/byoc` `/docs` `/status` `/404`
 
-### Auth (4 pages)
-| Page | Route |
-|------|-------|
-| Login | `/auth/login` |
-| Sign up | `/auth/signup` |
-| SSO/SAML config | `/auth/sso` |
-| Onboarding | `/auth/onboarding` |
+### Auth (5)
+`/auth/login` `/auth/signup` `/auth/forgot-password` `/auth/sso` `/auth/onboarding`
 
-### Dashboard (13 pages)
-| Page | Route |
-|------|-------|
-| Overview | `/dashboard` |
-| Builds list | `/dashboard/builds` |
-| Build detail | `/dashboard/builds/[id]` |
-| Projects | `/dashboard/projects` |
-| Image registry | `/dashboard/registry` |
-| Artifacts | `/dashboard/artifacts` |
-| Templates | `/dashboard/templates` |
-| Marketplace | `/dashboard/marketplace` |
-| Sherlock AI | `/dashboard/ai-agents` |
-| Sandboxes | `/dashboard/sandboxes` |
-| Insights | `/dashboard/insights` |
-| Settings | `/dashboard/settings` |
-| Members | `/dashboard/settings/members` |
-| Secrets & Tokens | `/dashboard/settings/secrets` |
-| Cache & Network | `/dashboard/settings/cache` |
+### Dashboard (18)
+`/dashboard` `/dashboard/builds` `/dashboard/builds/[id]` `/dashboard/projects`
+`/dashboard/registry` `/dashboard/artifacts` `/dashboard/templates` `/dashboard/marketplace`
+`/dashboard/ai-agents` `/dashboard/sandboxes` `/dashboard/insights` `/dashboard/cache`
+`/dashboard/settings` `/dashboard/settings/members` `/dashboard/settings/secrets`
+`/dashboard/settings/security` `/dashboard/settings/integrations` `/dashboard/settings/cache`
 
 ---
 
-## 🧪 Key features implemented
+## ✅ Key features
 
-### Marketing
-- ✅ Animated pipeline terminal in hero (JS-sequenced log lines)
-- ✅ Testimonials with auto-scrolling logo marquee
-- ✅ Pricing tier cards with annual/monthly toggle
-- ✅ Full feature comparison matrix (30 rows × 4 plans)
-- ✅ Integrations page with live search + category filter
-- ✅ Changelog with versioned timeline
-- ✅ Documentation hub with search, quickstart cards, API preview
-
-### Auth
-- ✅ OAuth (GitHub, Google) + SSO button with domain input
-- ✅ MFA digit panel with auto-focus
-- ✅ 4-step signup wizard with org creation + plan selection
-- ✅ SAML 2.0 IdP picker, metadata upload, SCIM toggle
-- ✅ Password strength meter
-- ✅ Onboarding: repo connect → YAML preview → secrets → first build
+### Landing page
+- Animated terminal build stream with JS-sequenced log lines
+- Company logo marquee (20 companies)
+- Head-to-head benchmark comparison bars
+- 6 feature cards with icon + hover glow
+- Sherlock AI showcase with live mock diagnosis panel
+- 6 testimonial cards with star ratings and metrics
+- 2 full case studies with before/after metric tables
+- Pricing tier cards + comparison matrix (30 rows × 4 plans)
+- Blog preview cards
+- Final CTA section with trust icons
 
 ### Dashboard
-- ✅ Sidebar with usage bar, org switcher, command palette (⌘K)
-- ✅ Overview: 8 metric cards, SVG build volume chart, resource gauges, 4 sparklines
-- ✅ Builds: status tabs, search, project/trigger/date filters, Sherlock button on failures
-- ✅ Build detail: step timeline (proportional), 480px log viewer, log search, Sherlock AI panel with code diff
-- ✅ Projects: card grid with stats, new project modal, search filter
-- ✅ Registry: repo list, tag table with digests + vulnerabilities, pull commands, retention policy
-- ✅ Artifacts: type filter tabs, multi-select, expiry warnings
-- ✅ Templates: 9 templates, preview drawer with YAML copy
-- ✅ Marketplace: 18 plugins, install/remove toggle, search + category filter
-- ✅ Sherlock: analysis history with confidence rings, pattern detection, chat interface
-- ✅ Sandboxes: live resource meters, port forwarding, embedded terminal
-- ✅ Insights: KPI cards, stacked bar chart, day/hour heatmap, team activity, anomalies
-- ✅ Settings: tabbed (general/billing/plan/danger), invoices, plan comparison
-- ✅ Members: RBAC table, invite modal, full permissions matrix
-- ✅ Secrets: masked values, rotation dates, API token scopes, create modals
-- ✅ Cache: hit-rate bars, TTL per key, egress firewall rules with drag ordering
+- **⌘K command palette** with search and navigation shortcuts
+- **Overview**: 8 metric cards, SVG build volume line chart, resource gauges (CPU, mem, net, disk), 4 sparkline KPI cards, waterfall P50–P99 percentile chart, recent builds table, plan usage bars
+- **Builds list**: Status tabs with live counts, multi-field search, project/trigger/date filters, checkbox multi-select, Sherlock shortcut on failures, pagination
+- **Build detail**: Step timeline with proportional duration bar, 460px log viewer with regex search + level filter + timestamp toggle, Sherlock AI panel with code diff, resource usage SVG charts (CPU/mem + net I/O), artifacts panel, test results with coverage bar
+- **Insights**: Sparkline KPIs, build volume line chart, 7-day × 24-hour heatmap, project performance table, team activity bars, ML anomaly feed
+- **Registry**: Repo list with vuln badges, OCI tag table with digest + platform + vulnerability scan
+- **Sherlock AI**: Confidence-ring donut charts on analyses, pattern detection cards, live chat interface with canned AI responses
+- **Sandboxes**: Resource meters, port forwarding, embedded terminal panels
+- **Templates**: Category filter, right-panel YAML preview drawer with copy
+- **Settings/Members**: Full RBAC permissions matrix, invite modal with SSO note
+
+### Auth flows
+- **Login**: GitHub/Google OAuth, SSO domain input with redirect, email/password with toggle, MFA 6-digit auto-advance
+- **Signup**: 4-step wizard, real-time slug availability check, password strength meter, plan selection
+- **SSO**: Per-provider setup guides (Okta, Azure AD, Google Workspace, custom), Forge CI endpoint display with copy
+
+### Charts (all pure TypeScript, SSR-safe)
+- `seriesToSmoothPath()` — cubic bezier smooth line path
+- `seriesToAreaPath()` — filled area for gradients
+- `generateWaterfallBars()` — P50/P75/P90/P95/P99 stacked bar chart
+- `generateHeatmapData()` — 7×24 build activity heatmap
+- `generateResourceTimeline()` — realistic CPU/mem resource curves
+- `filterLogLines()` — regex/text search with level and stream filters
+- `highlightMatches()` — text highlight segments for log viewer
+
+---
+
+## 🧪 Tests
+
+```bash
+npm test        # Runs 37 unit tests
+```
+
+**Test coverage:**
+- RBAC role hierarchy (8 tests)
+- Email/password/slug validation (6 tests)
+- Chart series generation (3 tests)
+- Waterfall percentile ordering (3 tests)
+- Log line filtering (5 tests)
+- Data format utilities (7 tests)
+- Data integrity (5 tests)
 
 ---
 
 ## 📦 Build and deploy
 
 ```bash
-# Production build
 npm run build
-# Output: dist/
+# Output: dist/ (static, ready to deploy anywhere)
 
-# Deploy to Vercel
+# Vercel
 npx vercel --prod
 
-# Deploy to Netlify
+# Netlify
 npx netlify deploy --prod --dir=dist
 
-# Deploy to Cloudflare Pages
+# Cloudflare Pages
 npx wrangler pages deploy dist
 ```
 

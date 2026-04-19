@@ -1,37 +1,21 @@
 ---
 import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import { MOCK_CACHE_KEYS, MOCK_METRICS, formatBytes } from '../../data/mock.ts';
+import { seriesToSmoothPath, seriesToAreaPath } from '../../lib/charts.ts';
 
-const cacheStats = [
-  { label:'Hit rate (7d)',   value:'89.2%', color:'text-forge-success' },
-  { label:'Storage used',   value:'34.2 GB', color:'text-forge-text' },
-  { label:'Keys active',    value:'48', color:'text-forge-text' },
-  { label:'Saved this month', value:'42h', color:'text-forge-accent' },
-];
+const keys = MOCK_CACHE_KEYS;
+const totalUsed = keys.reduce((s,k)=>s+k.size_bytes,0);
+const totalLimit = 107_374_182_400;
+const usedPct = Math.round((totalUsed/totalLimit)*100);
 
-const keys = [
-  { key:'node-modules',   project:'api-service', hits:842,  misses:12, size:'1.2 GB', ttl:7,  lastHit:'2m ago',  hitRate:98.6 },
-  { key:'node-modules',   project:'web-app',     hits:634,  misses:8,  size:'0.9 GB', ttl:7,  lastHit:'47m ago', hitRate:98.7 },
-  { key:'docker-layers',  project:'api-service', hits:620,  misses:44, size:'2.4 GB', ttl:14, lastHit:'2m ago',  hitRate:93.4 },
-  { key:'pip-packages',   project:'ml-runner',   hits:88,   misses:4,  size:'0.4 GB', ttl:30, lastHit:'3h ago',  hitRate:95.7 },
-  { key:'go-modules',     project:'infra',       hits:156,  misses:6,  size:'0.3 GB', ttl:7,  lastHit:'22m ago', hitRate:96.3 },
-  { key:'cocoapods',      project:'mobile',      hits:241,  misses:18, size:'0.9 GB', ttl:7,  lastHit:'41m ago', hitRate:93.1 },
-  { key:'gradle',         project:'mobile',      hits:241,  misses:14, size:'0.6 GB', ttl:7,  lastHit:'41m ago', hitRate:94.5 },
-  { key:'sccache',        project:'worker',      hits:88,   misses:22, size:'0.2 GB', ttl:14, lastHit:'3h ago',  hitRate:80.0 },
-];
+const cacheData = MOCK_METRICS.series.cache_hit_rate;
+const sparkPath = seriesToSmoothPath(cacheData,{width:560,height:80,paddingTop:4,paddingBottom:4});
+const sparkArea = seriesToAreaPath(cacheData,{width:560,height:80,paddingTop:4,paddingBottom:4});
 ---
-
-<DashboardLayout
-  title="Cache"
-  activeNav="cache"
-  breadcrumbs={[{ label: 'Cache' }]}
->
+<DashboardLayout title="Cache" activeNav="cache" breadcrumbs={[{label:'Cache'}]}>
   <div class="p-4 sm:p-6 lg:p-8 max-w-[1200px] mx-auto space-y-5">
-
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="font-display font-bold text-2xl text-forge-text">Cache</h1>
-        <p class="text-forge-text-3 text-sm mt-0.5">Content-addressed build cache · 34.2 GB / 100 GB used</p>
-      </div>
+      <div><h1 class="font-bold text-2xl text-[#F0F0F0]">Cache</h1><p class="text-[#666666] text-sm mt-0.5">Content-addressed build cache · {formatBytes(totalUsed)} / 100 GB used</p></div>
       <div class="flex gap-2">
         <a href="/dashboard/settings/cache" class="btn-secondary btn-sm">Cache settings</a>
         <button class="btn-danger btn-sm">Invalidate all</button>
@@ -40,121 +24,80 @@ const keys = [
 
     <!-- Stats -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      {cacheStats.map(({ label, value, color }) => (
-        <div class="metric-card">
-          <div class="metric-label">{label}</div>
-          <div class={`font-display font-bold text-2xl mt-1 ${color}`}>{value}</div>
-        </div>
+      {[
+        {l:'Hit rate (7d)',v:'89.2%',c:'text-[#00FF88]'},
+        {l:'Storage used',v:formatBytes(totalUsed),c:'text-[#F0F0F0]'},
+        {l:'Active keys',v:String(keys.length),c:'text-[#F0F0F0]'},
+        {l:'Time saved (30d)',v:'42h',c:'text-[#FFEE00]'},
+      ].map(s=>(
+        <div class="metric-card"><div class="text-xs text-[#666666]">{s.l}</div><div class={`font-bold text-2xl mt-1 ${s.c}`}>{s.v}</div></div>
       ))}
     </div>
 
-    <!-- Hit rate sparkline -->
+    <!-- Hit rate chart -->
     <div class="card p-5">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="font-display font-bold text-base text-forge-text">Hit rate over 30 days</h2>
-        <span class="badge-success border border-forge-success/20 text-2xs">Trending up +3.1%</span>
+        <div><h2 class="font-bold text-base text-[#F0F0F0]">Hit rate over 30 days</h2></div>
+        <span class="badge-success border border-[rgba(0,255,136,0.2)] text-xs">Trending up +3.1%</span>
       </div>
-      <div class="relative h-28">
-        <svg class="w-full h-full" viewBox="0 0 600 112" preserveAspectRatio="none">
-          <defs>
-            <linearGradient id="cacheGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#10B981" stop-opacity="0.2"/>
-              <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
-            </linearGradient>
-          </defs>
-          {[0,28,56,84,112].map(y => (
-            <line x1="0" y1={y} x2="600" y2={y} stroke="rgba(30,45,66,0.5)" stroke-width="0.5"/>
-          ))}
-          <path
-            d="M0,78 L20,72 L40,68 L60,74 L80,65 L100,60 L120,62 L140,55 L160,58 L180,52 L200,48 L220,50 L240,44 L260,40 L280,42 L300,36 L320,38 L340,32 L360,28 L380,30 L400,26 L420,22 L440,18 L460,20 L480,16 L500,14 L520,12 L540,10 L560,12 L580,8 L600,6 L600,112 L0,112 Z"
-            fill="url(#cacheGrad)"
-          />
-          <path
-            d="M0,78 L20,72 L40,68 L60,74 L80,65 L100,60 L120,62 L140,55 L160,58 L180,52 L200,48 L220,50 L240,44 L260,40 L280,42 L300,36 L320,38 L340,32 L360,28 L380,30 L400,26 L420,22 L440,18 L460,20 L480,16 L500,14 L520,12 L540,10 L560,12 L580,8 L600,6"
-            fill="none" stroke="#10B981" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"
-          />
-          <circle cx="600" cy="6" r="3" fill="#10B981"/>
+      <div class="relative" style="height:96px">
+        <svg class="w-full h-full" viewBox="0 0 560 80" preserveAspectRatio="none">
+          <defs><linearGradient id="cacheGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00FF88" stop-opacity="0.2"/><stop offset="100%" stop-color="#00FF88" stop-opacity="0"/></linearGradient></defs>
+          {[0,20,40,60,80].map(y=><line x1="0" y1={y} x2="560" y2={y} stroke="rgba(30,45,66,0.5)" stroke-width="0.5"/>)}
+          <path d={sparkArea} fill="url(#cacheGrad)"/>
+          <path d={sparkPath} fill="none" stroke="#00FF88" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
         </svg>
-        <div class="absolute left-0 top-0 h-full flex flex-col justify-between text-2xs font-mono text-forge-text-3 py-0.5">
-          <span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span>
+        <div class="absolute top-0 left-0 h-full flex flex-col justify-between text-xs font-mono text-[#666666] py-0.5">
+          <span>100%</span><span>50%</span><span>0%</span>
         </div>
-        <div class="absolute bottom-0 left-6 right-0 flex justify-between -mb-5 text-2xs font-mono text-forge-text-3">
-          <span>Mar 15</span><span>Mar 22</span><span>Mar 29</span><span>Apr 5</span><span>Today</span>
+        <div class="absolute bottom-0 left-4 right-0 flex justify-between -mb-5 text-xs font-mono text-[#666666]">
+          <span>Mar 16</span><span>Mar 23</span><span>Mar 30</span><span>Apr 7</span><span>Today</span>
         </div>
       </div>
     </div>
 
-    <!-- Cache keys table -->
+    <!-- Storage bar -->
+    <div class="card p-5">
+      <div class="flex justify-between text-xs mb-2"><span class="text-[#666666]">Storage used</span><span class="font-mono text-[#F0F0F0]">{formatBytes(totalUsed)} / 100 GB · {usedPct}%</span></div>
+      <div class="progress h-2.5"><div class="progress-bar" style={`width:${usedPct}%`}></div></div>
+      <div class="flex justify-between text-xs text-[#666666] mt-2">
+        {keys.sort((a,b)=>b.size_bytes-a.size_bytes).slice(0,3).map(k=>(
+          <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full bg-[#FFEE00] opacity-70"></div><span>{k.project_name}/{k.key} · {formatBytes(k.size_bytes)}</span></div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Keys table -->
     <div class="card overflow-hidden">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-forge-border">
-        <h2 class="font-display font-bold text-base text-forge-text">Active cache keys ({keys.length})</h2>
+      <div class="flex items-center justify-between px-5 py-4 border-b border-[#2C2C2C]">
+        <h2 class="font-bold text-base text-[#F0F0F0]">Cache keys ({keys.length})</h2>
         <div class="flex gap-2">
-          <select class="input !py-1.5 !text-xs w-36">
-            <option>All projects</option>
-            {[...new Set(keys.map(k=>k.project))].map(p => <option>{p}</option>)}
-          </select>
-          <button class="btn-secondary btn-sm text-xs">Sort by hit rate</button>
+          <select class="input !py-1.5 !text-xs w-36"><option>All projects</option>{[...new Set(keys.map(k=>k.project_name))].map(p=><option>{p}</option>)}</select>
+          <button class="btn-danger btn-sm text-xs">Invalidate all</button>
         </div>
       </div>
       <table class="table-forge">
-        <thead>
-          <tr>
-            <th>Cache key</th>
-            <th>Project</th>
-            <th>Hit rate</th>
-            <th class="hidden md:table-cell">Hits / Misses</th>
-            <th>Size</th>
-            <th class="hidden lg:table-cell">Last hit</th>
-            <th class="hidden xl:table-cell">TTL (days)</th>
-            <th></th>
-          </tr>
-        </thead>
+        <thead><tr><th>Cache key</th><th>Project</th><th>Hit rate</th><th class="hidden md:table-cell">Hits / Misses</th><th>Size</th><th class="hidden lg:table-cell">Last hit</th><th class="hidden xl:table-cell">TTL</th><th></th></tr></thead>
         <tbody>
-          {keys.map(k => (
+          {keys.map(k=>(
             <tr class="group">
-              <td><code class="text-xs font-mono text-forge-accent">{k.key}</code></td>
-              <td><span class="text-xs text-forge-text-2">{k.project}</span></td>
+              <td><code class="text-xs font-mono text-[#FFEE00]">{k.key}</code></td>
+              <td><span class="text-xs text-[#AAAAAA]">{k.project_name}</span></td>
               <td>
                 <div class="flex items-center gap-2">
-                  <div class="w-16 h-1.5 rounded-full bg-forge-surface2 overflow-hidden">
-                    <div class={`h-full rounded-full ${k.hitRate>95?'bg-forge-success':k.hitRate>85?'bg-forge-warning':'bg-forge-danger'}`} style={`width:${k.hitRate}%`}></div>
-                  </div>
-                  <span class={`text-xs font-mono ${k.hitRate>95?'text-forge-success':k.hitRate>85?'text-forge-warning':'text-forge-danger'}`}>{k.hitRate}%</span>
+                  <div class="w-16 h-1.5 rounded-full bg-[#1A1A1A] overflow-hidden"><div class:list={['h-full rounded-full', k.hit_rate>95?'bg-[#00FF88]':k.hit_rate>85?'bg-[#FF7700]':'bg-[#FF3333]']} style={`width:${k.hit_rate}%`}></div></div>
+                  <span class:list={['text-xs font-mono', k.hit_rate>95?'text-[#00FF88]':k.hit_rate>85?'text-[#FF7700]':'text-[#FF3333]']}>{k.hit_rate}%</span>
                 </div>
               </td>
-              <td class="hidden md:table-cell"><span class="text-xs font-mono text-forge-text-2">{k.hits}/{k.misses}</span></td>
-              <td><span class="text-xs font-mono text-forge-text-2">{k.size}</span></td>
-              <td class="hidden lg:table-cell"><span class="text-xs text-forge-text-3">{k.lastHit}</span></td>
-              <td class="hidden xl:table-cell"><span class="text-xs font-mono text-forge-text-3">{k.ttl}d</span></td>
-              <td>
-                <button class="btn-danger btn-sm text-xs opacity-0 group-hover:opacity-100 transition-opacity">Invalidate</button>
-              </td>
+              <td class="hidden md:table-cell"><span class="text-xs font-mono text-[#AAAAAA]">{k.hit_count}/{k.miss_count}</span></td>
+              <td><span class="text-xs font-mono text-[#AAAAAA]">{formatBytes(k.size_bytes)}</span></td>
+              <td class="hidden lg:table-cell"><span class="text-xs text-[#666666]">{k.last_hit_at.slice(11,16)} UTC</span></td>
+              <td class="hidden xl:table-cell"><span class="text-xs font-mono text-[#666666]">{k.ttl_days}d</span></td>
+              <td><button class="btn-danger btn-sm text-xs opacity-0 group-hover:opacity-100 transition-opacity">Invalidate</button></td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
-
-    <!-- Storage breakdown -->
-    <div class="card p-5">
-      <h2 class="font-display font-bold text-base text-forge-text mb-5">Storage by project</h2>
-      <div class="space-y-3">
-        {[
-          { project:'api-service', size:3.6, pct:10.5 },
-          { project:'mobile',      size:1.5, pct:4.4  },
-          { project:'web-app',     size:0.9, pct:2.6  },
-          { project:'worker',      size:0.2, pct:0.6  },
-        ].map(({ project, size, pct }) => (
-          <div class="flex items-center gap-4">
-            <div class="text-sm text-forge-text-2 w-28 flex-shrink-0">{project}</div>
-            <div class="flex-1 h-2 rounded-full bg-forge-surface2 overflow-hidden">
-              <div class="h-full bg-forge-accent rounded-full" style={`width:${pct*10}%`}></div>
-            </div>
-            <div class="text-xs font-mono text-forge-text-2 w-14 text-right flex-shrink-0">{size} GB</div>
-          </div>
-        ))}
-      </div>
-    </div>
-
   </div>
 </DashboardLayout>

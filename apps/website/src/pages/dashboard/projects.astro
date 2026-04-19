@@ -92,9 +92,9 @@ const statusDot: Record<string, string> = {
 };
 
 const langColor: Record<string, string> = {
-  TypeScript: 'text-forge-info bg-forge-info-bg border-forge-info/20',
-  HCL:        'text-forge-warning bg-forge-warning-bg border-forge-warning/20',
-  MDX:        'text-forge-success bg-forge-success-bg border-forge-success/20',
+  TypeScript: 'text-[#33AAFF]  border-[rgba(51,170,255,0.3)]',
+  HCL:        'text-[#FF7700]  border-[rgba(255,119,0,0.3)]',
+  MDX:        'text-[#00FF88]  border-[rgba(0,255,136,0.3)]',
 };
 ---
 
@@ -108,14 +108,14 @@ const langColor: Record<string, string> = {
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="font-display font-bold text-2xl text-forge-text">Projects</h1>
-        <p class="text-forge-text-3 text-sm mt-0.5">
-          {projects.length} active projects in <strong class="text-forge-text">acme-corp</strong>
+        <h1 class="font-bold text-2xl text-[#F0F0F0]">Projects</h1>
+        <p class="text-[#F0F0F0]-3 text-sm mt-0.5">
+          {projects.length} active projects in <strong class="text-[#F0F0F0]">acme-corp</strong>
         </p>
       </div>
       <div class="flex gap-2">
         <div class="relative">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
           </svg>
           <input type="search" placeholder="Search projects…" class="input !pl-9 !py-2 !text-xs w-48" id="proj-search"/>
@@ -141,29 +141,29 @@ const langColor: Record<string, string> = {
           data-desc={proj.description.toLowerCase()}
         >
           <!-- Card header -->
-          <div class="px-5 pt-5 pb-4 border-b border-forge-border/50">
+          <div class="px-5 pt-5 pb-4 border-b border-[#2C2C2C]/50">
             <div class="flex items-start justify-between gap-3 mb-3">
               <!-- Project icon + name -->
               <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-lg bg-forge-surface3 border border-forge-border flex items-center justify-center text-sm font-bold text-forge-accent font-display flex-shrink-0">
+                <div class="w-9 h-9 rounded-none bg-[#111111]3 border border-[#2C2C2C] flex items-center justify-center text-sm font-bold text-[#FFEE00] font-display flex-shrink-0">
                   {proj.name[0].toUpperCase()}
                 </div>
                 <div>
-                  <h2 class="font-display font-bold text-base text-forge-text group-hover:text-forge-accent transition-colors">
+                  <h2 class="font-bold text-base text-[#F0F0F0] group-hover:text-[#FFEE00] transition-colors">
                     {proj.name}
                   </h2>
-                  <div class="text-2xs text-forge-text-3 font-mono">{proj.repo}</div>
+                  <div class="text-2xs text-[#F0F0F0]-3 font-mono">{proj.repo}</div>
                 </div>
               </div>
 
               <!-- Last build status -->
               <div class="flex items-center gap-1.5 flex-shrink-0">
                 <div class={`w-2 h-2 rounded-full ${statusDot[proj.lastBuild.status]}`}></div>
-                <span class="text-2xs text-forge-text-3 font-mono">{proj.lastBuild.ago}</span>
+                <span class="text-2xs text-[#F0F0F0]-3 font-mono">{proj.lastBuild.ago}</span>
               </div>
             </div>
 
-            <p class="text-xs text-forge-text-3 leading-relaxed line-clamp-2 mb-3">
+            <p class="text-xs text-[#F0F0F0]-3 leading-relaxed line-clamp-2 mb-3">
               {proj.description}
             </p>
 
@@ -179,7 +179,7 @@ const langColor: Record<string, string> = {
           </div>
 
           <!-- Stats row -->
-          <div class="grid grid-cols-4 divide-x divide-forge-border/50 bg-forge-surface2/30">
+          <div class="grid grid-cols-4 divide-x divide-forge-border/50 bg-[#111111]2/30">
             {[
               { label: 'Builds', value: proj.stats.builds.toLocaleString() },
               { label: 'Success', value: `${proj.stats.successRate}%` },
@@ -187,20 +187,20 @@ const langColor: Record<string, string> = {
               { label: 'Minutes', value: proj.stats.minutesUsed.toLocaleString() },
             ].map(({ label, value }) => (
               <div class="px-3 py-3 text-center">
-                <div class="text-sm font-mono font-bold text-forge-text">{value}</div>
-                <div class="text-2xs text-forge-text-3 mt-0.5">{label}</div>
+                <div class="text-sm font-mono font-bold text-[#F0F0F0]">{value}</div>
+                <div class="text-2xs text-[#F0F0F0]-3 mt-0.5">{label}</div>
               </div>
             ))}
           </div>
 
           <!-- Config summary + actions -->
           <div class="px-5 py-3.5 flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3 text-2xs text-forge-text-3 font-mono">
+            <div class="flex items-center gap-3 text-2xs text-[#F0F0F0]-3 font-mono">
               <span title="Runner">{proj.runner.split('-').slice(0,2).join('-')}</span>
               <span class="text-forge-border">·</span>
               <span title="Parallelism">{proj.parallelism}×</span>
               <span class="text-forge-border">·</span>
-              <span title="Cache" class={proj.cacheEnabled ? 'text-forge-success' : 'text-forge-text-3'}>
+              <span title="Cache" class={proj.cacheEnabled ? 'text-[#00FF88]' : 'text-[#F0F0F0]-3'}>
                 {proj.cacheEnabled ? 'cache ✓' : 'cache ✗'}
               </span>
               <span class="text-forge-border">·</span>
@@ -210,7 +210,7 @@ const langColor: Record<string, string> = {
             <div class="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
               <a
                 href={`/dashboard/builds?project=${proj.id}`}
-                class="btn-ghost btn-sm text-xs text-forge-text-3 !px-2"
+                class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3 !px-2"
                 onclick="event.stopPropagation()"
                 title="View builds"
               >
@@ -218,7 +218,7 @@ const langColor: Record<string, string> = {
               </a>
               <a
                 href={`/dashboard/projects/${proj.id}/settings`}
-                class="btn-ghost btn-sm text-xs text-forge-text-3 !px-2"
+                class="btn-ghost btn-sm text-xs text-[#F0F0F0]-3 !px-2"
                 onclick="event.stopPropagation()"
                 title="Settings"
               >
@@ -234,14 +234,14 @@ const langColor: Record<string, string> = {
         id="add-project-card"
         class="card flex flex-col items-center justify-center gap-3 p-8 border-dashed hover:border-forge-accent/40 hover:bg-forge-accent-muted/10 transition-all duration-200 cursor-pointer text-center min-h-[200px] group"
       >
-        <div class="w-10 h-10 rounded-full border-2 border-dashed border-forge-border group-hover:border-forge-accent/40 flex items-center justify-center transition-colors">
-          <svg class="w-5 h-5 text-forge-text-3 group-hover:text-forge-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="w-10 h-10 rounded-full border-2 border-dashed border-[#2C2C2C] group-hover:border-forge-accent/40 flex items-center justify-center transition-colors">
+          <svg class="w-5 h-5 text-[#F0F0F0]-3 group-hover:text-[#FFEE00] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
           </svg>
         </div>
         <div>
-          <div class="text-sm font-medium text-forge-text-2 group-hover:text-forge-accent transition-colors">Add new project</div>
-          <div class="text-xs text-forge-text-3 mt-0.5">Connect a repository to get started</div>
+          <div class="text-sm font-medium text-[#F0F0F0]-2 group-hover:text-[#FFEE00] transition-colors">Add new project</div>
+          <div class="text-xs text-[#F0F0F0]-3 mt-0.5">Connect a repository to get started</div>
         </div>
       </button>
     </div>
@@ -249,8 +249,8 @@ const langColor: Record<string, string> = {
     <!-- Empty search state -->
     <div id="proj-empty" class="hidden py-16 text-center">
       <div class="text-4xl mb-3">🔍</div>
-      <h3 class="font-display font-bold text-lg text-forge-text mb-1">No projects found</h3>
-      <p class="text-forge-text-2 text-sm">Try a different search term.</p>
+      <h3 class="font-bold text-lg text-[#F0F0F0] mb-1">No projects found</h3>
+      <p class="text-[#F0F0F0]-2 text-sm">Try a different search term.</p>
     </div>
 
   </div>
@@ -259,11 +259,11 @@ const langColor: Record<string, string> = {
   <div id="new-project-modal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
     <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" id="modal-backdrop"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
-      <div class="w-full max-w-lg bg-forge-surface border border-forge-border rounded-2xl shadow-modal animate-scale-in overflow-hidden">
+      <div class="w-full max-w-lg bg-[#111111] border border-[#2C2C2C] rounded-none shadow-modal animate-scale-in overflow-hidden">
         <!-- Modal header -->
-        <div class="flex items-center justify-between px-6 py-5 border-b border-forge-border">
-          <h2 class="font-display font-bold text-lg text-forge-text">New project</h2>
-          <button id="modal-close" class="text-forge-text-3 hover:text-forge-text transition-colors">
+        <div class="flex items-center justify-between px-6 py-5 border-b border-[#2C2C2C]">
+          <h2 class="font-bold text-lg text-[#F0F0F0]">New project</h2>
+          <button id="modal-close" class="text-[#F0F0F0]-3 hover:text-[#F0F0F0] transition-colors">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -275,9 +275,9 @@ const langColor: Record<string, string> = {
             <label class="input-label">Connect repository from</label>
             <div class="grid grid-cols-3 gap-2">
               {['GitHub', 'GitLab', 'Bitbucket'].map((vcs, i) => (
-                <label class="flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer hover:border-forge-border-2 has-[:checked]:border-forge-accent/40 has-[:checked]:bg-forge-accent-muted/20 transition-all">
+                <label class="flex items-center justify-center gap-2 p-3 rounded-none border cursor-pointer hover:border-[#2C2C2C]-2 has-[:checked]:border-forge-accent/40 has-[:checked]:bg-forge-accent-muted/20 transition-all">
                   <input type="radio" name="vcs" value={vcs.toLowerCase()} checked={i===0} class="sr-only"/>
-                  <span class="text-xs font-medium text-forge-text-2">{vcs}</span>
+                  <span class="text-xs font-medium text-[#F0F0F0]-2">{vcs}</span>
                 </label>
               ))}
             </div>
@@ -298,7 +298,7 @@ const langColor: Record<string, string> = {
           <div>
             <label class="input-label" for="proj-name">Project name</label>
             <input type="text" id="proj-name" class="input" placeholder="new-service"/>
-            <p class="text-2xs text-forge-text-3 mt-1">Auto-generated from repository name. You can change it.</p>
+            <p class="text-2xs text-[#F0F0F0]-3 mt-1">Auto-generated from repository name. You can change it.</p>
           </div>
 
           <!-- Default branch -->
@@ -321,7 +321,7 @@ const langColor: Record<string, string> = {
         </div>
 
         <!-- Modal footer -->
-        <div class="flex gap-3 px-6 py-4 border-t border-forge-border bg-forge-surface2/30">
+        <div class="flex gap-3 px-6 py-4 border-t border-[#2C2C2C] bg-[#111111]2/30">
           <button id="modal-cancel" class="btn-secondary btn-md flex-1 justify-center">Cancel</button>
           <button class="btn-primary btn-md flex-1 justify-center">
             Create project →

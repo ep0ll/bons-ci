@@ -254,8 +254,8 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="font-display font-bold text-2xl text-forge-text">Pipeline Templates</h1>
-        <p class="text-forge-text-3 text-sm mt-0.5">{templates.length} ready-made pipelines. One click to use.</p>
+        <h1 class="font-bold text-2xl text-[#F0F0F0]">Pipeline Templates</h1>
+        <p class="text-[#F0F0F0]-3 text-sm mt-0.5">{templates.length} ready-made pipelines. One click to use.</p>
       </div>
       <a href="/docs/pipeline-yaml" class="btn-secondary btn-sm">
         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -268,7 +268,7 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
     <!-- Search + category filter -->
     <div class="flex flex-col sm:flex-row gap-3">
       <div class="relative flex-1">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
         </svg>
         <input type="search" id="tmpl-search" placeholder="Search templates…" class="input !pl-9 !py-2 !text-xs w-full"/>
@@ -276,7 +276,7 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
       <div class="flex flex-wrap gap-1.5">
         {categories.map((cat, i) => (
           <button
-            class={`cat-btn text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${i===0 ? 'border-forge-accent/40 bg-forge-accent-muted text-forge-accent' : 'border-forge-border text-forge-text-3 hover:border-forge-border-2 hover:text-forge-text'}`}
+            class={`cat-btn text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${i===0 ? 'border-forge-accent/40 bg-forge-accent-muted text-[#FFEE00]' : 'border-[#2C2C2C] text-[#F0F0F0]-3 hover:border-[#2C2C2C]-2 hover:text-[#F0F0F0]'}`}
             data-cat={cat}
             onclick="filterCat(this)"
           >
@@ -296,44 +296,44 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
           onclick={`openTemplate('${t.id}')`}
         >
           <!-- Card header -->
-          <div class="px-5 pt-5 pb-4 border-b border-forge-border/50">
+          <div class="px-5 pt-5 pb-4 border-b border-[#2C2C2C]/50">
             <div class="flex items-start justify-between gap-3 mb-3">
               <div class="flex items-center gap-3">
                 <span class="text-2xl flex-shrink-0" aria-hidden="true">{t.icon}</span>
                 <div>
-                  <h2 class="font-display font-bold text-base text-forge-text group-hover:text-forge-accent transition-colors">
+                  <h2 class="font-bold text-base text-[#F0F0F0] group-hover:text-[#FFEE00] transition-colors">
                     {t.name}
                   </h2>
-                  <div class="text-2xs text-forge-text-3">{t.category}</div>
+                  <div class="text-2xs text-[#F0F0F0]-3">{t.category}</div>
                 </div>
               </div>
               {t.official ? (
-                <span class="badge-success border border-forge-success/20 text-2xs flex-shrink-0">Official</span>
+                <span class="badge-success border border-[rgba(0,255,136,0.3)] text-2xs flex-shrink-0">Official</span>
               ) : (
-                <span class="badge-neutral border border-forge-border text-2xs flex-shrink-0">Community</span>
+                <span class="badge-neutral border border-[#2C2C2C] text-2xs flex-shrink-0">Community</span>
               )}
             </div>
-            <p class="text-xs text-forge-text-3 leading-relaxed mb-3">{t.description}</p>
+            <p class="text-xs text-[#F0F0F0]-3 leading-relaxed mb-3">{t.description}</p>
             <div class="flex flex-wrap gap-1.5">
               {t.tags.map(tag => (
-                <span class="badge-neutral border border-forge-border text-2xs">{tag}</span>
+                <span class="badge-neutral border border-[#2C2C2C] text-2xs">{tag}</span>
               ))}
             </div>
           </div>
 
           <!-- Card footer -->
           <div class="px-5 py-3.5 flex items-center justify-between">
-            <div class="flex items-center gap-4 text-2xs text-forge-text-3 font-mono">
+            <div class="flex items-center gap-4 text-2xs text-[#F0F0F0]-3 font-mono">
               <span>⚡ {t.avgDuration}</span>
               <span>⭐ {t.stars.toLocaleString()}</span>
             </div>
             <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
-                class="text-2xs border border-forge-border text-forge-text-2 rounded-md px-2.5 py-1 hover:border-forge-border-2 hover:text-forge-text transition-all"
+                class="text-2xs border border-[#2C2C2C] text-[#F0F0F0]-2 rounded-md px-2.5 py-1 hover:border-[#2C2C2C]-2 hover:text-[#F0F0F0] transition-all"
                 onclick="event.stopPropagation(); openTemplate('{t.id}')"
               >Preview</button>
               <button
-                class="text-2xs border border-forge-accent/40 bg-forge-accent-muted text-forge-accent rounded-md px-2.5 py-1 hover:bg-forge-accent hover:text-forge-bg transition-all"
+                class="text-2xs border border-forge-accent/40 bg-forge-accent-muted text-[#FFEE00] rounded-md px-2.5 py-1 hover:bg-forge-accent hover:text-forge-bg transition-all"
                 onclick="event.stopPropagation(); useTemplate('{t.id}')"
               >Use template</button>
             </div>
@@ -344,23 +344,23 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
 
     <div id="tmpl-empty" class="hidden py-14 text-center">
       <div class="text-3xl mb-3">🔍</div>
-      <p class="text-forge-text-2">No templates match your search.</p>
+      <p class="text-[#F0F0F0]-2">No templates match your search.</p>
     </div>
   </div>
 
   <!-- Preview drawer -->
   <div id="tmpl-drawer" class="fixed inset-y-0 right-0 w-full max-w-2xl z-50 hidden transform translate-x-full transition-transform duration-300 ease-spring">
-    <div class="absolute inset-0 bg-forge-surface border-l border-forge-border flex flex-col shadow-modal overflow-hidden">
+    <div class="absolute inset-0 bg-[#111111] border-l border-[#2C2C2C] flex flex-col shadow-modal overflow-hidden">
 
       <!-- Drawer header -->
-      <div class="flex items-center gap-3 px-6 py-5 border-b border-forge-border flex-shrink-0">
+      <div class="flex items-center gap-3 px-6 py-5 border-b border-[#2C2C2C] flex-shrink-0">
         <div>
-          <h2 id="drawer-title" class="font-display font-bold text-xl text-forge-text"></h2>
-          <p id="drawer-meta" class="text-xs text-forge-text-3 mt-0.5"></p>
+          <h2 id="drawer-title" class="font-bold text-xl text-[#F0F0F0]"></h2>
+          <p id="drawer-meta" class="text-xs text-[#F0F0F0]-3 mt-0.5"></p>
         </div>
         <div class="ml-auto flex gap-2">
           <button id="use-btn" class="btn-primary btn-md">Use this template</button>
-          <button id="drawer-close" class="btn-ghost btn-md text-forge-text-3">
+          <button id="drawer-close" class="btn-ghost btn-md text-[#F0F0F0]-3">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -370,7 +370,7 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
 
       <!-- Drawer body -->
       <div class="flex-1 overflow-y-auto p-6 space-y-5">
-        <p id="drawer-desc" class="text-sm text-forge-text-2 leading-relaxed"></p>
+        <p id="drawer-desc" class="text-sm text-[#F0F0F0]-2 leading-relaxed"></p>
 
         <div class="grid grid-cols-3 gap-3" id="drawer-stats"></div>
 
@@ -379,10 +379,10 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
             <div class="terminal-dot bg-[#FF5F57]"></div>
             <div class="terminal-dot bg-[#FFBD2E]"></div>
             <div class="terminal-dot bg-[#28C840]"></div>
-            <span class="text-xs text-forge-text-3 ml-2 font-mono">.forge/pipeline.yml</span>
-            <button id="copy-yaml" class="ml-auto text-xs text-forge-accent hover:text-forge-accent-dim transition-colors">Copy</button>
+            <span class="text-xs text-[#F0F0F0]-3 ml-2 font-mono">.forge/pipeline.yml</span>
+            <button id="copy-yaml" class="ml-auto text-xs text-[#FFEE00] hover:text-[#FFEE00]-dim transition-colors">Copy</button>
           </div>
-          <pre id="drawer-yaml" class="p-5 text-xs font-mono text-forge-text-2 overflow-x-auto leading-relaxed"></pre>
+          <pre id="drawer-yaml" class="p-5 text-xs font-mono text-[#F0F0F0]-2 overflow-x-auto leading-relaxed"></pre>
         </div>
       </div>
     </div>
@@ -422,9 +422,9 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
       { label: 'Avg duration', value: t.avgDuration },
       { label: 'Stars', value: t.stars.toLocaleString() },
     ].map(({ label, value }) => `
-      <div class="p-3 rounded-lg border border-forge-border bg-forge-surface2/40">
-        <div class="text-2xs text-forge-text-3 mb-1">${label}</div>
-        <div class="text-sm font-mono font-bold text-forge-text">${value}</div>
+      <div class="p-3 rounded-none border border-[#2C2C2C] bg-[#111111]2/40">
+        <div class="text-2xs text-[#F0F0F0]-3 mb-1">${label}</div>
+        <div class="text-sm font-mono font-bold text-[#F0F0F0]">${value}</div>
       </div>
     `).join('');
 
@@ -470,9 +470,9 @@ const categories = ['All', ...new Set(templates.map(t => t.category))];
 
   function filterCat(btn: HTMLButtonElement) {
     document.querySelectorAll('.cat-btn').forEach(b => {
-      b.className = 'cat-btn text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-forge-border text-forge-text-3 hover:border-forge-border-2 hover:text-forge-text';
+      b.className = 'cat-btn text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-[#2C2C2C] text-[#F0F0F0]-3 hover:border-[#2C2C2C]-2 hover:text-[#F0F0F0]';
     });
-    btn.className = 'cat-btn text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-forge-accent/40 bg-forge-accent-muted text-forge-accent';
+    btn.className = 'cat-btn text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-forge-accent/40 bg-forge-accent-muted text-[#FFEE00]';
     applyFilters();
   }
 

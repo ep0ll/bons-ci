@@ -1,63 +1,29 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
 ---
-
 <MarketingLayout title="404 — Page not found — Forge CI" noindex={true}>
-  <div class="min-h-[80vh] flex items-center justify-center px-4 relative overflow-hidden">
-
-    <!-- Background -->
-    <div class="absolute inset-0 bg-grid opacity-20 pointer-events-none" aria-hidden="true"></div>
-    <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 600px 400px at 50% 40%, rgba(200,255,0,0.05), transparent 70%)" aria-hidden="true"></div>
-
+  <div class="min-h-[90svh] flex items-center justify-center px-4 relative overflow-hidden">
+    <div class="absolute inset-0 bg-grid opacity-20 pointer-events-none"></div>
     <div class="relative z-10 text-center max-w-xl">
-
-      <!-- Animated terminal showing 404 -->
       <div class="terminal max-w-sm mx-auto mb-10">
-        <div class="terminal-header">
-          <div class="terminal-dot bg-[#FF5F57]"></div>
-          <div class="terminal-dot bg-[#FFBD2E]"></div>
-          <div class="terminal-dot bg-[#28C840]"></div>
-          <span class="text-xs font-mono text-forge-text-3 ml-2">forge-ci</span>
-        </div>
+        <div class="terminal-header"><div class="terminal-dot bg-[#FF5F57]"></div><div class="terminal-dot bg-[#FFBD2E]"></div><div class="terminal-dot bg-[#28C840]"></div></div>
         <div class="p-5 font-mono text-sm space-y-1">
-          <div><span class="text-forge-text-3">$</span> <span class="text-forge-text">forge get {Astro.url.pathname}</span></div>
-          <div class="text-forge-danger">Error: Resource not found</div>
-          <div class="text-forge-text-2">Status: <span class="text-forge-danger font-bold">404</span></div>
-          <div class="text-forge-text-3 mt-2">↑ This page doesn't exist.</div>
-          <div class="text-forge-text-3">Try one of the links below.</div>
-          <div class="cursor-blink text-forge-accent mt-2"></div>
+          <div><span class="text-[#666666]">$</span> <span class="text-[#F0F0F0]">forge get {Astro.url.pathname}</span></div>
+          <div class="text-[#FF3333]">Error: 404 Not Found</div>
+          <div class="text-[#666666]">This page doesn't exist.</div>
+          <div class="cursor-blink text-[#FFEE00] mt-2"></div>
         </div>
       </div>
-
-      <h1 class="font-display font-bold text-5xl text-forge-text mb-3">
-        Page not found
-      </h1>
-      <p class="text-forge-text-2 mb-8 leading-relaxed">
-        This URL doesn't exist. Maybe it moved, or you followed a stale link.
-      </p>
-
-      <!-- Navigation options -->
+      <h1 class="font-bold text-5xl text-[#F0F0F0] mb-3">404</h1>
+      <p class="text-[#AAAAAA] mb-8">This page doesn't exist. Maybe it moved, or you followed a stale link.</p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center mb-10">
         <a href="/" class="btn-primary btn-lg">Go to homepage</a>
         <a href="/dashboard" class="btn-secondary btn-lg">Open dashboard</a>
-        <a href="/docs" class="btn-ghost btn-lg">Read docs</a>
+        <a href="/docs" class="btn-ghost btn-lg text-[#666666]">Read docs</a>
       </div>
-
-      <!-- Quick links grid -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-        {[
-          { label: 'Features',     href: '/features' },
-          { label: 'Pricing',      href: '/pricing' },
-          { label: 'Integrations', href: '/integrations' },
-          { label: 'Changelog',    href: '/changelog' },
-          { label: 'Status',       href: '/status' },
-          { label: 'Blog',         href: '/blog' },
-          { label: 'Contact',      href: '/contact' },
-          { label: 'Sign in',      href: '/auth/login' },
-        ].map(({ label, href }) => (
-          <a href={href} class="card p-3 text-center text-forge-text-2 hover:text-forge-accent hover:border-forge-accent/30 transition-all">
-            {label}
-          </a>
+      <div class="grid grid-cols-4 gap-2 text-sm">
+        {['Features','Pricing','Blog','Status','Docs','Changelog','Contact','Sign in'].map(l => (
+          <a href={`/${l.toLowerCase().replace(' ','-')}`} class="card p-3 text-center text-[#666666] hover:text-[#FFEE00] hover:border-[rgba(255,238,0,0.3)] transition-all">{l}</a>
         ))}
       </div>
     </div>

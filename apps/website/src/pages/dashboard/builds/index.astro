@@ -1,317 +1,212 @@
 ---
-import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import DashboardLayout from '../../../layouts/DashboardLayout.astro';
+import { MOCK_BUILDS, formatDuration, relativeTime } from '../../../data/mock.ts';
 
-const builds = [
-  { id:'1847', project:'api-service', branch:'main',           commit:'a4f9c2b', msg:'feat: add rate limiting to auth endpoints',         status:'success', duration:'1m 24s', ago:'2m ago',   author:'AL', trigger:'push',     credits:12, cacheHit:true,  steps:4 },
-  { id:'1846', project:'web-app',     branch:'feat/dashboard', commit:'3d8e1a0', msg:'refactor: migrate charts to recharts',               status:'running', duration:'0m 47s', ago:'now',      author:'TR', trigger:'push',     credits:6,  cacheHit:true,  steps:3 },
-  { id:'1845', project:'api-service', branch:'fix/null-ptr',   commit:'c1b2f3d', msg:'fix: handle null user in session middleware',        status:'failed',  duration:'2m 11s', ago:'14m ago',  author:'PN', trigger:'pr',       credits:18, cacheHit:false, steps:2 },
-  { id:'1844', project:'infra',       branch:'main',           commit:'e5f6a7b', msg:'chore: update terraform provider to 5.2.0',          status:'success', duration:'3m 44s', ago:'22m ago',  author:'OA', trigger:'manual',   credits:30, cacheHit:true,  steps:5 },
-  { id:'1843', project:'mobile',      branch:'release/2.4.0',  commit:'9b0c1d2', msg:'chore: bump version to 2.4.0',                      status:'success', duration:'8m 12s', ago:'41m ago',  author:'SJ', trigger:'push',     credits:66, cacheHit:true,  steps:8 },
-  { id:'1842', project:'web-app',     branch:'main',           commit:'f2a3b4c', msg:'feat: add Sherlock AI widget to build detail',       status:'success', duration:'1m 18s', ago:'1h ago',   author:'AL', trigger:'push',     credits:10, cacheHit:true,  steps:4 },
-  { id:'1841', project:'api-service', branch:'feat/webhooks',  commit:'b8c9d0e', msg:'feat: implement outbound webhook delivery system',   status:'success', duration:'1m 32s', ago:'1h ago',   author:'PN', trigger:'push',     credits:13, cacheHit:true,  steps:4 },
-  { id:'1840', project:'docs',        branch:'main',           commit:'d1e2f3a', msg:'docs: update SAML SSO configuration guide',         status:'success', duration:'0m 44s', ago:'2h ago',   author:'TR', trigger:'push',     credits:4,  cacheHit:true,  steps:2 },
-  { id:'1839', project:'api-service', branch:'main',           commit:'4a5b6c7', msg:'ci: add matrix build for Node 18, 20, 22',         status:'cancelled',duration:'1m 02s', ago:'3h ago',   author:'AL', trigger:'push',     credits:8,  cacheHit:false, steps:1 },
-  { id:'1838', project:'mobile',      branch:'fix/crash-ios',  commit:'7d8e9f0', msg:'fix: resolve crash on iPhone 15 Pro cold launch',   status:'failed',  duration:'7m 44s', ago:'4h ago',   author:'SJ', trigger:'pr',       credits:62, cacheHit:true,  steps:6 },
-  { id:'1837', project:'web-app',     branch:'main',           commit:'1b2c3d4', msg:'perf: lazy-load dashboard charts for 40% faster TTI',status:'success',duration:'1m 21s', ago:'5h ago',   author:'TR', trigger:'push',     credits:11, cacheHit:true,  steps:4 },
-  { id:'1836', project:'infra',       branch:'feat/tailnet',   commit:'5e6f7a8', msg:'feat: add Tailscale tailnet integration for BYOC',  status:'queued',  duration:'—',      ago:'5h ago',   author:'OA', trigger:'push',     credits:0,  cacheHit:false, steps:0 },
-];
+const allBuilds = MOCK_BUILDS;
+const projects  = [...new Set(allBuilds.map(b => b.project_name))];
 
-const statusConfig: Record<string, { dot: string; cls: string; label: string }> = {
-  success:   { dot: 'bg-forge-success',               cls: 'badge-success border border-forge-success/20',             label: 'Passed' },
-  running:   { dot: 'bg-forge-cyan animate-pulse',    cls: 'bg-forge-info-bg text-forge-cyan border border-forge-cyan/20', label: 'Running' },
-  failed:    { dot: 'bg-forge-danger',                cls: 'badge-danger border border-forge-danger/20',               label: 'Failed' },
-  cancelled: { dot: 'bg-forge-text-3',                cls: 'badge-neutral border border-forge-border',                 label: 'Cancelled' },
-  queued:    { dot: 'bg-forge-text-3 animate-pulse',  cls: 'badge-neutral border border-forge-border',                 label: 'Queued' },
+const statusStyle: Record<string,{dot:string;cls:string;label:string}> = {
+  success:   {dot:'background:#00FF88',                            cls:'badge-success', label:'Passed'},
+  running:   {dot:'background:#00EEFF;animation:pulse 1s ease-in-out infinite', cls:'badge-running', label:'Running'},
+  failed:    {dot:'background:#FF3333',                            cls:'badge-danger',  label:'Failed'},
+  cancelled: {dot:'background:#3C3C3C',                            cls:'badge-neutral', label:'Cancelled'},
+  queued:    {dot:'background:#3C3C3C;animation:pulse 1s ease-in-out infinite', cls:'badge-neutral', label:'Queued'},
 };
 
-const triggerLabel: Record<string, string> = {
-  push: 'Push', pr: 'Pull Request', manual: 'Manual', schedule: 'Scheduled',
-};
-
-const tabs = [
-  { label: 'All', count: 1847 },
-  { label: 'Running', count: 3 },
-  { label: 'Failed', count: 12 },
-  { label: 'Queued', count: 2 },
-];
+const triggerLabel: Record<string,string> = { push:'Push', pr:'PR', manual:'Manual', schedule:'Scheduled', api:'API' };
+const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'},{k:'cancelled',l:'Cancelled'}];
 ---
 
-<DashboardLayout
-  title="Builds"
-  activeNav="builds"
-  breadcrumbs={[{ label: 'Builds' }]}
->
-  <div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
+<DashboardLayout title="Builds" activeNav="builds" breadcrumbs={[{label:'Builds'}]}>
+<div class="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5">
 
-    <!-- Page header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 class="font-display font-bold text-2xl text-forge-text">Builds</h1>
-        <p class="text-forge-text-3 text-sm mt-0.5">1,847 total builds across all projects</p>
-      </div>
-      <div class="flex gap-2">
-        <button class="btn-secondary btn-sm">
-          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-          Export CSV
-        </button>
-        <button class="btn-primary btn-sm">
-          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
-          </svg>
-          Trigger build
-        </button>
-      </div>
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight" style="font-family:'Space Grotesk';color:#F0F0F0">Builds</h1>
+      <p class="text-xs font-mono mt-0.5" style="color:#666666">{allBuilds.length.toLocaleString()} total · all projects · last 30 days</p>
     </div>
+    <div class="flex gap-2">
+      <button class="btn-secondary btn-sm text-xs">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Export CSV
+      </button>
+      <button class="btn-primary btn-sm">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+        Trigger build
+      </button>
+    </div>
+  </div>
 
-    <!-- Status tabs + filters row -->
-    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-
-      <!-- Tabs -->
-      <div class="flex gap-1 bg-forge-surface border border-forge-border rounded-lg p-1 flex-shrink-0">
-        {tabs.map(({ label, count }, i) => (
-          <button
-            class={`tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-              i === 0
-                ? 'bg-forge-surface2 text-forge-text'
-                : 'text-forge-text-3 hover:text-forge-text'
-            }`}
-            data-tab={label.toLowerCase()}
-            onclick="switchTab(this)"
-          >
-            {label}
-            <span class={`text-2xs font-mono px-1.5 rounded-sm ${
-              label === 'Failed'  ? 'text-forge-danger bg-forge-danger-bg' :
-              label === 'Running' ? 'text-forge-cyan bg-forge-info-bg' :
-              label === 'Queued'  ? 'text-forge-text-3 bg-forge-surface3' :
-              'text-forge-text-3 bg-forge-surface3'
-            }`}>{count.toLocaleString()}</span>
+  <!-- Filters -->
+  <div class="flex flex-col sm:flex-row gap-3">
+    <!-- Status tabs -->
+    <div class="flex gap-0 border-2 flex-shrink-0" style="border-color:#2C2C2C;background:#111111">
+      {tabs.map((tab, i) => {
+        const cnt = tab.k==='all' ? allBuilds.length : allBuilds.filter(b=>b.status===tab.k).length;
+        return (
+          <button class="tab-btn flex items-center gap-1.5 px-3 py-2 text-xs font-semibold font-mono transition-all border-r-2 last:border-r-0"
+                  style={i===0 ? 'background:#FFEE00;color:#0A0A0A;border-color:#2C2C2C' : 'background:transparent;color:#666666;border-color:#2C2C2C'}
+                  data-tab={tab.k} onclick="switchTab(this)">
+            {tab.l}
+            <span class="px-1.5 py-0.5 text-xs font-mono border"
+                  style={tab.k==='failed'?'background:rgba(255,51,51,0.1);color:#FF3333;border-color:rgba(255,51,51,0.3)':tab.k==='running'?'background:rgba(0,238,255,0.1);color:#00EEFF;border-color:rgba(0,238,255,0.3)':'background:#1A1A1A;color:#666666;border-color:#2C2C2C'}>
+              {cnt}
+            </span>
           </button>
-        ))}
-      </div>
-
-      <div class="flex-1 flex flex-wrap gap-2">
-        <!-- Search -->
-        <div class="relative flex-1 min-w-[200px]">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          <input
-            type="search"
-            id="build-search"
-            placeholder="Search by commit, branch, message…"
-            class="input !pl-9 !py-2 !text-xs w-full"
-          />
-        </div>
-
-        <!-- Project filter -->
-        <select class="input !py-2 !text-xs w-36" id="project-filter">
-          <option value="">All projects</option>
-          {['api-service','web-app','mobile','infra','docs'].map(p => (
-            <option value={p}>{p}</option>
-          ))}
-        </select>
-
-        <!-- Trigger filter -->
-        <select class="input !py-2 !text-xs w-32" id="trigger-filter">
-          <option value="">All triggers</option>
-          <option value="push">Push</option>
-          <option value="pr">Pull Request</option>
-          <option value="manual">Manual</option>
-          <option value="schedule">Scheduled</option>
-        </select>
-
-        <!-- Date range -->
-        <select class="input !py-2 !text-xs w-32">
-          <option>Last 7 days</option>
-          <option>Last 30 days</option>
-          <option>Last 90 days</option>
-          <option>All time</option>
-        </select>
-      </div>
+        );
+      })}
     </div>
 
-    <!-- Builds table -->
-    <div class="card overflow-hidden" id="builds-container">
-      <table class="table-forge w-full" id="builds-table">
-        <thead>
-          <tr>
-            <th class="w-6">
-              <input type="checkbox" class="rounded border-forge-border" aria-label="Select all builds"/>
-            </th>
-            <th>
-              <button class="flex items-center gap-1 text-2xs font-mono uppercase tracking-wider text-forge-text-3 hover:text-forge-text">
-                Build
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-              </button>
-            </th>
-            <th>Project / Branch</th>
-            <th class="hidden md:table-cell">Commit</th>
-            <th>Status</th>
-            <th class="hidden sm:table-cell">
-              <button class="flex items-center gap-1 text-2xs font-mono uppercase tracking-wider text-forge-text-3 hover:text-forge-text">
-                Duration
-                <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-              </button>
-            </th>
-            <th class="hidden lg:table-cell">Credits</th>
-            <th class="hidden xl:table-cell">Trigger</th>
-            <th>Author</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="builds-tbody">
-          {builds.map((b) => {
-            const s = statusConfig[b.status] ?? statusConfig.queued;
-            return (
-              <tr
-                class="build-row cursor-pointer group"
-                data-status={b.status}
-                data-project={b.project}
-                data-trigger={b.trigger}
-                data-text={`${b.id} ${b.branch} ${b.commit} ${b.msg} ${b.project}`.toLowerCase()}
-                onclick={`window.location='/dashboard/builds/${b.id}'`}
-              >
-                <td onclick="event.stopPropagation()">
-                  <input type="checkbox" class="rounded border-forge-border" aria-label={`Select build #${b.id}`}/>
-                </td>
-                <td>
-                  <div class="flex items-center gap-2">
-                    <div class={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`}></div>
-                    <span class="font-mono text-xs text-forge-text font-medium">#{b.id}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="text-xs font-medium text-forge-text">{b.project}</div>
-                  <div class="text-2xs text-forge-text-3 font-mono truncate max-w-[140px]">{b.branch}</div>
-                </td>
-                <td class="hidden md:table-cell">
-                  <div class="flex flex-col gap-0.5">
-                    <code class="text-xs text-forge-text-2 font-mono">{b.commit}</code>
-                    <span class="text-2xs text-forge-text-3 truncate max-w-[200px]">{b.msg}</span>
-                  </div>
-                </td>
-                <td>
-                  <span class={`badge ${s.cls}`}>
-                    {b.status === 'running' && <span class="w-1 h-1 rounded-full bg-forge-cyan animate-pulse"></span>}
-                    {s.label}
-                  </span>
-                </td>
-                <td class="hidden sm:table-cell">
-                  <div class="text-xs font-mono text-forge-text-2">{b.duration}</div>
-                  <div class="text-2xs text-forge-text-3">{b.ago}</div>
-                </td>
-                <td class="hidden lg:table-cell">
-                  <span class="text-xs font-mono text-forge-text-2">{b.credits > 0 ? b.credits : '—'}</span>
-                </td>
-                <td class="hidden xl:table-cell">
-                  <span class="text-2xs text-forge-text-3">{triggerLabel[b.trigger]}</span>
-                </td>
-                <td>
-                  <div class="avatar-sm bg-forge-surface3 border border-forge-border text-forge-accent font-display text-2xs">{b.author}</div>
-                </td>
-                <td onclick="event.stopPropagation()">
-                  <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {b.status === 'failed' && (
-                      <button
-                        class="inline-flex items-center gap-1 text-2xs border border-forge-cyan/30 bg-forge-info-bg text-forge-cyan rounded-md px-1.5 py-1 hover:bg-forge-cyan hover:text-forge-bg transition-all"
-                        title="Ask Sherlock"
-                      >
-                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-                        </svg>
-                        Sherlock
-                      </button>
-                    )}
-                    <button
-                      class="p-1.5 text-forge-text-3 hover:text-forge-text hover:bg-forge-surface2 rounded transition-all"
-                      title="Retry build"
-                    >
-                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                      </svg>
-                    </button>
-                    <button
-                      class="p-1.5 text-forge-text-3 hover:text-forge-text hover:bg-forge-surface2 rounded transition-all"
-                      title="View build"
-                    >
-                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-
-      <!-- Empty state -->
-      <div id="builds-empty" class="hidden py-16 text-center">
-        <div class="text-4xl mb-3">🔍</div>
-        <h3 class="font-display font-bold text-lg text-forge-text mb-1">No builds found</h3>
-        <p class="text-forge-text-2 text-sm">Try adjusting your filters or search query.</p>
+    <!-- Search + filters -->
+    <div class="flex flex-1 gap-2 flex-wrap">
+      <div class="relative flex-1 min-w-[180px]">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="search" id="build-search" placeholder="Search commit, branch, message…" class="input !pl-9 !py-2 !text-xs w-full"/>
       </div>
+      <select id="proj-filter" class="input !py-2 !text-xs w-36">
+        <option value="">All projects</option>
+        {projects.map(p => <option value={p}>{p}</option>)}
+      </select>
+      <select id="trigger-filter" class="input !py-2 !text-xs w-32">
+        <option value="">All triggers</option>
+        <option value="push">Push</option><option value="pr">Pull Request</option>
+        <option value="manual">Manual</option><option value="schedule">Scheduled</option>
+      </select>
+      <select class="input !py-2 !text-xs w-32">
+        <option>Last 7 days</option><option>Last 30 days</option><option>All time</option>
+      </select>
+    </div>
+  </div>
 
-      <!-- Pagination -->
-      <div class="flex items-center justify-between px-5 py-4 border-t border-forge-border">
-        <p class="text-xs text-forge-text-3">
-          Showing <span class="font-medium text-forge-text">1–12</span> of <span class="font-medium text-forge-text">1,847</span> builds
-        </p>
-        <div class="flex gap-1">
-          <button class="btn-ghost btn-sm text-forge-text-3" disabled>← Prev</button>
-          {[1,2,3,'…',154,155].map((p) => (
-            <button class={`btn-sm text-xs min-w-[32px] ${p === 1 ? 'btn-secondary text-forge-accent border-forge-accent/30' : 'btn-ghost text-forge-text-3'}`}>
-              {p}
-            </button>
-          ))}
-          <button class="btn-ghost btn-sm text-forge-text-3">Next →</button>
-        </div>
+  <!-- Builds table -->
+  <div class="border-2" style="border-color:#2C2C2C;background:#060606">
+    <table class="table-brut" id="builds-table">
+      <thead>
+        <tr>
+          <th class="w-6"><input type="checkbox" id="select-all" class="border border-[#3C3C3C]" style="background:#1A1A1A"/></th>
+          <th>Build</th><th>Project / Branch</th><th class="hidden md:table-cell">Commit</th>
+          <th>Status</th><th class="hidden sm:table-cell">Duration</th>
+          <th class="hidden lg:table-cell">Credits</th><th class="hidden xl:table-cell">Trigger</th>
+          <th>Author</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="builds-tbody">
+        {allBuilds.map(b => {
+          const s = statusStyle[b.status] ?? statusStyle.queued;
+          const txt = `${b.number} ${b.branch} ${b.commit_short} ${b.commit_message} ${b.project_name}`.toLowerCase();
+          return (
+            <tr class="build-row group cursor-pointer" data-status={b.status} data-project={b.project_name} data-trigger={b.trigger} data-text={txt} onclick={`location.href='/dashboard/builds/${b.id}'`}>
+              <td onclick="event.stopPropagation()"><input type="checkbox" class="build-check border border-[#3C3C3C]" style="background:#1A1A1A"/></td>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="w-2 h-2 rounded-full flex-shrink-0" style={s.dot}></div>
+                  <span class="font-mono text-xs font-bold" style="color:#AAAAAA">#{b.number}</span>
+                </div>
+              </td>
+              <td>
+                <div class="text-xs font-semibold" style="color:#F0F0F0">{b.project_name}</div>
+                <div class="text-xs font-mono truncate max-w-[130px]" style="color:#666666">{b.branch}</div>
+              </td>
+              <td class="hidden md:table-cell">
+                <code class="text-xs font-mono" style="color:#666666">{b.commit_short}</code>
+                <div class="text-xs truncate max-w-[180px]" style="color:#3C3C3C">{b.commit_message}</div>
+              </td>
+              <td><span class={s.cls}>{s.label}</span></td>
+              <td class="hidden sm:table-cell">
+                <div class="text-xs font-mono" style="color:#AAAAAA">{b.duration_ms ? formatDuration(b.duration_ms) : '—'}</div>
+                <div class="text-xs font-mono" style="color:#3C3C3C">{b.started_at ? relativeTime(b.started_at) : ''}</div>
+              </td>
+              <td class="hidden lg:table-cell"><span class="text-xs font-mono" style="color:#666666">{b.credits_used > 0 ? b.credits_used : '—'}</span></td>
+              <td class="hidden xl:table-cell"><span class="text-xs font-mono" style="color:#666666">{triggerLabel[b.trigger] ?? b.trigger}</span></td>
+              <td>
+                <div class="flex items-center gap-2">
+                  <div class="avatar-sm">{b.author.name.split(' ').map((n:string)=>n[0]).join('')}</div>
+                  {b.status === 'failed' && (
+                    <button class="text-xs font-mono border px-1.5 py-0.5 transition-all opacity-0 group-hover:opacity-100"
+                            style="border-color:rgba(0,238,255,0.3);background:rgba(0,238,255,0.08);color:#00EEFF"
+                            onclick={`event.stopPropagation();location.href='/dashboard/ai-agents?build=${b.id}'`} title="Ask Sherlock">
+                      ◎ Sherlock
+                    </button>
+                  )}
+                </div>
+              </td>
+              <td onclick="event.stopPropagation()">
+                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button class="btn-ghost btn-xs text-xs" style="color:#666666" title="Retry">
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+
+    <div id="builds-empty" class="hidden py-14 text-center" style="background:#060606">
+      <div class="text-4xl mb-3" style="color:#2C2C2C">◎</div>
+      <h3 class="font-bold text-lg mb-1" style="font-family:'Space Grotesk';color:#F0F0F0">No builds found</h3>
+      <p class="text-xs font-mono" style="color:#666666">Try adjusting your filters or search query.</p>
+    </div>
+
+    <!-- Pagination -->
+    <div class="flex items-center justify-between px-5 py-3.5 border-t-2" style="border-color:#2C2C2C">
+      <p class="text-xs font-mono" style="color:#666666">
+        Showing <span style="color:#F0F0F0">{allBuilds.length}</span> of <span style="color:#F0F0F0">1,847</span>
+      </p>
+      <div class="flex gap-1">
+        <button class="btn-ghost btn-xs font-mono" style="color:#3C3C3C" disabled>← Prev</button>
+        {[1,2,3,'…',154,155].map(p => (
+          <button class="btn-xs font-mono" style={p===1?'background:#FFEE00;color:#0A0A0A;border:none':'background:transparent;border:1px solid #2C2C2C;color:#666666'}>{p}</button>
+        ))}
+        <button class="btn-ghost btn-xs font-mono" style="color:#FFEE00">Next →</button>
       </div>
     </div>
   </div>
+</div>
 </DashboardLayout>
 
 <script>
-  const rows = document.querySelectorAll<HTMLTableRowElement>('.build-row');
-  const emptyState = document.getElementById('builds-empty')!;
+  const rows  = document.querySelectorAll<HTMLElement>('.build-row');
+  const empty = document.getElementById('builds-empty')!;
   const tbody = document.getElementById('builds-tbody')!;
 
   function applyFilters() {
-    const q = (document.getElementById('build-search') as HTMLInputElement).value.toLowerCase();
-    const proj = (document.getElementById('project-filter') as HTMLSelectElement).value;
+    const q    = (document.getElementById('build-search')   as HTMLInputElement).value.toLowerCase();
+    const proj = (document.getElementById('proj-filter')    as HTMLSelectElement).value;
     const trig = (document.getElementById('trigger-filter') as HTMLSelectElement).value;
-    const activeTab = document.querySelector<HTMLButtonElement>('.tab-btn.bg-forge-surface2')?.dataset.tab ?? 'all';
-
-    let visible = 0;
-    rows.forEach((row) => {
-      const textMatch   = !q    || row.dataset.text!.includes(q);
-      const projMatch   = !proj || row.dataset.project === proj;
-      const trigMatch   = !trig || row.dataset.trigger === trig;
-      const statusMatch = activeTab === 'all' || row.dataset.status === activeTab;
-      const show = textMatch && projMatch && trigMatch && statusMatch;
-      row.style.display = show ? '' : 'none';
-      if (show) visible++;
+    const tab  = document.querySelector<HTMLElement>('.tab-btn[data-active]')?.dataset.tab ?? 'all';
+    let v = 0;
+    rows.forEach(row => {
+      const ok = (!q    || row.dataset.text!.includes(q))
+              && (!proj  || row.dataset.project === proj)
+              && (!trig  || row.dataset.trigger === trig)
+              && (tab==='all' || row.dataset.status === tab);
+      row.style.display = ok ? '' : 'none';
+      if (ok) v++;
     });
-
-    emptyState.classList.toggle('hidden', visible > 0);
-    tbody.classList.toggle('hidden', visible === 0);
+    empty.classList.toggle('hidden', v > 0);
+    tbody.classList.toggle('hidden', v === 0);
   }
 
-  document.getElementById('build-search')?.addEventListener('input', applyFilters);
-  document.getElementById('project-filter')?.addEventListener('change', applyFilters);
-  document.getElementById('trigger-filter')?.addEventListener('change', applyFilters);
+  ['build-search','proj-filter','trigger-filter'].forEach(id =>
+    document.getElementById(id)?.addEventListener(id==='build-search'?'input':'change', applyFilters)
+  );
 
   function switchTab(btn: HTMLButtonElement) {
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      b.classList.remove('bg-forge-surface2', 'text-forge-text');
-      b.classList.add('text-forge-text-3');
+    document.querySelectorAll<HTMLElement>('.tab-btn').forEach(b => {
+      b.style.background = 'transparent'; b.style.color = '#666666';
+      delete b.dataset.active;
     });
-    btn.classList.add('bg-forge-surface2', 'text-forge-text');
-    btn.classList.remove('text-forge-text-3');
+    btn.style.background = '#FFEE00'; btn.style.color = '#0A0A0A';
+    btn.dataset.active = '1';
     applyFilters();
   }
   (window as any).switchTab = switchTab;
+
+  document.getElementById('select-all')?.addEventListener('change', e => {
+    const chk = (e.target as HTMLInputElement).checked;
+    rows.forEach(row => { if(row.style.display!=='none') (row.querySelector('.build-check') as HTMLInputElement).checked = chk; });
+  });
 </script>

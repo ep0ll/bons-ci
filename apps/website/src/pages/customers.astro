@@ -1,0 +1,95 @@
+---
+import MarketingLayout from '../layouts/MarketingLayout.astro';
+import { MOCK_CASE_STUDIES, MOCK_TESTIMONIALS } from '../data/mock.ts';
+
+const studies = MOCK_CASE_STUDIES;
+const testimonials = MOCK_TESTIMONIALS;
+const logos = ['Vercel','Stripe','Linear','Notion','Figma','Supabase','PlanetScale','Railway','Liveblocks','Raycast','Cal.com','Dub.co','Resend','Trigger.dev'];
+const stats = [{n:'50,000+',label:'Engineering teams'},{n:'2.4B',label:'Builds completed'},{n:'89%',label:'Avg cache hit rate'},{n:'74%',label:'Avg MTTR reduction'}];
+---
+<MarketingLayout title="Customers — Forge CI" description="50,000+ engineering teams trust Forge CI. Read their stories.">
+  <!-- Hero -->
+  <section class="relative pt-32 pb-16 overflow-hidden">
+    <div class="absolute inset-0 bg-grid opacity-25 pointer-events-none"></div>
+    <div class="container-forge relative z-10 text-center">
+      <div class="section-label mb-5">Customers</div>
+      <h1 class="section-title mb-5">Trusted by 50,000+ <span class="text-gradient">engineering teams.</span></h1>
+      <p class="section-subtitle mx-auto text-center mb-12">From solo developers to 2,000-person platform teams.</p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-2xl mx-auto mb-16">
+        {stats.map(s=>(
+          <div><div class="font-bold text-4xl text-[#FFEE00] mb-1">{s.n}</div><div class="text-sm text-[#666666]">{s.label}</div></div>
+        ))}
+      </div>
+      <div class="relative overflow-hidden">
+        <div class="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none" style="background:linear-gradient(to right,#0A0A0A,transparent)"></div>
+        <div class="absolute right-0 top-0 bottom-0 w-24 z-10 pointer-events-none" style="background:linear-gradient(to left,#0A0A0A,transparent)"></div>
+        <div class="flex gap-10 items-center" style="animation:marquee 30s linear infinite;width:max-content">
+          {[...logos,...logos].map(l=><div class="text-[#666666] font-display font-semibold text-xl hover:text-[#FFEE00] transition-colors cursor-default whitespace-nowrap">{l}</div>)}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Case studies -->
+  <section class="section border-t border-[#2C2C2C]">
+    <div class="container-forge">
+      <h2 class="font-bold text-3xl text-[#F0F0F0] text-center mb-12">In-depth case studies</h2>
+      <div class="space-y-8">
+        {studies.map(cs=>(
+          <div class="card p-8 hover:border-[rgba(255,238,0,0.2)] transition-all">
+            <div class="grid lg:grid-cols-2 gap-10 items-center">
+              <div>
+                <div class="flex items-center gap-4 mb-5"><div class="text-4xl">{cs.logo_emoji}</div><div><div class="font-bold text-2xl text-[#F0F0F0]">{cs.company}</div><div class="text-sm text-[#666666]">{cs.industry} · {cs.team_size}</div></div></div>
+                <h3 class="font-bold text-xl text-[#F0F0F0] mb-5 leading-tight">{cs.headline}</h3>
+                <blockquote class="text-[#AAAAAA] italic text-sm leading-relaxed border-l-2 border-[#FFEE00] pl-4 mb-4">"{cs.quote}"<footer class="text-xs text-[#666666] mt-2 not-italic">— {cs.quote_author}</footer></blockquote>
+              </div>
+              <div class="space-y-3">
+                {cs.results.map(r=>(
+                  <div class="flex items-center justify-between p-4 rounded-none bg-[#1A1A1A] border border-[#2C2C2C]">
+                    <span class="text-sm text-[#AAAAAA]">{r.metric}</span>
+                    <div class="flex items-center gap-3 text-sm font-mono">
+                      <span class="text-[#666666] line-through">{r.before}</span>
+                      <svg class="w-4 h-4 text-[#FFEE00]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                      <span class="text-[#FFEE00] font-bold">{r.after}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section class="section border-t border-[#2C2C2C] bg-[rgba(12,16,24,0.4)]">
+    <div class="container-forge">
+      <h2 class="font-bold text-3xl text-[#F0F0F0] text-center mb-12">What engineers say</h2>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {testimonials.map(t=>(
+          <div class="card p-6 flex flex-col gap-4 hover:border-[#3C3C3C] transition-colors">
+            <div class="flex gap-0.5">{Array.from({length:5}).map(()=><svg class="w-4 h-4 text-[#FF7700]" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>)}</div>
+            <blockquote class="text-sm text-[#AAAAAA] leading-relaxed flex-1">"{t.quote}"</blockquote>
+            <span class="badge-accent border border-[rgba(255,238,0,0.2)] text-xs self-start">{t.metric}</span>
+            <div class="flex items-center gap-3 pt-3 border-t border-[#2C2C2C]">
+              <div class="avatar-md avatar-base">{t.initials}</div>
+              <div><div class="text-sm font-medium text-[#F0F0F0]">{t.author}</div><div class="text-xs text-[#666666]">{t.title} · {t.company}</div></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section border-t border-[#2C2C2C]">
+    <div class="container-forge max-w-xl text-center">
+      <h2 class="font-bold text-3xl text-[#F0F0F0] mb-4">Join 50,000+ engineering teams.</h2>
+      <p class="text-[#AAAAAA] mb-8">Start free. No credit card. Set up in 2 minutes.</p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="/auth/signup" class="btn-primary btn-xl">Start building free →</a>
+        <a href="/enterprise" class="btn-secondary btn-xl">Talk to enterprise sales</a>
+      </div>
+    </div>
+  </section>
+</MarketingLayout>

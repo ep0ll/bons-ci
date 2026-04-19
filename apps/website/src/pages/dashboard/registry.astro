@@ -97,8 +97,8 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="font-display font-bold text-2xl text-forge-text">Image Registry</h1>
-        <p class="text-forge-text-3 text-sm mt-0.5">
+        <h1 class="font-bold text-2xl text-[#F0F0F0]">Image Registry</h1>
+        <p class="text-[#F0F0F0]-3 text-sm mt-0.5">
           OCI-compatible · <span class="font-mono">{fmtBytes(totalUsed)}</span> used of <span class="font-mono">100 GB</span>
         </p>
       </div>
@@ -122,8 +122,8 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
     <div class="card p-4 flex items-center gap-5">
       <div class="flex-1">
         <div class="flex justify-between mb-2 text-xs">
-          <span class="text-forge-text-2">Storage used</span>
-          <span class="font-mono text-forge-text">{fmtBytes(totalUsed)} / 100 GB · {usedPct}%</span>
+          <span class="text-[#F0F0F0]-2">Storage used</span>
+          <span class="font-mono text-[#F0F0F0]">{fmtBytes(totalUsed)} / 100 GB · {usedPct}%</span>
         </div>
         <div class="progress">
           <div class="progress-bar" style={`width: ${usedPct}%`}></div>
@@ -136,8 +136,8 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
           { label: 'Total pulls (30d)', value: repos.reduce((s,r) => s + r.pullCount, 0).toLocaleString() },
         ].map(({ label, value }) => (
           <div>
-            <div class="font-mono font-bold text-lg text-forge-text">{value}</div>
-            <div class="text-2xs text-forge-text-3">{label}</div>
+            <div class="font-mono font-bold text-lg text-[#F0F0F0]">{value}</div>
+            <div class="text-2xs text-[#F0F0F0]-3">{label}</div>
           </div>
         ))}
       </div>
@@ -146,11 +146,11 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
     <!-- Login command snippet -->
     <div class="card p-4">
       <div class="flex items-center justify-between mb-2">
-        <span class="text-xs font-medium text-forge-text-2">Registry endpoint</span>
+        <span class="text-xs font-medium text-[#F0F0F0]-2">Registry endpoint</span>
         <span class="badge-accent text-2xs">OCI v1.1</span>
       </div>
       <div class="flex items-center gap-3">
-        <code class="flex-1 font-mono text-xs text-forge-text-2 bg-forge-surface2 rounded-lg px-4 py-2.5 overflow-x-auto">
+        <code class="flex-1 font-mono text-xs text-[#F0F0F0]-2 bg-[#111111]2 rounded-none px-4 py-2.5 overflow-x-auto">
           docker login registry.forge-ci.dev -u acme-corp -p $FORGE_REGISTRY_TOKEN
         </code>
         <button
@@ -165,9 +165,9 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
 
       <!-- Repo list -->
       <div class="card overflow-hidden">
-        <div class="px-4 py-3.5 border-b border-forge-border">
+        <div class="px-4 py-3.5 border-b border-[#2C2C2C]">
           <div class="relative">
-            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-forge-text-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#F0F0F0]-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
             <input type="search" placeholder="Filter repositories…" class="input !pl-9 !py-2 !text-xs w-full"/>
@@ -181,18 +181,18 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
             const hasHigh = repo.vuln.high > 0;
             return (
               <button
-                class={`w-full text-left px-4 py-3.5 hover:bg-forge-surface2/60 transition-colors ${i===0 ? 'bg-forge-accent-muted/20 border-l-2 border-forge-accent' : ''}`}
+                class={`w-full text-left px-4 py-3.5 hover:bg-[#111111]2/60 transition-colors ${i===0 ? 'bg-forge-accent-muted/20 border-l-2 border-forge-accent' : ''}`}
                 onclick={`selectRepo('${repo.id}')`}
               >
                 <div class="flex items-start justify-between gap-2 mb-1">
                   <div>
                     <div class="flex items-center gap-2">
-                      <span class="text-xs font-medium text-forge-text truncate">{repo.name.split('/')[1]}</span>
-                      <span class={`badge text-2xs ${repo.isPublic ? 'badge-info border border-forge-info/20' : 'badge-neutral border border-forge-border'}`}>
+                      <span class="text-xs font-medium text-[#F0F0F0] truncate">{repo.name.split('/')[1]}</span>
+                      <span class={`badge text-2xs ${repo.isPublic ? 'badge-info border border-[rgba(51,170,255,0.3)]' : 'badge-neutral border border-[#2C2C2C]'}`}>
                         {repo.isPublic ? 'Public' : 'Private'}
                       </span>
                     </div>
-                    <div class="text-2xs text-forge-text-3 mt-0.5 truncate">{repo.description}</div>
+                    <div class="text-2xs text-[#F0F0F0]-3 mt-0.5 truncate">{repo.description}</div>
                   </div>
                   {(hasCritical || hasHigh) && (
                     <span class={`badge text-2xs flex-shrink-0 ${hasCritical ? 'badge-danger border border-forge-danger/25' : 'badge-warning border border-forge-warning/25'}`}>
@@ -200,7 +200,7 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
                     </span>
                   )}
                 </div>
-                <div class="flex items-center gap-3 text-2xs font-mono text-forge-text-3">
+                <div class="flex items-center gap-3 text-2xs font-mono text-[#F0F0F0]-3">
                   <span>{repo.tagCount} tags</span>
                   <span>·</span>
                   <span>{fmtBytes(repo.sizeBytes)}</span>
@@ -221,18 +221,18 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
           <div class="flex flex-col sm:flex-row sm:items-start gap-4">
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2.5 mb-2 flex-wrap">
-                <h2 class="font-display font-bold text-xl text-forge-text">{selectedRepo.name}</h2>
-                <span class="badge-neutral border border-forge-border text-xs">Private</span>
+                <h2 class="font-bold text-xl text-[#F0F0F0]">{selectedRepo.name}</h2>
+                <span class="badge-neutral border border-[#2C2C2C] text-xs">Private</span>
               </div>
-              <p class="text-sm text-forge-text-3 mb-3">{selectedRepo.description}</p>
+              <p class="text-sm text-[#F0F0F0]-3 mb-3">{selectedRepo.description}</p>
 
               <!-- Pull command -->
               <div class="flex items-center gap-2">
-                <code class="text-xs font-mono text-forge-text-2 bg-forge-surface2 rounded px-3 py-1.5">
+                <code class="text-xs font-mono text-[#F0F0F0]-2 bg-[#111111]2 rounded px-3 py-1.5">
                   docker pull registry.forge-ci.dev/{selectedRepo.name}:{selectedRepo.lastTag}
                 </code>
                 <button
-                  class="text-forge-text-3 hover:text-forge-text transition-colors flex-shrink-0"
+                  class="text-[#F0F0F0]-3 hover:text-[#F0F0F0] transition-colors flex-shrink-0"
                   onclick="navigator.clipboard.writeText('docker pull registry.forge-ci.dev/acme-corp/api-service:main-a4f9c2b')"
                   title="Copy"
                 >
@@ -245,17 +245,17 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
 
             <!-- Vuln summary -->
             <div class="card p-4 flex-shrink-0 min-w-[180px]">
-              <div class="text-xs font-medium text-forge-text mb-3">Vulnerability scan</div>
+              <div class="text-xs font-medium text-[#F0F0F0] mb-3">Vulnerability scan</div>
               <div class="space-y-1.5">
                 {([
-                  { label: 'Critical', count: selectedRepo.vuln.critical, color: 'text-forge-danger' },
-                  { label: 'High',     count: selectedRepo.vuln.high,     color: 'text-forge-warning' },
-                  { label: 'Medium',   count: selectedRepo.vuln.medium,   color: 'text-forge-info' },
-                  { label: 'Low',      count: selectedRepo.vuln.low,      color: 'text-forge-text-3' },
+                  { label: 'Critical', count: selectedRepo.vuln.critical, color: 'text-[#FF3333]' },
+                  { label: 'High',     count: selectedRepo.vuln.high,     color: 'text-[#FF7700]' },
+                  { label: 'Medium',   count: selectedRepo.vuln.medium,   color: 'text-[#33AAFF]' },
+                  { label: 'Low',      count: selectedRepo.vuln.low,      color: 'text-[#F0F0F0]-3' },
                 ] as const).map(({ label, count, color }) => (
                   <div class="flex items-center justify-between text-xs">
                     <span class={color}>{label}</span>
-                    <span class={`font-mono font-bold ${count > 0 ? color : 'text-forge-text-3'}`}>{count}</span>
+                    <span class={`font-mono font-bold ${count > 0 ? color : 'text-[#F0F0F0]-3'}`}>{count}</span>
                   </div>
                 ))}
               </div>
@@ -268,8 +268,8 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
 
         <!-- Tags table -->
         <div class="card overflow-hidden">
-          <div class="flex items-center justify-between px-5 py-3.5 border-b border-forge-border">
-            <h3 class="font-display font-bold text-sm text-forge-text">Tags <span class="text-forge-text-3 font-normal">({selectedRepo.tagCount})</span></h3>
+          <div class="flex items-center justify-between px-5 py-3.5 border-b border-[#2C2C2C]">
+            <h3 class="font-bold text-sm text-[#F0F0F0]">Tags <span class="text-[#F0F0F0]-3 font-normal">({selectedRepo.tagCount})</span></h3>
             <div class="flex gap-2">
               <select class="input !py-1.5 !text-xs w-32">
                 <option>All platforms</option>
@@ -298,39 +298,39 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
                   <td>
                     <div class="flex items-center gap-2">
                       <div class="w-2 h-2 rounded-full bg-forge-success flex-shrink-0"></div>
-                      <code class="text-xs font-mono text-forge-accent">{tag.name}</code>
+                      <code class="text-xs font-mono text-[#FFEE00]">{tag.name}</code>
                     </div>
                   </td>
                   <td>
-                    <code class="text-2xs font-mono text-forge-text-3">{tag.digest}</code>
+                    <code class="text-2xs font-mono text-[#F0F0F0]-3">{tag.digest}</code>
                   </td>
-                  <td><span class="text-xs font-mono text-forge-text-2">{tag.size}</span></td>
+                  <td><span class="text-xs font-mono text-[#F0F0F0]-2">{tag.size}</span></td>
                   <td>
                     <div class="flex flex-wrap gap-1">
                       {tag.os.split(',').map(p => (
-                        <span class="badge-neutral border border-forge-border text-2xs">{p.trim()}</span>
+                        <span class="badge-neutral border border-[#2C2C2C] text-2xs">{p.trim()}</span>
                       ))}
                     </div>
                   </td>
-                  <td><span class="text-xs text-forge-text-3">{tag.pushed}</span></td>
-                  <td><span class="text-xs text-forge-text-3">{tag.pulled}</span></td>
+                  <td><span class="text-xs text-[#F0F0F0]-3">{tag.pushed}</span></td>
+                  <td><span class="text-xs text-[#F0F0F0]-3">{tag.pulled}</span></td>
                   <td>
                     {tag.vuln.critical > 0 ? (
-                      <span class="badge-danger border border-forge-danger/20 text-2xs">{tag.vuln.critical} critical</span>
+                      <span class="badge-danger border border-[rgba(255,51,51,0.3)] text-2xs">{tag.vuln.critical} critical</span>
                     ) : tag.vuln.high > 0 ? (
-                      <span class="badge-warning border border-forge-warning/20 text-2xs">{tag.vuln.high} high</span>
+                      <span class="badge-warning border border-[rgba(255,119,0,0.3)] text-2xs">{tag.vuln.high} high</span>
                     ) : (
-                      <span class="text-forge-success text-2xs">Clean</span>
+                      <span class="text-[#00FF88] text-2xs">Clean</span>
                     )}
                   </td>
                   <td>
                     <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button class="btn-ghost btn-sm !p-1.5 text-forge-text-3" title="Pull command">
+                      <button class="btn-ghost btn-sm !p-1.5 text-[#F0F0F0]-3" title="Pull command">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
                         </svg>
                       </button>
-                      <button class="btn-ghost btn-sm !p-1.5 text-forge-danger" title="Delete tag">
+                      <button class="btn-ghost btn-sm !p-1.5 text-[#FF3333]" title="Delete tag">
                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
@@ -347,12 +347,12 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
         <div class="card p-5">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h3 class="font-display font-bold text-sm text-forge-text">Retention policy</h3>
-              <p class="text-xs text-forge-text-3 mt-0.5">Auto-delete old tags to manage storage</p>
+              <h3 class="font-bold text-sm text-[#F0F0F0]">Retention policy</h3>
+              <p class="text-xs text-[#F0F0F0]-3 mt-0.5">Auto-delete old tags to manage storage</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" checked class="sr-only peer"/>
-              <div class="w-10 h-5 bg-forge-surface2 border border-forge-border rounded-full peer
+              <div class="w-10 h-5 bg-[#111111]2 border border-[#2C2C2C] rounded-full peer
                           peer-checked:border-forge-accent peer-checked:bg-forge-accent-muted
                           after:content-[''] after:absolute after:top-[2px] after:left-[2px]
                           after:w-4 after:h-4 after:bg-forge-text-3 after:rounded-full after:transition-all
@@ -366,10 +366,10 @@ const usedPct = Math.round((totalUsed / totalLimit) * 100);
               { label: 'Delete untagged after', value: '7 days', desc: 'dangling layers' },
               { label: 'Delete old branches after', value: '30 days', desc: 'merged PRs' },
             ].map(({ label, value, desc }) => (
-              <div class="p-3 rounded-lg border border-forge-border bg-forge-surface2/40">
-                <div class="text-2xs text-forge-text-3 mb-1">{label}</div>
-                <div class="text-sm font-mono font-bold text-forge-text">{value}</div>
-                <div class="text-2xs text-forge-text-3 mt-0.5">{desc}</div>
+              <div class="p-3 rounded-none border border-[#2C2C2C] bg-[#111111]2/40">
+                <div class="text-2xs text-[#F0F0F0]-3 mb-1">{label}</div>
+                <div class="text-sm font-mono font-bold text-[#F0F0F0]">{value}</div>
+                <div class="text-2xs text-[#F0F0F0]-3 mt-0.5">{desc}</div>
               </div>
             ))}
           </div>
