@@ -99,3 +99,16 @@ Thumbs.db
 # ----------------------
 *.bak
 *.orig
+
+
+# ----------------------
+# Astro (apps/website)
+# ----------------------
+/apps/website/dist/
+/apps/website/.astro/
+
+/apps/website/public/build/   # if using integrations that output here
+
+# Optional: Astro cache/logs
+/apps/website/.vercel/
+/apps/website/.netlify/
