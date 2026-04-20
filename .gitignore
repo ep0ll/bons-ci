@@ -1,0 +1,101 @@
+# ----------------------
+# Go
+# ----------------------
+# Binaries
+/bin/
+/build/
+/dist/
+/out/
+
+# Go build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, coverage
+*.test
+*.out
+coverage.out
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Dependency directories (if vendoring is not used)
+# /vendor/
+
+# ----------------------
+# Node (apps/website)
+# ----------------------
+apps/website/node_modules/
+apps/website/.npm/
+apps/website/.yarn/
+apps/website/.pnpm-store/
+
+# Build outputs
+apps/website/dist/
+apps/website/build/
+apps/website/.next/
+apps/website/out/
+
+# Logs
+apps/website/npm-debug.log*
+apps/website/yarn-debug.log*
+apps/website/yarn-error.log*
+apps/website/pnpm-debug.log*
+
+# Env files
+apps/website/.env
+apps/website/.env.*
+!apps/website/.env.example
+
+# Cache
+apps/website/.cache/
+apps/website/.turbo/
+
+# ----------------------
+# General Node (fallback)
+# ----------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ----------------------
+# IDEs / Editors
+# ----------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ----------------------
+# OS files
+# ----------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------
+# Logs & temp
+# ----------------------
+*.log
+*.tmp
+*.temp
+*.pid
+
+# ----------------------
+# Secrets (general safety)
+# ----------------------
+.env
+.env.*
+!.env.example
+
+# ----------------------
+# Misc
+# ----------------------
+*.bak
+*.orig
