@@ -32,10 +32,10 @@ type Ref struct {
 	Value string
 }
 
-func BranchRef(name string) Ref  { return Ref{Kind: RefKindBranch, Value: name} }
-func TagRef(name string) Ref     { return Ref{Kind: RefKindTag, Value: name} }
-func CommitRef(sha string) Ref   { return Ref{Kind: RefKindCommit, Value: sha} }
-func RawRef(s string) Ref        { return Ref{Kind: RefKindRaw, Value: s} }
+func BranchRef(name string) Ref { return Ref{Kind: RefKindBranch, Value: name} }
+func TagRef(name string) Ref    { return Ref{Kind: RefKindTag, Value: name} }
+func CommitRef(sha string) Ref  { return Ref{Kind: RefKindCommit, Value: sha} }
+func RawRef(s string) Ref       { return Ref{Kind: RefKindRaw, Value: s} }
 
 func (r Ref) String() string { return r.Value }
 func (r Ref) IsZero() bool   { return r.Value == "" }
@@ -83,21 +83,21 @@ type Config struct {
 
 type Option func(*Config)
 
-func WithRemote(url string) Option     { return func(c *Config) { c.Remote = url } }
-func WithRef(ref Ref) Option           { return func(c *Config) { c.Ref = ref } }
-func WithSubDirectory(d string) Option { return func(c *Config) { c.SubDirectory = d } }
-func WithKeepGitDir(v bool) Option     { return func(c *Config) { c.KeepGitDir = v } }
-func WithShallowClone(v bool) Option   { return func(c *Config) { c.ShallowClone = v } }
-func WithSkipSubmodules(v bool) Option { return func(c *Config) { c.SkipSubmodules = v } }
-func WithAuthTokenSecret(s string) Option { return func(c *Config) { c.AuthTokenSecret = s } }
+func WithRemote(url string) Option         { return func(c *Config) { c.Remote = url } }
+func WithRef(ref Ref) Option               { return func(c *Config) { c.Ref = ref } }
+func WithSubDirectory(d string) Option     { return func(c *Config) { c.SubDirectory = d } }
+func WithKeepGitDir(v bool) Option         { return func(c *Config) { c.KeepGitDir = v } }
+func WithShallowClone(v bool) Option       { return func(c *Config) { c.ShallowClone = v } }
+func WithSkipSubmodules(v bool) Option     { return func(c *Config) { c.SkipSubmodules = v } }
+func WithAuthTokenSecret(s string) Option  { return func(c *Config) { c.AuthTokenSecret = s } }
 func WithAuthHeaderSecret(s string) Option { return func(c *Config) { c.AuthHeaderSecret = s } }
 func WithKnownSSHHosts(hosts string) Option {
 	return func(c *Config) {
 		c.KnownSSHHosts = strings.TrimSuffix(hosts, "\n") + "\n"
 	}
 }
-func WithMountSSHSock(id string) Option  { return func(c *Config) { c.MountSSHSock = id } }
-func WithChecksum(cs string) Option      { return func(c *Config) { c.Checksum = cs } }
+func WithMountSSHSock(id string) Option    { return func(c *Config) { c.MountSSHSock = id } }
+func WithChecksum(cs string) Option        { return func(c *Config) { c.Checksum = cs } }
 func WithMTimePolicy(p MTimePolicy) Option { return func(c *Config) { c.MTimePolicy = p } }
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }

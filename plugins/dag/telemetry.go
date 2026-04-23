@@ -145,7 +145,7 @@ func (t *Telemetry) RecordInvalidation(ctx context.Context, count int) {
 
 type noopSpan struct{}
 
-func (noopSpan) End()                                {}
+func (noopSpan) End()                                 {}
 func (noopSpan) SetAttribute(_ string, _ interface{}) {}
 func (noopSpan) RecordError(_ error)                  {}
 

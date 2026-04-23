@@ -85,11 +85,11 @@ func (s *BuildServer) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	snap := s.engine.Snapshot()
 
 	type response struct {
-		Snapshot  DAGSnapshot  `json:"snapshot"`
-		Cache     ManagedStoreStats `json:"cache"`
-		Queue     *QueueStats  `json:"queue,omitempty"`
-		Stalls    []StallReport `json:"stalls,omitempty"`
-		CapturedAt time.Time   `json:"captured_at"`
+		Snapshot   DAGSnapshot       `json:"snapshot"`
+		Cache      ManagedStoreStats `json:"cache"`
+		Queue      *QueueStats       `json:"queue,omitempty"`
+		Stalls     []StallReport     `json:"stalls,omitempty"`
+		CapturedAt time.Time         `json:"captured_at"`
 	}
 
 	resp := response{
@@ -239,12 +239,12 @@ func (s *BuildServer) handleBuild(w http.ResponseWriter, r *http.Request) {
 		statusCode = http.StatusInternalServerError
 	}
 	writeJSON(w, statusCode, map[string]interface{}{
-		"request_id": buildReq.ID,
-		"executed":   result.Metrics.Executed,
-		"cached":     result.Metrics.FastCacheHits + result.Metrics.SlowCacheHits,
-		"failed":     result.Metrics.Failed,
+		"request_id":  buildReq.ID,
+		"executed":    result.Metrics.Executed,
+		"cached":      result.Metrics.FastCacheHits + result.Metrics.SlowCacheHits,
+		"failed":      result.Metrics.Failed,
 		"duration_ms": result.Duration.Milliseconds(),
-		"error":      errString(result.Error),
+		"error":       errString(result.Error),
 	})
 }
 

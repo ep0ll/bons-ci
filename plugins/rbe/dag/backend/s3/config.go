@@ -6,15 +6,15 @@ import (
 )
 
 const (
-	defaultWorkers       = 32
-	defaultPartSize      = 64 << 20 // 64 MiB
-	minPartSize          = 5 << 20  // 5 MiB — S3 minimum part size
-	defaultRetryMax      = 3
-	defaultRetryBase     = 100 * time.Millisecond
-	defaultRetryMaxDelay = 5 * time.Second
-	defaultListPageSize  = 1000
+	defaultWorkers        = 32
+	defaultPartSize       = 64 << 20 // 64 MiB
+	minPartSize           = 5 << 20  // 5 MiB — S3 minimum part size
+	defaultRetryMax       = 3
+	defaultRetryBase      = 100 * time.Millisecond
+	defaultRetryMaxDelay  = 5 * time.Second
+	defaultListPageSize   = 1000
 	defaultConnectTimeout = 10 * time.Second
-	defaultOpTimeout     = 60 * time.Second
+	defaultOpTimeout      = 60 * time.Second
 )
 
 // Config holds all configuration for the S3/MinIO store backend.

@@ -157,9 +157,9 @@ func (h *Handler) ExtractSourceRefs(
 					Digest: dgst,
 					Kind:   types.SourceRefLayer,
 					Annotations: map[string]string{
-						"origin":        "layer.annotation." + NydusSourceAnnotation,
-						"layerDigest":   layer.Digest.String(),
-						"layerSize":     fmt.Sprintf("%d", layer.Size),
+						"origin":         "layer.annotation." + NydusSourceAnnotation,
+						"layerDigest":    layer.Digest.String(),
+						"layerSize":      fmt.Sprintf("%d", layer.Size),
 						"layerMediaType": layer.MediaType,
 					},
 				})

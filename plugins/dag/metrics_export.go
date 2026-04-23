@@ -34,8 +34,8 @@ type MetricsExporter struct {
 	invalidations    int64
 
 	// Histograms (milliseconds)
-	buildDurations   []float64
-	vertexDurations  map[string][]float64 // keyed by op ID
+	buildDurations  []float64
+	vertexDurations map[string][]float64 // keyed by op ID
 
 	// Labels attached to all metrics in this exporter.
 	constLabels map[string]string

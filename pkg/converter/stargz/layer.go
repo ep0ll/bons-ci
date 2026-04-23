@@ -22,9 +22,9 @@ import (
 //
 // # Fast-paths
 //
-// 1. Non-layer blobs (configs, manifests) → return nil, nil (no-op).
-// 2. Blobs already carrying LayerAnnotationStargz == "true" on their stored
-//    Info → return nil, nil (idempotent; skip re-encoding).
+//  1. Non-layer blobs (configs, manifests) → return nil, nil (no-op).
+//  2. Blobs already carrying LayerAnnotationStargz == "true" on their stored
+//     Info → return nil, nil (idempotent; skip re-encoding).
 //
 // # Concurrency
 //

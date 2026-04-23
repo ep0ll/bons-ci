@@ -32,7 +32,6 @@ import (
 //   docker run -p 9000:9000 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin minio/minio server /data
 //   MINIO_ENDPOINT=localhost:9000 go test ./backend/s3/...
 
-
 func newTestStore(t *testing.T) (*s3store.Store, string) {
 	t.Helper()
 	skipUnlessMinIO(t)

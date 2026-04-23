@@ -29,10 +29,10 @@ type testVertex struct {
 	sys     any
 }
 
-func (v *testVertex) Digest() digest.Digest       { return v.dgst }
-func (v *testVertex) Inputs() []solver.Edge        { return v.inputs }
-func (v *testVertex) Name() string                 { return v.name }
-func (v *testVertex) Sys() any                     { return v.sys }
+func (v *testVertex) Digest() digest.Digest         { return v.dgst }
+func (v *testVertex) Inputs() []solver.Edge         { return v.inputs }
+func (v *testVertex) Name() string                  { return v.name }
+func (v *testVertex) Sys() any                      { return v.sys }
 func (v *testVertex) Options() solver.VertexOptions { return v.options }
 
 func newVertex(name string, inputs ...solver.Edge) *testVertex {
@@ -113,11 +113,11 @@ func makeSimpleResolveOp() solver.ResolveOpFunc {
 
 // buildDiamond creates:
 //
-//	    A (root)
-//	   / \
-//	  B   C
-//	   \ /
-//	    D (leaf)
+//	  A (root)
+//	 / \
+//	B   C
+//	 \ /
+//	  D (leaf)
 func buildDiamond() (root, b, c, leaf *testVertex) {
 	root = newVertex("A")
 	b = newVertex("B", solver.Edge{Index: 0, Vertex: root})

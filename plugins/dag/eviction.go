@@ -22,11 +22,11 @@ type EvictionPolicy interface {
 // ManagedEntry wraps a CacheEntry with bookkeeping metadata used by eviction
 // policies (access time, hit count, size estimate).
 type ManagedEntry struct {
-	Entry       *CacheEntry
-	LastAccess  time.Time
-	HitCount    int
-	SizeBytes   int64 // estimated: sum of output file sizes
-	InsertedAt  time.Time
+	Entry      *CacheEntry
+	LastAccess time.Time
+	HitCount   int
+	SizeBytes  int64 // estimated: sum of output file sizes
+	InsertedAt time.Time
 }
 
 // ---------------------------------------------------------------------------

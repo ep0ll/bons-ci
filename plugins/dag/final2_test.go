@@ -170,7 +170,7 @@ func TestTestClock_AdvanceAndRead(t *testing.T) {
 		t.Errorf("Now() = %v; want %v", got, base)
 	}
 	clk.Advance(5 * time.Second)
-	if got := clk.Now(); !got.Equal(base.Add(5*time.Second)) {
+	if got := clk.Now(); !got.Equal(base.Add(5 * time.Second)) {
 		t.Errorf("After Advance(5s): Now() = %v; want %v", got, base.Add(5*time.Second))
 	}
 }
@@ -384,13 +384,14 @@ func TestMemStatsSnapshot_Delta(t *testing.T) {
 // =========================================================================
 
 // TestFullPipeline_MultiPhase simulates a realistic multi-phase CI pipeline:
-//   fetch → compile-main, compile-lib (parallel) → link → test → package
+//
+//	fetch → compile-main, compile-lib (parallel) → link → test → package
 //
 // It validates:
-//   1. Clean build executes all vertices in correct order.
-//   2. Cached build skips all vertices.
-//   3. Only compile-main and link/test/package re-execute when main.go changes.
-//   4. Metrics, history, diff, and exporter all reflect the correct counts.
+//  1. Clean build executes all vertices in correct order.
+//  2. Cached build skips all vertices.
+//  3. Only compile-main and link/test/package re-execute when main.go changes.
+//  4. Metrics, history, diff, and exporter all reflect the correct counts.
 func TestFullPipeline_MultiPhase(t *testing.T) {
 	const (
 		targetID = "package"

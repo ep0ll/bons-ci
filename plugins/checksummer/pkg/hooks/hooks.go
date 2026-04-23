@@ -78,9 +78,9 @@ func NewHook[T any](name string, priority Priority, handler Handler[T]) *Hook[T]
 	return h
 }
 
-func (h *Hook[T]) Enable()           { h.enabled.Store(true) }
-func (h *Hook[T]) Disable()          { h.enabled.Store(false) }
-func (h *Hook[T]) IsEnabled() bool   { return h.enabled.Load() }
+func (h *Hook[T]) Enable()             { h.enabled.Store(true) }
+func (h *Hook[T]) Disable()            { h.enabled.Store(false) }
+func (h *Hook[T]) IsEnabled() bool     { return h.enabled.Load() }
 func (h *Hook[T]) Handler() Handler[T] { return h.handler }
 
 // ─────────────────────────── Registry ────────────────────────────────────────

@@ -29,9 +29,9 @@ type BuildRequest struct {
 
 // BuildResponse is the result of a queued build.
 type BuildResponse struct {
-	Request  BuildRequest
-	Result   BuildResult
-	QueuedAt time.Time
+	Request   BuildRequest
+	Result    BuildResult
+	QueuedAt  time.Time
 	StartedAt time.Time
 }
 
@@ -52,25 +52,25 @@ func (r BuildResponse) WaitTime() time.Duration {
 // running, a second identical request is merged into the existing one. Both
 // callers receive the same BuildResponse when it completes.
 type BuildQueue struct {
-	engine     *Engine
-	mu         sync.Mutex
-	pending    []*queueEntry   // ordered by priority
-	inFlight   map[string]*queueEntry // targetID → active entry
+	engine      *Engine
+	mu          sync.Mutex
+	pending     []*queueEntry          // ordered by priority
+	inFlight    map[string]*queueEntry // targetID → active entry
 	maxParallel int
-	workers    int
-	workCh     chan *queueEntry
-	stopCh     chan struct{}
-	wg         sync.WaitGroup
+	workers     int
+	workCh      chan *queueEntry
+	stopCh      chan struct{}
+	wg          sync.WaitGroup
 }
 
 type queueEntry struct {
 	req      BuildRequest
 	queuedAt time.Time
 	// subscribers all receive the same result when done.
-	mu      sync.Mutex
-	subs    []chan BuildResponse
-	done    bool
-	result  BuildResponse
+	mu     sync.Mutex
+	subs   []chan BuildResponse
+	done   bool
+	result BuildResponse
 }
 
 func (e *queueEntry) subscribe() <-chan BuildResponse {

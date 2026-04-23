@@ -71,9 +71,9 @@ func (u *UserOpt) marshal(base pb.InputIndex) *pb.UserOpt {
 
 type MkdirOption func(*mkdirAction)
 
-func WithMkdirParents(v bool) MkdirOption { return func(a *mkdirAction) { a.makeParents = v } }
+func WithMkdirParents(v bool) MkdirOption    { return func(a *mkdirAction) { a.makeParents = v } }
 func WithMkdirChown(c *ChownOpt) MkdirOption { return func(a *mkdirAction) { a.chown = c } }
-func WithMkdirTime(t time.Time) MkdirOption { return func(a *mkdirAction) { a.createdTime = &t } }
+func WithMkdirTime(t time.Time) MkdirOption  { return func(a *mkdirAction) { a.createdTime = &t } }
 
 type mkdirAction struct {
 	path        string
@@ -109,7 +109,7 @@ func (a *mkdirAction) toProto(_ context.Context, wd string, base pb.InputIndex) 
 type MkfileOption func(*mkfileAction)
 
 func WithMkfileChown(c *ChownOpt) MkfileOption { return func(a *mkfileAction) { a.chown = c } }
-func WithMkfileTime(t time.Time) MkfileOption   { return func(a *mkfileAction) { a.createdTime = &t } }
+func WithMkfileTime(t time.Time) MkfileOption  { return func(a *mkfileAction) { a.createdTime = &t } }
 
 type mkfileAction struct {
 	path        string
@@ -203,15 +203,19 @@ func (a *symlinkAction) toProto(_ context.Context, _ string, base pb.InputIndex)
 // CopyOption is a functional option for the copy action.
 type CopyOption func(*copyAction)
 
-func WithCopyFollowSymlinks(v bool) CopyOption { return func(a *copyAction) { a.followSymlinks = v } }
+func WithCopyFollowSymlinks(v bool) CopyOption  { return func(a *copyAction) { a.followSymlinks = v } }
 func WithCopyDirContentsOnly(v bool) CopyOption { return func(a *copyAction) { a.dirContentsOnly = v } }
-func WithCopyInclude(patterns []string) CopyOption { return func(a *copyAction) { a.include = patterns } }
-func WithCopyExclude(patterns []string) CopyOption { return func(a *copyAction) { a.exclude = patterns } }
-func WithCopyCreateDest(v bool) CopyOption         { return func(a *copyAction) { a.createDest = v } }
-func WithCopyAllowWildcard(v bool) CopyOption      { return func(a *copyAction) { a.allowWildcard = v } }
-func WithCopyAttemptUnpack(v bool) CopyOption      { return func(a *copyAction) { a.attemptUnpack = v } }
-func WithCopyChown(c *ChownOpt) CopyOption         { return func(a *copyAction) { a.chown = c } }
-func WithCopyTime(t time.Time) CopyOption          { return func(a *copyAction) { a.createdTime = &t } }
+func WithCopyInclude(patterns []string) CopyOption {
+	return func(a *copyAction) { a.include = patterns }
+}
+func WithCopyExclude(patterns []string) CopyOption {
+	return func(a *copyAction) { a.exclude = patterns }
+}
+func WithCopyCreateDest(v bool) CopyOption    { return func(a *copyAction) { a.createDest = v } }
+func WithCopyAllowWildcard(v bool) CopyOption { return func(a *copyAction) { a.allowWildcard = v } }
+func WithCopyAttemptUnpack(v bool) CopyOption { return func(a *copyAction) { a.attemptUnpack = v } }
+func WithCopyChown(c *ChownOpt) CopyOption    { return func(a *copyAction) { a.chown = c } }
+func WithCopyTime(t time.Time) CopyOption     { return func(a *copyAction) { a.createdTime = &t } }
 
 type copyAction struct {
 	src, dst        string
@@ -249,19 +253,19 @@ func (a *copyAction) toProto(_ context.Context, wd string, base pb.InputIndex) (
 		srcPath = path.Join("/", wd, srcPath)
 	}
 	return &pb.FileAction_Copy{Copy: &pb.FileActionCopy{
-		Src:                 srcPath,
-		Dest:                normPath(wd, a.dst, true),
-		Owner:               a.chown.marshal(base),
-		IncludePatterns:     a.include,
-		ExcludePatterns:     a.exclude,
-		AllowWildcard:       a.allowWildcard,
-		AllowEmptyWildcard:  a.allowEmptyWild,
-		FollowSymlink:       a.followSymlinks,
-		DirCopyContents:     a.dirContentsOnly,
-		CreateDestPath:      a.createDest,
+		Src:                              srcPath,
+		Dest:                             normPath(wd, a.dst, true),
+		Owner:                            a.chown.marshal(base),
+		IncludePatterns:                  a.include,
+		ExcludePatterns:                  a.exclude,
+		AllowWildcard:                    a.allowWildcard,
+		AllowEmptyWildcard:               a.allowEmptyWild,
+		FollowSymlink:                    a.followSymlinks,
+		DirCopyContents:                  a.dirContentsOnly,
+		CreateDestPath:                   a.createDest,
 		AttemptUnpackDockerCompatibility: a.attemptUnpack,
-		Timestamp:           marshalTime(a.createdTime),
-		Mode:                -1,
+		Timestamp:                        marshalTime(a.createdTime),
+		Mode:                             -1,
 	}}, nil
 }
 
@@ -269,18 +273,20 @@ func (a *copyAction) toProto(_ context.Context, wd string, base pb.InputIndex) (
 
 // Config holds all parameters for a FileOp vertex.
 type Config struct {
-	BaseState   core.Output   // filesystem to operate on (nil = scratch)
-	WorkingDir  string        // for relative path resolution; defaults to "/"
-	Actions     []Action      // ordered operations
+	BaseState   core.Output // filesystem to operate on (nil = scratch)
+	WorkingDir  string      // for relative path resolution; defaults to "/"
+	Actions     []Action    // ordered operations
 	Constraints core.Constraints
 }
 
 // Option is a functional option for Config.
 type Option func(*Config)
 
-func OnState(out core.Output) Option   { return func(c *Config) { c.BaseState = out } }
-func InDir(dir string) Option          { return func(c *Config) { c.WorkingDir = dir } }
-func Do(actions ...Action) Option      { return func(c *Config) { c.Actions = append(c.Actions, actions...) } }
+func OnState(out core.Output) Option { return func(c *Config) { c.BaseState = out } }
+func InDir(dir string) Option        { return func(c *Config) { c.WorkingDir = dir } }
+func Do(actions ...Action) Option {
+	return func(c *Config) { c.Actions = append(c.Actions, actions...) }
+}
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }

@@ -123,9 +123,9 @@ func TestBuilder_WithTimeout_SetsLabel(t *testing.T) {
 
 // retryCountOp fails the first N-1 times, then succeeds.
 type retryCountOp struct {
-	id       string
-	failFor  int
-	calls    atomic.Int64
+	id      string
+	failFor int
+	calls   atomic.Int64
 }
 
 func (o *retryCountOp) ID() string { return "retry:" + o.id }

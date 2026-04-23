@@ -19,7 +19,7 @@ const (
 )
 
 type Config struct {
-	Name               string   // required
+	Name               string // required
 	SessionID          string
 	IncludePatterns    []string
 	ExcludePatterns    []string
@@ -34,14 +34,18 @@ type Config struct {
 
 type Option func(*Config)
 
-func WithName(name string) Option             { return func(c *Config) { c.Name = name } }
-func WithSessionID(id string) Option          { return func(c *Config) { c.SessionID = id } }
-func WithIncludePatterns(p []string) Option   { return func(c *Config) { c.IncludePatterns = p } }
-func WithExcludePatterns(p []string) Option   { return func(c *Config) { c.ExcludePatterns = p } }
-func WithFollowPaths(p []string) Option       { return func(c *Config) { c.FollowPaths = p } }
-func WithSharedKeyHint(h string) Option       { return func(c *Config) { c.SharedKeyHint = h } }
-func WithDiffer(t DiffType, req bool) Option  { return func(c *Config) { c.Differ = t; c.DifferRequired = req } }
-func WithMetadataOnly(exc []string) Option    { return func(c *Config) { c.MetadataOnly = true; c.MetadataExceptions = exc } }
+func WithName(name string) Option           { return func(c *Config) { c.Name = name } }
+func WithSessionID(id string) Option        { return func(c *Config) { c.SessionID = id } }
+func WithIncludePatterns(p []string) Option { return func(c *Config) { c.IncludePatterns = p } }
+func WithExcludePatterns(p []string) Option { return func(c *Config) { c.ExcludePatterns = p } }
+func WithFollowPaths(p []string) Option     { return func(c *Config) { c.FollowPaths = p } }
+func WithSharedKeyHint(h string) Option     { return func(c *Config) { c.SharedKeyHint = h } }
+func WithDiffer(t DiffType, req bool) Option {
+	return func(c *Config) { c.Differ = t; c.DifferRequired = req }
+}
+func WithMetadataOnly(exc []string) Option {
+	return func(c *Config) { c.MetadataOnly = true; c.MetadataExceptions = exc }
+}
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }
@@ -168,7 +172,7 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	return v, nil
 }
 
-func (v *Vertex) Config() Config { return v.config }
+func (v *Vertex) Config() Config      { return v.config }
 func (v *Vertex) Output() core.Output { return &localOutput{v: v} }
 
 type localOutput struct{ v *Vertex }

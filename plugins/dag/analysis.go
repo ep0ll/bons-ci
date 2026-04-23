@@ -28,14 +28,14 @@ type GraphAnalysis struct {
 
 // VertexAnalysis holds per-vertex structural metrics.
 type VertexAnalysis struct {
-	VertexID    string
-	Depth       int      // distance from nearest root
-	FanIn       int      // number of direct parents
-	FanOut      int      // number of direct children
-	AncestorCount   int  // transitive ancestor count
-	DescendantCount int  // transitive descendant count
-	IsRoot      bool
-	IsLeaf      bool
+	VertexID         string
+	Depth            int // distance from nearest root
+	FanIn            int // number of direct parents
+	FanOut           int // number of direct children
+	AncestorCount    int // transitive ancestor count
+	DescendantCount  int // transitive descendant count
+	IsRoot           bool
+	IsLeaf           bool
 	IsOnCriticalPath bool
 }
 
@@ -179,9 +179,9 @@ func RenderAnalysis(a *GraphAnalysis) string {
 // ParallelismReport analyses how much of the build can run concurrently
 // at each topological level.
 type ParallelismReport struct {
-	Levels     []TopologicalLevel
-	MaxWidth   int     // widest level (most parallel)
-	AvgWidth   float64 // average vertices per level
+	Levels         []TopologicalLevel
+	MaxWidth       int     // widest level (most parallel)
+	AvgWidth       float64 // average vertices per level
 	SerialFraction float64 // fraction of levels that are serial (width=1)
 }
 

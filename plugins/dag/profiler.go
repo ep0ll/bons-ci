@@ -145,13 +145,13 @@ func (p *BuildProfiler) profilePath(targetID, kind, ext string) string {
 
 // MemStatsSnapshot is a point-in-time snapshot of Go runtime memory.
 type MemStatsSnapshot struct {
-	Alloc        uint64        // bytes currently allocated
-	TotalAlloc   uint64        // cumulative bytes allocated
-	Sys          uint64        // total memory from OS
-	NumGC        uint32        // number of GC cycles
-	PauseTotal   time.Duration // cumulative GC pause
-	Goroutines   int
-	CapturedAt   time.Time
+	Alloc      uint64        // bytes currently allocated
+	TotalAlloc uint64        // cumulative bytes allocated
+	Sys        uint64        // total memory from OS
+	NumGC      uint32        // number of GC cycles
+	PauseTotal time.Duration // cumulative GC pause
+	Goroutines int
+	CapturedAt time.Time
 }
 
 // CaptureMemStats returns a snapshot of current runtime memory statistics.

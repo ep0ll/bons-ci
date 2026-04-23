@@ -102,13 +102,13 @@ func (p Platform) Normalize() Platform {
 type MediaType string
 
 const (
-	MediaTypeOCIImageManifest  MediaType = "application/vnd.oci.image.manifest.v1+json"
-	MediaTypeOCIImageIndex     MediaType = "application/vnd.oci.image.index.v1+json"
-	MediaTypeOCIImageConfig    MediaType = "application/vnd.oci.image.config.v1+json"
-	MediaTypeOCILayer          MediaType = "application/vnd.oci.image.layer.v1.tar+gzip"
-	MediaTypeDockerManifest    MediaType = "application/vnd.docker.distribution.manifest.v2+json"
+	MediaTypeOCIImageManifest   MediaType = "application/vnd.oci.image.manifest.v1+json"
+	MediaTypeOCIImageIndex      MediaType = "application/vnd.oci.image.index.v1+json"
+	MediaTypeOCIImageConfig     MediaType = "application/vnd.oci.image.config.v1+json"
+	MediaTypeOCILayer           MediaType = "application/vnd.oci.image.layer.v1.tar+gzip"
+	MediaTypeDockerManifest     MediaType = "application/vnd.docker.distribution.manifest.v2+json"
 	MediaTypeDockerManifestList MediaType = "application/vnd.docker.distribution.manifest.list.v2+json"
-	MediaTypeInTotoStatement   MediaType = "application/vnd.in-toto+json"
+	MediaTypeInTotoStatement    MediaType = "application/vnd.in-toto+json"
 )
 
 // BlobDescriptor is a reference to a stored blob.
@@ -121,17 +121,17 @@ type BlobDescriptor struct {
 
 // Layer is a single filesystem layer.
 type Layer struct {
-	Descriptor  BlobDescriptor
-	DiffID      Digest // uncompressed digest
-	History     *LayerHistory
+	Descriptor BlobDescriptor
+	DiffID     Digest // uncompressed digest
+	History    *LayerHistory
 }
 
 // LayerHistory records how a layer was created (for OCI image config history).
 type LayerHistory struct {
-	CreatedAt   *time.Time
-	CreatedBy   string
-	Comment     string
-	EmptyLayer  bool
+	CreatedAt  *time.Time
+	CreatedBy  string
+	Comment    string
+	EmptyLayer bool
 }
 
 // ─── Artifact ──────────────────────────────────────────────────────────────
@@ -154,14 +154,14 @@ const (
 // Artifact is intentionally kept as a value type: transformers return new
 // instances to preserve immutability and make transformations auditable.
 type Artifact struct {
-	Kind        ArtifactKind
-	Platforms   []Platform
-	Layers      []Layer
-	Config      []byte        // serialised image/package config
+	Kind         ArtifactKind
+	Platforms    []Platform
+	Layers       []Layer
+	Config       []byte // serialised image/package config
 	Attestations []AttestationRecord
-	Annotations map[string]string
-	Labels      map[string]string
-	Metadata    map[string][]byte
+	Annotations  map[string]string
+	Labels       map[string]string
+	Metadata     map[string][]byte
 }
 
 // Clone returns a deep copy safe to mutate without affecting the original.
@@ -211,11 +211,11 @@ func (a *Artifact) Clone() *Artifact {
 type AttestationKind string
 
 const (
-	AttestationKindInToto  AttestationKind = "in-toto"
-	AttestationKindBundle  AttestationKind = "bundle"
-	AttestationKindSBOM    AttestationKind = "sbom"
-	AttestationKindSLSA    AttestationKind = "slsa"
-	AttestationKindVuln    AttestationKind = "vuln"
+	AttestationKindInToto AttestationKind = "in-toto"
+	AttestationKindBundle AttestationKind = "bundle"
+	AttestationKindSBOM   AttestationKind = "sbom"
+	AttestationKindSLSA   AttestationKind = "slsa"
+	AttestationKindVuln   AttestationKind = "vuln"
 )
 
 // AttestationRecord carries a single attestation payload and its metadata.

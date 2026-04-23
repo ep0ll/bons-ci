@@ -553,7 +553,7 @@ func (s *Solver) executeVertex(
 		if cacheErr := s.cache.Save(ctx, cacheKey, result.ID(), 0); cacheErr != nil {
 			// Cache save failure is non-fatal: the vertex result is still usable.
 			s.bus.Publish(signal.Event{
-				Type:  signal.VertexFailed,
+				Type:   signal.VertexFailed,
 				Vertex: dgst, Name: v.Name(),
 				Error: errors.Wrap(cacheErr, "cache save (non-fatal)"),
 			})

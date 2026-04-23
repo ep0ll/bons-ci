@@ -25,7 +25,6 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	digest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	
 
 	apiv1 "github.com/bons/bons-ci/plugins/rbe/registry/api/v1"
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/logger"

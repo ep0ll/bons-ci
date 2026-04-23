@@ -35,7 +35,7 @@ func NewBuildError(targetID string, cause error) *BuildError {
 type VertexError struct {
 	VertexID string
 	OpID     string
-	Attempt  int    // 1-based attempt number (>1 if retried)
+	Attempt  int // 1-based attempt number (>1 if retried)
 	Cause    error
 }
 

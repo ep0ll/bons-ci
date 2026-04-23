@@ -84,12 +84,12 @@ func (c *ChainedCacheStore) Exists(ctx context.Context, key CacheKey) (bool, err
 // diskEntry is the on-disk representation of a CacheEntry.
 // It uses hex strings for byte arrays so the JSON is human-readable.
 type diskEntry struct {
-	Key         string         `json:"key"`
-	OutputFiles []diskFileRef  `json:"output_files,omitempty"`
-	CachedErr   string         `json:"cached_err,omitempty"`
-	CachedAt    time.Time      `json:"cached_at"`
-	HitCount    int            `json:"hit_count"`
-	DurationMS  int64          `json:"duration_ms"`
+	Key         string        `json:"key"`
+	OutputFiles []diskFileRef `json:"output_files,omitempty"`
+	CachedErr   string        `json:"cached_err,omitempty"`
+	CachedAt    time.Time     `json:"cached_at"`
+	HitCount    int           `json:"hit_count"`
+	DurationMS  int64         `json:"duration_ms"`
 }
 
 type diskFileRef struct {
@@ -106,8 +106,8 @@ type diskFileRef struct {
 // All operations are serialised per-key via a striped mutex, giving safe
 // concurrent access without a global lock.
 type DiskCacheStore struct {
-	dir   string
-	mu    [256]sync.Mutex // stripe by key[0] to reduce contention
+	dir string
+	mu  [256]sync.Mutex // stripe by key[0] to reduce contention
 }
 
 // NewDiskCacheStore creates (or reuses) a directory-backed cache store.

@@ -124,7 +124,7 @@ func (ph *ParallelHasher) HashReaderAt(ctx context.Context, r io.ReaderAt, offse
 	return ph.hashReaderAtParallel(ctx, r, offset, size)
 }
 
-func (ph *ParallelHasher) Workers() int    { return ph.workers }
+func (ph *ParallelHasher) Workers() int     { return ph.workers }
 func (ph *ParallelHasher) ChunkSize() int64 { return ph.chunkSize }
 
 // ─────────────────────────── parallel core ───────────────────────────────────

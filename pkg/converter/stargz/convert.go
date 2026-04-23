@@ -17,10 +17,10 @@ import (
 //
 // It handles two descriptor types:
 //   - Index   — flattens a single-entry manifest list to a bare manifest
-//               (identical behaviour to the nydus converter).
+//     (identical behaviour to the nydus converter).
 //   - Manifest — reconciles RootFS.DiffIDs from the LayerAnnotationUncompressed
-//               annotations written by LayerConvertFunc, writes the TOC-digest
-//               GC labels, and optionally sets the OCI referrer subject field.
+//     annotations written by LayerConvertFunc, writes the TOC-digest
+//     GC labels, and optionally sets the OCI referrer subject field.
 func ConvertHookFunc(opt MergeOption) converter.ConvertHookFunc {
 	return func(ctx context.Context, cs content.Store, orgDesc ocispec.Descriptor, newDesc *ocispec.Descriptor) (*ocispec.Descriptor, error) {
 		// When the conversion produced no new blob (e.g. the layer was already

@@ -91,10 +91,10 @@ type ExportResult struct {
 type ExportResultKey string
 
 const (
-	ResultKeyImageDigest    ExportResultKey = "containerimage.digest"
-	ResultKeyImageName      ExportResultKey = "image.name"
-	ResultKeyConfigDigest   ExportResultKey = "containerimage.config.digest"
-	ResultKeyDescriptor     ExportResultKey = "containerimage.descriptor"
+	ResultKeyImageDigest  ExportResultKey = "containerimage.digest"
+	ResultKeyImageName    ExportResultKey = "image.name"
+	ResultKeyConfigDigest ExportResultKey = "containerimage.config.digest"
+	ResultKeyDescriptor   ExportResultKey = "containerimage.descriptor"
 )
 
 // Get returns a metadata value by key.

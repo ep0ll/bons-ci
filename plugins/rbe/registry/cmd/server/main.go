@@ -1,13 +1,14 @@
 // Package main is the AccelRegistry server entrypoint.
 //
 // Configuration via environment variables:
-//   ACCELREG_ADDR             HTTP listen address (default: ":5000")
-//   ACCELREG_METRICS_ADDR     Prometheus metrics listen address (default: ":9090")
-//   ACCELREG_LOG_LEVEL        Log level: debug, info, warn, error (default: "info")
-//   ACCELREG_EXPECTED_SOURCES Approximate unique source images (default: "100000")
-//   ACCELREG_READ_TIMEOUT     HTTP read timeout (default: "30s")
-//   ACCELREG_WRITE_TIMEOUT    HTTP write timeout (default: "60s")
-//   ACCELREG_IDLE_TIMEOUT     HTTP idle timeout (default: "120s")
+//
+//	ACCELREG_ADDR             HTTP listen address (default: ":5000")
+//	ACCELREG_METRICS_ADDR     Prometheus metrics listen address (default: ":9090")
+//	ACCELREG_LOG_LEVEL        Log level: debug, info, warn, error (default: "info")
+//	ACCELREG_EXPECTED_SOURCES Approximate unique source images (default: "100000")
+//	ACCELREG_READ_TIMEOUT     HTTP read timeout (default: "30s")
+//	ACCELREG_WRITE_TIMEOUT    HTTP write timeout (default: "60s")
+//	ACCELREG_IDLE_TIMEOUT     HTTP idle timeout (default: "120s")
 package main
 
 import (
@@ -80,7 +81,7 @@ func main() {
 	metricsAddr := getenv("ACCELREG_METRICS_ADDR", ":9090")
 	metricsServer := &http.Server{
 		Addr:         metricsAddr,
-		Handler:      http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){ w.Write([]byte("metrics")) }),
+		Handler:      http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("metrics")) }),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}

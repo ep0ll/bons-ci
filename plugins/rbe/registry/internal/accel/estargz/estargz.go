@@ -22,9 +22,9 @@ import (
 )
 
 const (
-	TOCDigestAnnotation     = types.StargzAnnotationTOCDigest
-	UncompressedAnnotation  = types.StargzAnnotationUncompressed
-	SourceImageAnnotation   = "containerd.io/snapshot/stargz/source.image"
+	TOCDigestAnnotation    = types.StargzAnnotationTOCDigest
+	UncompressedAnnotation = types.StargzAnnotationUncompressed
+	SourceImageAnnotation  = "containerd.io/snapshot/stargz/source.image"
 )
 
 // Handler implements types.AccelHandler for eStargz images.

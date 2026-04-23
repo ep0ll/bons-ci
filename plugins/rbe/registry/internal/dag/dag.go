@@ -25,9 +25,9 @@ import (
 	"sync/atomic"
 
 	digest "github.com/opencontainers/go-digest"
-	
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/errgroup"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/bons/bons-ci/plugins/rbe/registry/pkg/types"
 )
@@ -53,7 +53,7 @@ func (t *Traverser) WithConcurrency(n int) *Traverser {
 // Traverse implements types.DAGTraverser.
 func (t *Traverser) Traverse(ctx context.Context, repo string, root ocispec.Descriptor, store types.ContentStore) (*types.DAGQueryResult, error) {
 	var (
-		visited   sync.Map         // digest → *types.DAGNode
+		visited   sync.Map // digest → *types.DAGNode
 		totalN    int64
 		existingN int64
 	)
@@ -216,9 +216,9 @@ func (t *Traverser) resolveChildren(
 func extractDescriptors(data []byte) ([]ocispec.Descriptor, error) {
 	// Sniff the schemaVersion and mediaType to decide parser.
 	var probe struct {
-		SchemaVersion int    `json:"schemaVersion"`
-		MediaType     string `json:"mediaType"`
-		ArtifactType  string `json:"artifactType"`
+		SchemaVersion int             `json:"schemaVersion"`
+		MediaType     string          `json:"mediaType"`
+		ArtifactType  string          `json:"artifactType"`
 		Manifests     json.RawMessage `json:"manifests"`
 		Config        json.RawMessage `json:"config"`
 		Layers        json.RawMessage `json:"layers"`
@@ -269,7 +269,7 @@ func isManifestMediaType(mt string) bool {
 	switch mt {
 	case ocispec.MediaTypeImageManifest,
 		ocispec.MediaTypeImageIndex,
-		
+
 		"application/vnd.docker.distribution.manifest.v2+json",
 		"application/vnd.docker.distribution.manifest.list.v2+json",
 		types.SOCIArtifactType,

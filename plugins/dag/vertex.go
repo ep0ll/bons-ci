@@ -166,12 +166,12 @@ func isTransitionAllowed(from, to State) bool {
 func (v *Vertex) Reset() {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	v.state      = StateInitial
-	v.cacheKey   = CacheKey{}
+	v.state = StateInitial
+	v.cacheKey = CacheKey{}
 	v.inputFiles = nil
 	// v.outputFiles intentionally NOT cleared — see doc above.
-	v.err        = nil
-	v.metrics    = VertexMetrics{}
+	v.err = nil
+	v.metrics = VertexMetrics{}
 	v.generation++
 }
 

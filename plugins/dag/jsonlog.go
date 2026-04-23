@@ -14,14 +14,14 @@ import (
 
 // JSONLogEntry is one line of structured build log output.
 type JSONLogEntry struct {
-	Timestamp string         `json:"ts"`
-	Event     string         `json:"event"`
-	VertexID  string         `json:"vertex,omitempty"`
-	State     string         `json:"state,omitempty"`
-	DurationMS int64         `json:"duration_ms,omitempty"`
-	CacheTier string         `json:"cache_tier,omitempty"`
-	Error     string         `json:"error,omitempty"`
-	Extra     map[string]any `json:"extra,omitempty"`
+	Timestamp  string         `json:"ts"`
+	Event      string         `json:"event"`
+	VertexID   string         `json:"vertex,omitempty"`
+	State      string         `json:"state,omitempty"`
+	DurationMS int64          `json:"duration_ms,omitempty"`
+	CacheTier  string         `json:"cache_tier,omitempty"`
+	Error      string         `json:"error,omitempty"`
+	Extra      map[string]any `json:"extra,omitempty"`
 }
 
 // JSONLogger subscribes to the EventBus and writes one NDJSON line per event

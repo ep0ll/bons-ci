@@ -32,8 +32,8 @@ type VertexSpec struct {
 //	    Add("test",    testOp,    reactdag.DependsOn("link")).
 //	    Build()
 type DAGBuilder struct {
-	specs  []VertexSpec
-	errs   []error
+	specs []VertexSpec
+	errs  []error
 }
 
 // NewBuilder constructs an empty DAGBuilder.

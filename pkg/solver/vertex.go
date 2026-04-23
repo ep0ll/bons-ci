@@ -332,7 +332,7 @@ func (r *cachedResultRef) Sys() any                        { return nil }
 func (r *cachedResultRef) Clone() Result {
 	return &cachedResultRef{id: r.id, vtx: r.vtx, keys: r.keys}
 }
-func (r *cachedResultRef) String() string              { return fmt.Sprintf("cached(%s)", r.id) }
+func (r *cachedResultRef) String() string                  { return fmt.Sprintf("cached(%s)", r.id) }
 func (r *cachedResultRef) CacheKeys() []ExportableCacheKey { return r.keys }
 
 // wrappedCachedResult wraps a Result with CacheKeys to implement CachedResult.

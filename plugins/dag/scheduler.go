@@ -15,7 +15,7 @@ import (
 // Scheduler drives the DAG from StateInitial toward completion using a
 // concurrent worker pool and a reactive coordinator. Core invariant:
 //
-//   A vertex may begin execution only when ALL of its parents are terminal.
+//	A vertex may begin execution only when ALL of its parents are terminal.
 //
 // Optimisations implemented:
 //  1. Fine-grained file invalidation — only vertices consuming changed files reset.
@@ -465,9 +465,10 @@ func (s *Scheduler) trySlowCache(ctx context.Context, v *Vertex, key CacheKey) (
 // applyCacheEntry applies a cache result to the vertex.
 //
 // CACHED ERROR REPLAY OPTIMISATION:
-//   If the entry records a past failure with the same cache key (same inputs),
-//   the error is returned immediately — no upstream recomputation whatsoever.
-//   Vertex B and all its ancestry is completely skipped.
+//
+//	If the entry records a past failure with the same cache key (same inputs),
+//	the error is returned immediately — no upstream recomputation whatsoever.
+//	Vertex B and all its ancestry is completely skipped.
 func (s *Scheduler) applyCacheEntry(ctx context.Context, v *Vertex, entry *CacheEntry, tier State) error {
 	prev := v.State()
 	if err := v.SetState(tier, "cache hit"); err != nil {

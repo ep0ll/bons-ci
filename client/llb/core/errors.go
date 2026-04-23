@@ -25,12 +25,12 @@ var (
 
 type VertexNotFoundError struct{ ID VertexID }
 
-func (e *VertexNotFoundError) Error() string { return fmt.Sprintf("vertex %q not found", e.ID) }
+func (e *VertexNotFoundError) Error() string   { return fmt.Sprintf("vertex %q not found", e.ID) }
 func (e *VertexNotFoundError) Is(t error) bool { return t == ErrVertexNotFound }
 
 type CyclicGraphError struct{ Cycle []VertexID }
 
-func (e *CyclicGraphError) Error() string { return fmt.Sprintf("cycle detected: %v", e.Cycle) }
+func (e *CyclicGraphError) Error() string   { return fmt.Sprintf("cycle detected: %v", e.Cycle) }
 func (e *CyclicGraphError) Is(t error) bool { return t == ErrCyclicGraph }
 
 type IncompatibleInputsError struct {
@@ -61,16 +61,18 @@ func (e *ValidationError) Error() string {
 	}
 	return fmt.Sprintf("validation of vertex %q: %v", e.VertexID, e.Cause)
 }
-func (e *ValidationError) Unwrap() error        { return e.Cause }
-func (e *ValidationError) Is(t error) bool      { return t == ErrValidationFailed }
+func (e *ValidationError) Unwrap() error   { return e.Cause }
+func (e *ValidationError) Is(t error) bool { return t == ErrValidationFailed }
 
 type MarshalError struct {
 	VertexID VertexID
 	Cause    error
 }
 
-func (e *MarshalError) Error() string  { return fmt.Sprintf("marshal vertex %q: %v", e.VertexID, e.Cause) }
-func (e *MarshalError) Unwrap() error  { return e.Cause }
+func (e *MarshalError) Error() string {
+	return fmt.Sprintf("marshal vertex %q: %v", e.VertexID, e.Cause)
+}
+func (e *MarshalError) Unwrap() error   { return e.Cause }
 func (e *MarshalError) Is(t error) bool { return t == ErrMarshalFailed }
 
 type PolicyRejectedError struct {

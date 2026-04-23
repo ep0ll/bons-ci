@@ -69,9 +69,9 @@ type ReaderAt interface {
 // HashSharded hashes ra (a file of fileSize bytes) using up to maxWorkers
 // parallel goroutines. It returns shard digests in index order.
 //
-//   1. Divide into ceil(fileSize/ShardSize) chunks.
-//   2. ReadAt each chunk in parallel (pread-safe, no seek-position races).
-//   3. Hash each chunk independently with newHash().
+//  1. Divide into ceil(fileSize/ShardSize) chunks.
+//  2. ReadAt each chunk in parallel (pread-safe, no seek-position races).
+//  3. Hash each chunk independently with newHash().
 func HashSharded(
 	ra ReaderAt,
 	fileSize int64,

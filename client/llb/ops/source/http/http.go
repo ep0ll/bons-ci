@@ -14,7 +14,7 @@ import (
 )
 
 type Config struct {
-	URL              string         // required
+	URL              string // required
 	Checksum         digest.Digest
 	Filename         string
 	Permissions      os.FileMode
@@ -27,14 +27,14 @@ type Config struct {
 
 type Option func(*Config)
 
-func WithURL(url string) Option              { return func(c *Config) { c.URL = url } }
-func WithChecksum(d digest.Digest) Option    { return func(c *Config) { c.Checksum = d } }
-func WithFilename(name string) Option        { return func(c *Config) { c.Filename = name } }
-func WithPermissions(m os.FileMode) Option   { return func(c *Config) { c.Permissions = m } }
-func WithOwner(uid, gid int) Option          { return func(c *Config) { c.UID = uid; c.GID = gid } }
-func WithAuthHeaderSecret(s string) Option   { return func(c *Config) { c.AuthHeaderSecret = s } }
-func WithAcceptHeader(v string) Option       { return func(c *Config) { c.AcceptHeader = v } }
-func WithUserAgent(ua string) Option         { return func(c *Config) { c.UserAgent = ua } }
+func WithURL(url string) Option            { return func(c *Config) { c.URL = url } }
+func WithChecksum(d digest.Digest) Option  { return func(c *Config) { c.Checksum = d } }
+func WithFilename(name string) Option      { return func(c *Config) { c.Filename = name } }
+func WithPermissions(m os.FileMode) Option { return func(c *Config) { c.Permissions = m } }
+func WithOwner(uid, gid int) Option        { return func(c *Config) { c.UID = uid; c.GID = gid } }
+func WithAuthHeaderSecret(s string) Option { return func(c *Config) { c.AuthHeaderSecret = s } }
+func WithAcceptHeader(v string) Option     { return func(c *Config) { c.AcceptHeader = v } }
+func WithUserAgent(ua string) Option       { return func(c *Config) { c.UserAgent = ua } }
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }
@@ -137,7 +137,7 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	return v, nil
 }
 
-func (v *Vertex) Config() Config  { return v.config }
+func (v *Vertex) Config() Config      { return v.config }
 func (v *Vertex) Output() core.Output { return &httpOutput{v: v} }
 
 type httpOutput struct{ v *Vertex }

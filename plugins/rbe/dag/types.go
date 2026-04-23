@@ -123,15 +123,15 @@ type VertexMeta struct {
 	Inputs []VertexInput `json:"inputs,omitempty"`
 
 	// Stream presence & hashes — set by the store after streams are written.
-	HasStdin     bool `json:"has_stdin"`
-	HasStdout    bool `json:"has_stdout"`
-	HasStderr    bool `json:"has_stderr"`
-	StdinHash    Hash `json:"stdin_hash,omitempty"`
-	StdoutHash   Hash `json:"stdout_hash,omitempty"`
-	StderrHash   Hash `json:"stderr_hash,omitempty"`
-	StdinSize    int64 `json:"stdin_size,omitempty"`
-	StdoutSize   int64 `json:"stdout_size,omitempty"`
-	StderrSize   int64 `json:"stderr_size,omitempty"`
+	HasStdin   bool  `json:"has_stdin"`
+	HasStdout  bool  `json:"has_stdout"`
+	HasStderr  bool  `json:"has_stderr"`
+	StdinHash  Hash  `json:"stdin_hash,omitempty"`
+	StdoutHash Hash  `json:"stdout_hash,omitempty"`
+	StderrHash Hash  `json:"stderr_hash,omitempty"`
+	StdinSize  int64 `json:"stdin_size,omitempty"`
+	StdoutSize int64 `json:"stdout_size,omitempty"`
+	StderrSize int64 `json:"stderr_size,omitempty"`
 
 	// Labels holds arbitrary user-supplied key-value metadata.
 	Labels map[string]string `json:"labels,omitempty"`

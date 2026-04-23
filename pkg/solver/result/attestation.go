@@ -2,9 +2,9 @@ package result
 
 // Attestation associates a reference with attestation metadata.
 type Attestation[T comparable] struct {
-	Ref   T
-	Kind  AttestationKind
-	Path  string
+	Ref    T
+	Kind   AttestationKind
+	Path   string
 	InToto InTotoAttestation
 }
 

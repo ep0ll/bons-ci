@@ -11,12 +11,12 @@ import (
 // (SKILL §4):
 //
 //   - O_NOATIME   — suppresses inode atime updates, avoiding dirty-inode
-//                   write-back on every read. Falls back to plain O_RDONLY
-//                   on EPERM (non-owner without CAP_FOWNER).
+//     write-back on every read. Falls back to plain O_RDONLY
+//     on EPERM (non-owner without CAP_FOWNER).
 //   - O_CLOEXEC   — prevents fd leaking into child processes.
 //   - POSIX_FADV_SEQUENTIAL (2) — hints the kernel to double the read-ahead
-//                   window (128 KiB → 256 KiB), increasing throughput on HDDs
-//                   and SATA SSDs.
+//     window (128 KiB → 256 KiB), increasing throughput on HDDs
+//     and SATA SSDs.
 func openForHash(absPath string, size int64) (*os.File, error) {
 	fd, err := syscall.Open(absPath,
 		syscall.O_RDONLY|syscall.O_NOATIME|syscall.O_CLOEXEC, 0)

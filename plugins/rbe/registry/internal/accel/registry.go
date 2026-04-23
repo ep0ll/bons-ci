@@ -12,9 +12,8 @@ import (
 	"fmt"
 	"sync"
 
-	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	digest "github.com/opencontainers/go-digest"
-	
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/logger"
 	"github.com/bons/bons-ci/plugins/rbe/registry/pkg/types"

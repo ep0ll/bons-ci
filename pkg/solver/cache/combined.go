@@ -9,7 +9,7 @@ import (
 // On Probe, it queries all backends concurrently and warms the primary
 // on non-primary hits. This matches BuildKit's combined cache pattern.
 type Combined struct {
-	primary    Store
+	primary     Store
 	secondaries []Store
 }
 

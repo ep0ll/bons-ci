@@ -1,9 +1,10 @@
 // Package fuzz provides Go 1.18+ fuzz targets for AccelRegistry.
 //
 // Run with:
-//   go test ./test/fuzz/ -fuzz=FuzzDetect       -fuzztime=60s
-//   go test ./test/fuzz/ -fuzz=FuzzBloomFilter  -fuzztime=60s
-//   go test ./test/fuzz/ -fuzz=FuzzManifestPut  -fuzztime=60s
+//
+//	go test ./test/fuzz/ -fuzz=FuzzDetect       -fuzztime=60s
+//	go test ./test/fuzz/ -fuzz=FuzzBloomFilter  -fuzztime=60s
+//	go test ./test/fuzz/ -fuzz=FuzzManifestPut  -fuzztime=60s
 //
 // The fuzz engine will explore random inputs and report any panics,
 // goroutine leaks, or data races (run with -race).

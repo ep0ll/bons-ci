@@ -56,7 +56,7 @@ const (
 type Runner struct {
 	ID              string       `json:"id"`
 	TenantID        string       `json:"tenant_id"`
-	JobID           int64        `json:"job_id"`   // 0 if warm-pool runner
+	JobID           int64        `json:"job_id"` // 0 if warm-pool runner
 	GitHubRunnerID  int64        `json:"github_runner_id"`
 	OCIInstanceID   string       `json:"oci_instance_id"`
 	ProvisionerType string       `json:"provisioner_type"`

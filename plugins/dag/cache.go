@@ -140,7 +140,7 @@ func (s *MemoryCacheStore) Stats() CacheStats {
 // Use it as the slow-tier placeholder when no remote cache is available.
 type NoopCacheStore struct{}
 
-func (NoopCacheStore) Get(_ context.Context, _ CacheKey) (*CacheEntry, error)          { return nil, nil }
-func (NoopCacheStore) Set(_ context.Context, _ CacheKey, _ *CacheEntry) error          { return nil }
-func (NoopCacheStore) Delete(_ context.Context, _ CacheKey) error                      { return nil }
-func (NoopCacheStore) Exists(_ context.Context, _ CacheKey) (bool, error)              { return false, nil }
+func (NoopCacheStore) Get(_ context.Context, _ CacheKey) (*CacheEntry, error) { return nil, nil }
+func (NoopCacheStore) Set(_ context.Context, _ CacheKey, _ *CacheEntry) error { return nil }
+func (NoopCacheStore) Delete(_ context.Context, _ CacheKey) error             { return nil }
+func (NoopCacheStore) Exists(_ context.Context, _ CacheKey) (bool, error)     { return false, nil }

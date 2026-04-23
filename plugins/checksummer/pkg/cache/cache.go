@@ -21,9 +21,9 @@ const (
 // ─────────────────────────── entry ───────────────────────────────────────────
 
 type entry struct {
-	key       string
-	hash      []byte
-	expiresAt int64 // Unix ns; 0 = no expiry
+	key        string
+	hash       []byte
+	expiresAt  int64 // Unix ns; 0 = no expiry
 	prev, next *entry
 }
 
@@ -153,9 +153,9 @@ func (s *shard) remove(e *entry) {
 // Cache is a sharded concurrent LRU cache for hash results.
 // Safe for concurrent use.
 type Cache struct {
-	shards  [DefaultShards]*shard
-	mask    uint64
-	ttl     time.Duration
+	shards [DefaultShards]*shard
+	mask   uint64
+	ttl    time.Duration
 }
 
 // Option configures a Cache.

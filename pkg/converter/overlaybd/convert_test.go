@@ -211,8 +211,6 @@ func TestConvertHookFunc_Manifest_DiffIDReconcile(t *testing.T) {
 	}
 }
 
-
-
 // TestConvertHookFunc_Manifest_WithReferrer verifies the Subject field is
 // wired when MergeOption.WithReferrer is enabled.
 func TestConvertHookFunc_Manifest_WithReferrer(t *testing.T) {

@@ -20,8 +20,8 @@ import (
 //   - The error is stored in cache after all retries fail, so the next build
 //     with unchanged inputs replays the cached failure without retrying.
 type RetryExecutor struct {
-	inner         Executor
-	defaultPolicy RetryPolicy
+	inner          Executor
+	defaultPolicy  RetryPolicy
 	defaultTimeout time.Duration
 }
 
@@ -124,8 +124,8 @@ type RetryPolicyProvider interface {
 // Vertices declare their resource class via the "resource_class" label.
 // Unlabelled vertices are unconstrained.
 type ResourceLimiter struct {
-	inner    Executor
-	semaphs  map[string]chan struct{} // resource class → semaphore tokens
+	inner   Executor
+	semaphs map[string]chan struct{} // resource class → semaphore tokens
 }
 
 // NewResourceLimiter creates a ResourceLimiter that wraps inner.

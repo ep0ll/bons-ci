@@ -18,9 +18,9 @@ type subscription struct {
 // Handlers are called synchronously in the publishing goroutine; for
 // long-running handlers, dispatch to a separate goroutine inside the handler.
 type EventBus struct {
-	mu      sync.RWMutex
-	subs    map[EventType][]subscription
-	nextID  uint64
+	mu     sync.RWMutex
+	subs   map[EventType][]subscription
+	nextID uint64
 }
 
 // NewEventBus constructs a ready-to-use EventBus.

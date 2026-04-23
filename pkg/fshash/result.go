@@ -53,7 +53,7 @@ func (k EntryKind) String() string {
 
 // EntryResult holds the per-entry checksum produced during a walk.
 type EntryResult struct {
-	RelPath string    // slash-separated path relative to Sum root
+	RelPath string // slash-separated path relative to Sum root
 	Kind    EntryKind
 	Digest  []byte
 }

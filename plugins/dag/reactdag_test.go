@@ -339,10 +339,11 @@ func TestDAG_AncestorDepth(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 // Graph:
-//   C produces file1.o and file2.o
-//   B depends only on file1.o from C
-//   D depends only on file2.o from C
-//   A depends on file1.o from B
+//
+//	C produces file1.o and file2.o
+//	B depends only on file1.o from C
+//	D depends only on file2.o from C
+//	A depends on file1.o from B
 func buildFileDepsDAG(t *testing.T) (*dag.DAG, map[string]*dag.Vertex) {
 	t.Helper()
 	d := dag.NewDAG()

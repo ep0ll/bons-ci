@@ -37,9 +37,9 @@ const (
 	SHA1     Algorithm = "sha1"
 	MD5      Algorithm = "md5"
 	XXHash64 Algorithm = "xxhash64"
-	XXHash3  Algorithm = "xxhash3"  // 64-bit; ~2× faster than xxhash64
-	Blake3   Algorithm = "blake3"   // 256-bit crypto; ~8× faster than SHA-256
-	CRC32C   Algorithm = "crc32c"   // 32-bit; hardware SSE4.2 accelerated
+	XXHash3  Algorithm = "xxhash3" // 64-bit; ~2× faster than xxhash64
+	Blake3   Algorithm = "blake3"  // 256-bit crypto; ~8× faster than SHA-256
+	CRC32C   Algorithm = "crc32c"  // 32-bit; hardware SSE4.2 accelerated
 )
 
 // ── Hasher interface ───────────────────────────────────────────────────────────
@@ -58,9 +58,9 @@ type Hasher interface {
 // ── stdHasher ─────────────────────────────────────────────────────────────────
 
 type stdHasher struct {
-	algo    Algorithm
-	newFn   func() hash.Hash
-	dgstSz  int
+	algo   Algorithm
+	newFn  func() hash.Hash
+	dgstSz int
 }
 
 func (s *stdHasher) New() hash.Hash    { return s.newFn() }
@@ -164,14 +164,14 @@ func (r *Registry) Algorithms() []Algorithm {
 // built-in algorithms. Call DefaultRegistry.Register to add custom ones.
 var DefaultRegistry = func() *Registry {
 	r := NewRegistry()
-	r.Register(SHA256,   &stdHasher{algo: SHA256,   newFn: sha256.New,    dgstSz: 32})
-	r.Register(SHA512,   &stdHasher{algo: SHA512,   newFn: sha512.New,    dgstSz: 64})
-	r.Register(SHA1,     &stdHasher{algo: SHA1,     newFn: sha1.New,      dgstSz: 20})  //nolint:gosec
-	r.Register(MD5,      &stdHasher{algo: MD5,      newFn: md5.New,       dgstSz: 16})  //nolint:gosec
-	r.Register(XXHash64, &stdHasher{algo: XXHash64, newFn: newXXHash64,   dgstSz: 8})
-	r.Register(XXHash3,  &stdHasher{algo: XXHash3,  newFn: newXXHash3,    dgstSz: 8})
-	r.Register(Blake3,   &stdHasher{algo: Blake3,   newFn: newBlake3,     dgstSz: 32})
-	r.Register(CRC32C,   &stdHasher{algo: CRC32C,   newFn: newCRC32C,     dgstSz: 4})
+	r.Register(SHA256, &stdHasher{algo: SHA256, newFn: sha256.New, dgstSz: 32})
+	r.Register(SHA512, &stdHasher{algo: SHA512, newFn: sha512.New, dgstSz: 64})
+	r.Register(SHA1, &stdHasher{algo: SHA1, newFn: sha1.New, dgstSz: 20}) //nolint:gosec
+	r.Register(MD5, &stdHasher{algo: MD5, newFn: md5.New, dgstSz: 16})    //nolint:gosec
+	r.Register(XXHash64, &stdHasher{algo: XXHash64, newFn: newXXHash64, dgstSz: 8})
+	r.Register(XXHash3, &stdHasher{algo: XXHash3, newFn: newXXHash3, dgstSz: 8})
+	r.Register(Blake3, &stdHasher{algo: Blake3, newFn: newBlake3, dgstSz: 32})
+	r.Register(CRC32C, &stdHasher{algo: CRC32C, newFn: newCRC32C, dgstSz: 4})
 	return r
 }()
 

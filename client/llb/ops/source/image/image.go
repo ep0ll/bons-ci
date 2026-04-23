@@ -18,7 +18,7 @@ import (
 type ResolveMode int
 
 const (
-	ResolveModeDefault     ResolveMode = iota
+	ResolveModeDefault ResolveMode = iota
 	ResolveModeForcePull
 	ResolveModePreferLocal
 )
@@ -36,23 +36,23 @@ func (r ResolveMode) String() string {
 
 // Config holds all parameters for the image source op.
 type Config struct {
-	Ref         string              // required, normalised on build
+	Ref         string // required, normalised on build
 	ResolveMode ResolveMode
-	Platform    *ocispecs.Platform  // overrides build-level platform
-	LayerLimit  int                 // 0 = no limit
-	Checksum    digest.Digest       // pins the image manifest
-	RecordType  string              // "internal" etc.
+	Platform    *ocispecs.Platform // overrides build-level platform
+	LayerLimit  int                // 0 = no limit
+	Checksum    digest.Digest      // pins the image manifest
+	RecordType  string             // "internal" etc.
 	Constraints core.Constraints
 }
 
 // Option is a functional option for Config.
 type Option func(*Config)
 
-func WithRef(ref string) Option         { return func(c *Config) { c.Ref = ref } }
-func WithResolveMode(m ResolveMode) Option { return func(c *Config) { c.ResolveMode = m } }
+func WithRef(ref string) Option               { return func(c *Config) { c.Ref = ref } }
+func WithResolveMode(m ResolveMode) Option    { return func(c *Config) { c.ResolveMode = m } }
 func WithPlatform(p ocispecs.Platform) Option { return func(c *Config) { c.Platform = &p } }
-func WithLayerLimit(n int) Option        { return func(c *Config) { c.LayerLimit = n } }
-func WithChecksum(d digest.Digest) Option { return func(c *Config) { c.Checksum = d } }
+func WithLayerLimit(n int) Option             { return func(c *Config) { c.LayerLimit = n } }
+func WithChecksum(d digest.Digest) Option     { return func(c *Config) { c.Checksum = d } }
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }
@@ -140,8 +140,8 @@ func (v *Vertex) build() error {
 
 // ─── core.Vertex ──────────────────────────────────────────────────────────────
 
-func (v *Vertex) Type() core.VertexType    { return core.VertexTypeSource }
-func (v *Vertex) Inputs() []core.Edge      { return nil }
+func (v *Vertex) Type() core.VertexType { return core.VertexTypeSource }
+func (v *Vertex) Inputs() []core.Edge   { return nil }
 func (v *Vertex) Outputs() []core.OutputSlot {
 	return []core.OutputSlot{{Index: 0, Description: "image root filesystem"}}
 }

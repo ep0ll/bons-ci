@@ -87,13 +87,13 @@ const (
 
 // ── Field constructors matching zap.String, zap.Error, etc. ──────────────
 
-func String(key, val string) Field          { return Field{key, val} }
-func Error(err error) Field                 { return Field{"error", err} }
-func Int(key string, val int) Field         { return Field{key, val} }
-func Int64(key string, val int64) Field     { return Field{key, val} }
-func Float64(key string, val float64) Field { return Field{key, val} }
-func Bool(key string, val bool) Field       { return Field{key, val} }
-func Any(key string, val any) Field         { return Field{key, val} }
+func String(key, val string) Field            { return Field{key, val} }
+func Error(err error) Field                   { return Field{"error", err} }
+func Int(key string, val int) Field           { return Field{key, val} }
+func Int64(key string, val int64) Field       { return Field{key, val} }
+func Float64(key string, val float64) Field   { return Field{key, val} }
+func Bool(key string, val bool) Field         { return Field{key, val} }
+func Any(key string, val any) Field           { return Field{key, val} }
 func ByteString(key string, val []byte) Field { return Field{key, string(val)} }
 
 // Duration formats a duration as a string field.

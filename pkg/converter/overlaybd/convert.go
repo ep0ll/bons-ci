@@ -18,8 +18,8 @@ import (
 // Descriptor routing:
 //   - Index    → unwrap single-manifests list to bare manifest.
 //   - Manifest → reconcile config DiffIDs from LayerAnnotationUncompressed,
-//                write GC labels for all layers and the config,
-//                optionally wire the OCI referrer Subject field.
+//     write GC labels for all layers and the config,
+//     optionally wire the OCI referrer Subject field.
 func ConvertHookFunc(opt MergeOption) converter.ConvertHookFunc {
 	return func(ctx context.Context, cs content.Store, orgDesc ocispec.Descriptor, newDesc *ocispec.Descriptor) (*ocispec.Descriptor, error) {
 		if newDesc == nil {

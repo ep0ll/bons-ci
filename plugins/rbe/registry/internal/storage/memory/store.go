@@ -74,8 +74,8 @@ type blobEntry struct {
 // Store is a fully in-memory, thread-safe ContentStore.
 // All data is lost when the process exits.
 type Store struct {
-	mu      sync.RWMutex
-	blobs   map[digest.Digest]*blobEntry
+	mu         sync.RWMutex
+	blobs      map[digest.Digest]*blobEntry
 	totalBytes int64 // atomic
 
 	// writeLocks prevents duplicate concurrent writes for the same digest.

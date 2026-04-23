@@ -48,15 +48,15 @@ func (a PlanAction) String() string {
 
 // BuildPlan is the complete dry-run analysis for one Build call.
 type BuildPlan struct {
-	TargetID     string
-	Steps        []VertexPlan // topological order
-	TotalVertices int
-	WillExecute  int
-	FastCacheHits int
-	SlowCacheHits int
-	WillFail     int
+	TargetID                string
+	Steps                   []VertexPlan // topological order
+	TotalVertices           int
+	WillExecute             int
+	FastCacheHits           int
+	SlowCacheHits           int
+	WillFail                int
 	EstimatedCriticalPathMS int64
-	CriticalPath []string
+	CriticalPath            []string
 }
 
 // Summary returns a human-readable one-line summary of the plan.

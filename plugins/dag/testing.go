@@ -136,13 +136,13 @@ func (r *RecordingExecutor) Reset() {
 // BuildHarness holds a pre-wired DAG + Scheduler for use in table-driven tests.
 // Construct with NewBuildHarness, then call Run() for each scenario.
 type BuildHarness struct {
-	DAG        *DAG
-	Scheduler  *Scheduler
-	Recorder   *RecordingExecutor
-	FastCache  *MemoryCacheStore
-	EventBus   *EventBus
-	Events     []Event
-	eventsMu   sync.Mutex
+	DAG       *DAG
+	Scheduler *Scheduler
+	Recorder  *RecordingExecutor
+	FastCache *MemoryCacheStore
+	EventBus  *EventBus
+	Events    []Event
+	eventsMu  sync.Mutex
 }
 
 // NewBuildHarness constructs a harness around the given DAG.

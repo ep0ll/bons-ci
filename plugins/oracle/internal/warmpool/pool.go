@@ -53,13 +53,13 @@ type WarmInstance struct {
 
 // Pool manages warm regular instances.
 type Pool struct {
-	mu         sync.Mutex
-	instances  []*WarmInstance
-	cfg        config.WarmPoolConfig
-	ociCfg     config.OCIConfig
-	session    *oci.Session
+	mu          sync.Mutex
+	instances   []*WarmInstance
+	cfg         config.WarmPoolConfig
+	ociCfg      config.OCIConfig
+	session     *oci.Session
 	instanceMgr *oci.InstanceManager
-	log        *zap.Logger
+	log         *zap.Logger
 }
 
 // New constructs a Pool and loads any persisted warm instance list.

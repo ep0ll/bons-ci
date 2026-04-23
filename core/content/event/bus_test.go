@@ -17,7 +17,7 @@ func TestBus_PublishDeliveresToAllHandlers(t *testing.T) {
 	ctx := context.Background()
 
 	var (
-		mu      sync.Mutex
+		mu       sync.Mutex
 		received []event.Event
 	)
 

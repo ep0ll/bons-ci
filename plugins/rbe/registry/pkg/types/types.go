@@ -61,24 +61,24 @@ const (
 	AnnotationVisibility = "org.accelregistry.visibility"
 
 	// ── Nydus community annotations ──────────────────────────────────────────
-	NydusAnnotationSourceDigest  = "containerd.io/snapshot/nydus-source-digest"
-	NydusAnnotationVersion       = "containerd.io/snapshot/nydus-version"
-	NydusLayerMediaType          = "application/vnd.oci.image.layer.nydus.blob.v1"
-	NydusBootstrapMediaType      = "application/vnd.oci.image.layer.nydus.bootstrap.v1"
+	NydusAnnotationSourceDigest = "containerd.io/snapshot/nydus-source-digest"
+	NydusAnnotationVersion      = "containerd.io/snapshot/nydus-version"
+	NydusLayerMediaType         = "application/vnd.oci.image.layer.nydus.blob.v1"
+	NydusBootstrapMediaType     = "application/vnd.oci.image.layer.nydus.bootstrap.v1"
 
 	// ── eStargz / Stargz-Snapshotter annotations ─────────────────────────────
 	StargzAnnotationTOCDigest    = "containerd.io/snapshot/stargz/toc.digest"
 	StargzAnnotationUncompressed = "containerd.io/uncompressed"
 
 	// ── SOCI (Seekable OCI) annotations ──────────────────────────────────────
-	SOCIArtifactType             = "application/vnd.amazon.soci.index.v1+json"
-	SOCILayerMediaType           = "application/octet-stream"
-	SOCIAnnotationIndexDigest    = "com.amazon.soci.index-digest"
+	SOCIArtifactType          = "application/vnd.amazon.soci.index.v1+json"
+	SOCILayerMediaType        = "application/octet-stream"
+	SOCIAnnotationIndexDigest = "com.amazon.soci.index-digest"
 
 	// ── OverlayBD annotations ─────────────────────────────────────────────────
-	OverlayBDAnnotationVersion   = "containerd.io/snapshot/overlaybd/version"
-	OverlayBDAnnotationLayer     = "containerd.io/snapshot/overlaybd.layer"
-	OverlayBDLayerMediaType      = "application/vnd.containerd.overlaybd.v1+gz"
+	OverlayBDAnnotationVersion = "containerd.io/snapshot/overlaybd/version"
+	OverlayBDAnnotationLayer   = "containerd.io/snapshot/overlaybd.layer"
+	OverlayBDLayerMediaType    = "application/vnd.containerd.overlaybd.v1+gz"
 )
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -219,9 +219,9 @@ type PullRequest struct {
 
 // PullResult is returned by a pull operation.
 type PullResult struct {
-	SourceDigest digest.Digest            `json:"sourceDigest"`
-	Pulled       []AccelVariant           `json:"pulled"`
-	Errors       map[AccelType]string     `json:"errors,omitempty"`
+	SourceDigest digest.Digest        `json:"sourceDigest"`
+	Pulled       []AccelVariant       `json:"pulled"`
+	Errors       map[AccelType]string `json:"errors,omitempty"`
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -402,10 +402,10 @@ type AccelIndex interface {
 
 // IndexStats describes the state of an AccelIndex.
 type IndexStats struct {
-	TotalSourceDigests     int64            `json:"totalSourceDigests"`
+	TotalSourceDigests     int64               `json:"totalSourceDigests"`
 	TotalVariants          map[AccelType]int64 `json:"totalVariants"`
-	BloomFalsePositiveRate float64          `json:"bloomFalsePositiveRate"`
-	ShardCount             int              `json:"shardCount"`
+	BloomFalsePositiveRate float64             `json:"bloomFalsePositiveRate"`
+	ShardCount             int                 `json:"shardCount"`
 }
 
 // Registry is the central OCI + Accel registry interface.

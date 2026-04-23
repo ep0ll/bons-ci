@@ -8,13 +8,19 @@
 //	go get github.com/zeebo/blake3
 //
 // Then change the file blake3_backend.go build constraint from:
+//
 //	//go:build !blake3
+//
 // to:
+//
 //	//go:build blake3
 //
 // And change blake3_sha256stub.go from:
+//
 //	//go:build blake3
+//
 // to:
+//
 //	//go:build !blake3
 //
 // By default the engine ships with a SHA-256 stub so it compiles without any

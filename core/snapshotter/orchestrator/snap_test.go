@@ -54,7 +54,7 @@ type commitRec struct {
 type mockSnapshotter struct {
 	mu        sync.Mutex
 	committed map[string]snapshots.Info // committed-name → Info{Kind=Committed}
-	active    map[string]struct{}        // active-key → present
+	active    map[string]struct{}       // active-key → present
 
 	// Error-injection hooks — called outside mu; nil == success.
 	onPrepare func(key string) error
@@ -835,7 +835,7 @@ func TestRunSnapshotPipeline_MountsError(t *testing.T) {
 	chains := buildChainTable(rootFS)
 	mountsErr := errors.New("mounts unavailable")
 
-	sn.preActive(chains[0].diffID)    // triggers AlreadyExists from Prepare
+	sn.preActive(chains[0].diffID) // triggers AlreadyExists from Prepare
 	sn.onMounts = func(_ string) error { return mountsErr }
 
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, rootFS, 1)
@@ -1276,7 +1276,7 @@ func benchmarkPipeline(b *testing.B, n, w int) {
 	}
 }
 
-func BenchmarkPipeline_1Layer_1Worker(b *testing.B)   { benchmarkPipeline(b, 1, 1) }
+func BenchmarkPipeline_1Layer_1Worker(b *testing.B)    { benchmarkPipeline(b, 1, 1) }
 func BenchmarkPipeline_10Layers_1Worker(b *testing.B)  { benchmarkPipeline(b, 10, 1) }
 func BenchmarkPipeline_10Layers_4Workers(b *testing.B) { benchmarkPipeline(b, 10, 4) }
 func BenchmarkPipeline_100Layers_1Worker(b *testing.B) { benchmarkPipeline(b, 100, 1) }

@@ -28,11 +28,11 @@ const (
 //
 // Encoding (big-endian, fixed-width, single Write call for the fixed portion):
 //
-//   [0xFF]           1-byte sentinel (distinguishes meta from raw bytes)
-//   [mode uint32]    iff MetaMode
-//   [size uint64]    iff MetaSize
-//   [mtime uint64]   iff MetaMtime
-//   [target][0x00]   iff MetaSymlink && target != ""
+//	[0xFF]           1-byte sentinel (distinguishes meta from raw bytes)
+//	[mode uint32]    iff MetaMode
+//	[size uint64]    iff MetaSize
+//	[mtime uint64]   iff MetaMtime
+//	[target][0x00]   iff MetaSymlink && target != ""
 //
 // metaHeaderCap is the maximum size of the fixed portion (1+4+8+8 = 21 bytes).
 const metaHeaderCap = 21

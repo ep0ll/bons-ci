@@ -131,10 +131,10 @@ type Config struct {
 // Option is a functional option for Config.
 type Option func(*Config)
 
-func WithPredicate(p Predicate) Option    { return func(c *Config) { c.Predicate = p } }
-func WithThen(out core.Output) Option     { return func(c *Config) { c.Then = out } }
-func WithElse(out core.Output) Option     { return func(c *Config) { c.Else = out } }
-func WithDescription(d string) Option     { return func(c *Config) { c.Description = d } }
+func WithPredicate(p Predicate) Option { return func(c *Config) { c.Predicate = p } }
+func WithThen(out core.Output) Option  { return func(c *Config) { c.Then = out } }
+func WithElse(out core.Output) Option  { return func(c *Config) { c.Else = out } }
+func WithDescription(d string) Option  { return func(c *Config) { c.Description = d } }
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }

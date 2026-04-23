@@ -159,8 +159,8 @@ func TestNydus_ExtractSourceRefs_AllPaths(t *testing.T) {
 
 	m := plainManifest()
 	m.Annotations = map[string]string{
-		types.NydusAnnotationSourceDigest:    sourceDgst.String(),
-		types.AnnotationSourceIndexDigest:    indexDgst.String(),
+		types.NydusAnnotationSourceDigest: sourceDgst.String(),
+		types.AnnotationSourceIndexDigest: indexDgst.String(),
 	}
 	m.Subject = &ocispec.Descriptor{
 		Digest:    dgst("subject-manifest"),
@@ -695,9 +695,9 @@ func TestOverlayBD_Validate_MissingSourceRef(t *testing.T) {
 // accel type does NOT trigger another handler.
 func TestNoHandler_CrossContamination(t *testing.T) {
 	cases := []struct {
-		name     string
-		manifest func() ocispec.Manifest
-		positive types.AccelType
+		name      string
+		manifest  func() ocispec.Manifest
+		positive  types.AccelType
 		negatives []types.AccelType
 	}{
 		{

@@ -125,10 +125,10 @@ type Config struct {
 // Option is a functional option for Config.
 type Option func(*Config)
 
-func WithSubject(out core.Output) Option    { return func(c *Config) { c.Subject = out } }
-func WithPolicy(p Policy) Option            { return func(c *Config) { c.Policy = p } }
-func WithFailOnReject(v bool) Option        { return func(c *Config) { c.FailOnReject = v } }
-func WithFallback(out core.Output) Option   { return func(c *Config) { c.FallbackOnReject = out } }
+func WithSubject(out core.Output) Option  { return func(c *Config) { c.Subject = out } }
+func WithPolicy(p Policy) Option          { return func(c *Config) { c.Policy = p } }
+func WithFailOnReject(v bool) Option      { return func(c *Config) { c.FailOnReject = v } }
+func WithFallback(out core.Output) Option { return func(c *Config) { c.FallbackOnReject = out } }
 func WithConstraintsOption(opt core.ConstraintsOption) Option {
 	return func(c *Config) { opt(&c.Constraints) }
 }

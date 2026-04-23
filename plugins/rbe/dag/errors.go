@@ -87,5 +87,5 @@ func (e *InternalError) Error() string {
 	return fmt.Sprintf("internal error during %q: %v", e.Op, e.Err)
 }
 
-func (e *InternalError) Unwrap() error              { return e.Err }
-func (e *InternalError) Is(target error) bool       { return target == ErrInternal }
+func (e *InternalError) Unwrap() error        { return e.Err }
+func (e *InternalError) Is(target error) bool { return target == ErrInternal }

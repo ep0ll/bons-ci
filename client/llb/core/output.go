@@ -26,8 +26,8 @@ func ConstraintsAddCap(c *Constraints, id apicaps.CapID) {
 // SimpleOutput wraps a Vertex and a fixed output-slot index as an Output.
 // Most vertex implementations return one of these from their Output() accessor.
 type SimpleOutput struct {
-	V     Vertex
-	Slot  int
+	V    Vertex
+	Slot int
 }
 
 func (o *SimpleOutput) Vertex(_ context.Context, _ *Constraints) Vertex { return o.V }

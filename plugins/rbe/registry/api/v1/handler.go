@@ -1,27 +1,29 @@
 // Package v1 provides the HTTP API for AccelRegistry.
 //
 // OCI Distribution Spec (v2):
-//   GET  /v2/                                    → API version check
-//   HEAD /v2/*name/blobs/{digest}               → blob existence
-//   GET  /v2/*name/blobs/{digest}               → blob download
-//   POST /v2/*name/blobs/uploads/               → initiate upload
-//   PATCH /v2/*name/blobs/uploads/{uuid}        → chunk upload
-//   PUT  /v2/*name/blobs/uploads/{uuid}         → finalize upload
-//   HEAD /v2/*name/manifests/{reference}        → manifest existence
-//   GET  /v2/*name/manifests/{reference}        → manifest download
-//   PUT  /v2/*name/manifests/{reference}        → manifest push
-//   DELETE /v2/*name/manifests/{reference}      → manifest delete
-//   GET  /v2/*name/tags/list                    → tag list
-//   GET  /v2/*name/referrers/{digest}           → OCI 1.1 referrers
+//
+//	GET  /v2/                                    → API version check
+//	HEAD /v2/*name/blobs/{digest}               → blob existence
+//	GET  /v2/*name/blobs/{digest}               → blob download
+//	POST /v2/*name/blobs/uploads/               → initiate upload
+//	PATCH /v2/*name/blobs/uploads/{uuid}        → chunk upload
+//	PUT  /v2/*name/blobs/uploads/{uuid}         → finalize upload
+//	HEAD /v2/*name/manifests/{reference}        → manifest existence
+//	GET  /v2/*name/manifests/{reference}        → manifest download
+//	PUT  /v2/*name/manifests/{reference}        → manifest push
+//	DELETE /v2/*name/manifests/{reference}      → manifest delete
+//	GET  /v2/*name/tags/list                    → tag list
+//	GET  /v2/*name/referrers/{digest}           → OCI 1.1 referrers
 //
 // Accel-specific:
-//   GET  /accel/v1/query/{digest}               → query all accel variants
-//   POST /accel/v1/pull                         → resolve PullRequest
-//   GET  /accel/v1/dag/*name/{digest}           → OCI DAG traversal
-//   GET  /accel/v1/metadata/*name/{digest}      → image metadata
-//   GET  /accel/v1/stats                        → index statistics
-//   GET  /accel/v1/types                        → registered accel types
-//   GET  /accel/v1/exists/{digest}              → fast existence check
+//
+//	GET  /accel/v1/query/{digest}               → query all accel variants
+//	POST /accel/v1/pull                         → resolve PullRequest
+//	GET  /accel/v1/dag/*name/{digest}           → OCI DAG traversal
+//	GET  /accel/v1/metadata/*name/{digest}      → image metadata
+//	GET  /accel/v1/stats                        → index statistics
+//	GET  /accel/v1/types                        → registered accel types
+//	GET  /accel/v1/exists/{digest}              → fast existence check
 package v1
 
 import (
@@ -58,7 +60,9 @@ func New(reg *registry.Registry, log *logger.Logger) *Handler {
 // Multi-segment repository names (e.g. "library/node") are handled by
 // extracting the repo from the URL path directly, since chi {param} wildcards
 // do not capture slashes. Routes use a suffix-based approach:
-//   /v2/*nameAndSuffix  captures the entire path after /v2/
+//
+//	/v2/*nameAndSuffix  captures the entire path after /v2/
+//
 // and helper extractors parse repo + tail from it.
 func (h *Handler) Router() chi.Router {
 	r := chi.NewRouter()

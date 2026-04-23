@@ -34,11 +34,11 @@ import (
 type MountType int
 
 const (
-	MountTypeBind    MountType = iota // bind from a vertex output
-	MountTypeCache                    // persistent cache directory
-	MountTypeTmpfs                    // in-memory filesystem
-	MountTypeSecret                   // injected secret file
-	MountTypeSSH                      // forwarded SSH agent socket
+	MountTypeBind   MountType = iota // bind from a vertex output
+	MountTypeCache                   // persistent cache directory
+	MountTypeTmpfs                   // in-memory filesystem
+	MountTypeSecret                  // injected secret file
+	MountTypeSSH                     // forwarded SSH agent socket
 )
 
 // CacheSharingMode controls concurrent access to a cache mount.
@@ -63,15 +63,15 @@ const (
 
 // Mount describes a filesystem mount inside the exec container.
 type Mount struct {
-	Target       string           // absolute path inside the container
-	Source       core.Output      // backing vertex output (nil for tmpfs/cache)
+	Target       string      // absolute path inside the container
+	Source       core.Output // backing vertex output (nil for tmpfs/cache)
 	ReadOnly     bool
-	Selector     string           // sub-path within Source
+	Selector     string // sub-path within Source
 	Type         MountType
-	CacheID      string           // identifies a persistent cache volume
+	CacheID      string // identifies a persistent cache volume
 	CacheSharing CacheSharingMode
-	TmpfsSize    int64            // bytes; 0 = unlimited
-	NoOutput     bool             // write-only; output ignored downstream
+	TmpfsSize    int64 // bytes; 0 = unlimited
+	NoOutput     bool  // write-only; output ignored downstream
 	ContentCache ContentCacheMode
 }
 
@@ -91,10 +91,10 @@ type SecretMount struct {
 
 // SSHSocket describes a forwarded SSH agent socket.
 type SSHSocket struct {
-	SocketID         string // BuildKit SSH agent identifier
-	Target           string // socket path inside the container
-	UID, GID, Mode   int
-	Optional         bool
+	SocketID       string // BuildKit SSH agent identifier
+	Target         string // socket path inside the container
+	UID, GID, Mode int
+	Optional       bool
 }
 
 // ─── CDIDevice ───────────────────────────────────────────────────────────────
@@ -116,9 +116,9 @@ type ProxyEnv struct {
 
 // Config holds all parameters for an exec op.
 type Config struct {
-	Command        []string   // argv[0]…argv[N]; required
-	Environment    []string   // KEY=VALUE pairs
-	WorkingDir     string     // required; defaults to "/"
+	Command        []string // argv[0]…argv[N]; required
+	Environment    []string // KEY=VALUE pairs
+	WorkingDir     string   // required; defaults to "/"
 	User           string
 	Hostname       string
 	CgroupParent   string
@@ -138,16 +138,16 @@ type Config struct {
 
 type Option func(*Config)
 
-func WithCommand(args ...string) Option { return func(c *Config) { c.Command = args } }
-func WithShlex(cmd string) Option       { return func(c *Config) { c.Command = shlexSplit(cmd) } }
-func WithWorkingDir(dir string) Option  { return func(c *Config) { c.WorkingDir = dir } }
-func WithUser(u string) Option          { return func(c *Config) { c.User = u } }
-func WithHostname(h string) Option      { return func(c *Config) { c.Hostname = h } }
-func WithCgroupParent(cp string) Option { return func(c *Config) { c.CgroupParent = cp } }
-func WithNetworkMode(m pb.NetMode) Option { return func(c *Config) { c.Network = m } }
+func WithCommand(args ...string) Option         { return func(c *Config) { c.Command = args } }
+func WithShlex(cmd string) Option               { return func(c *Config) { c.Command = shlexSplit(cmd) } }
+func WithWorkingDir(dir string) Option          { return func(c *Config) { c.WorkingDir = dir } }
+func WithUser(u string) Option                  { return func(c *Config) { c.User = u } }
+func WithHostname(h string) Option              { return func(c *Config) { c.Hostname = h } }
+func WithCgroupParent(cp string) Option         { return func(c *Config) { c.CgroupParent = cp } }
+func WithNetworkMode(m pb.NetMode) Option       { return func(c *Config) { c.Network = m } }
 func WithSecurityMode(m pb.SecurityMode) Option { return func(c *Config) { c.Security = m } }
-func WithReadOnlyRoot() Option          { return func(c *Config) { c.ReadOnlyRoot = true } }
-func WithProxyEnv(p ProxyEnv) Option    { return func(c *Config) { c.ProxyEnv = &p } }
+func WithReadOnlyRoot() Option                  { return func(c *Config) { c.ReadOnlyRoot = true } }
+func WithProxyEnv(p ProxyEnv) Option            { return func(c *Config) { c.ProxyEnv = &p } }
 
 func WithEnv(key, value string) Option {
 	return func(c *Config) {
@@ -161,10 +161,14 @@ func WithEnv(key, value string) Option {
 	}
 }
 
-func WithMount(m Mount) Option          { return func(c *Config) { c.Mounts = append(c.Mounts, m) } }
-func WithSecret(s SecretMount) Option   { return func(c *Config) { c.Secrets = append(c.Secrets, s) } }
-func WithSSHSocket(s SSHSocket) Option  { return func(c *Config) { c.SSHSockets = append(c.SSHSockets, s) } }
-func WithCDIDevice(d CDIDevice) Option  { return func(c *Config) { c.CDIDevices = append(c.CDIDevices, d) } }
+func WithMount(m Mount) Option        { return func(c *Config) { c.Mounts = append(c.Mounts, m) } }
+func WithSecret(s SecretMount) Option { return func(c *Config) { c.Secrets = append(c.Secrets, s) } }
+func WithSSHSocket(s SSHSocket) Option {
+	return func(c *Config) { c.SSHSockets = append(c.SSHSockets, s) }
+}
+func WithCDIDevice(d CDIDevice) Option {
+	return func(c *Config) { c.CDIDevices = append(c.CDIDevices, d) }
+}
 func WithValidExitCodes(codes ...int) Option { return func(c *Config) { c.ValidExitCodes = codes } }
 
 // WithRootMount sets the root ("/") mount. Replaces any existing root mount.

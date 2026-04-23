@@ -123,7 +123,7 @@ func WithCandidate(out core.Output, labels core.Labels) Option {
 		c.Candidates = append(c.Candidates, Candidate{Output: out, Labels: labels})
 	}
 }
-func WithScoreFunc(fn ScoreFunc) Option     { return func(c *Config) { c.ScoreFunc = fn } }
+func WithScoreFunc(fn ScoreFunc) Option      { return func(c *Config) { c.ScoreFunc = fn } }
 func WithRequired(labels core.Labels) Option { return func(c *Config) { c.Required = labels } }
 func WithPrefer(labels core.Labels) Option   { return func(c *Config) { c.Prefer = labels } }
 func WithFallback(out core.Output) Option    { return func(c *Config) { c.Fallback = out } }

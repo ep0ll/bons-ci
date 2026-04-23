@@ -139,24 +139,24 @@ func (h *BuildHistory) Last(n int) []BuildRecord {
 
 // TrendStats is a statistical summary computed over a window of BuildRecords.
 type TrendStats struct {
-	Count        int
-	PassRate     float64 // fraction of builds that succeeded (0–1)
-	AvgDurationMS  int64
-	P50DurationMS  int64
-	P95DurationMS  int64
-	AvgHitRate   float64 // average cache hit ratio (0–1)
-	AvgExecuted  float64 // average executed vertices per build
-	AvgCachedErr float64 // average cached error replays per build
-	Trend        DurationTrend
+	Count         int
+	PassRate      float64 // fraction of builds that succeeded (0–1)
+	AvgDurationMS int64
+	P50DurationMS int64
+	P95DurationMS int64
+	AvgHitRate    float64 // average cache hit ratio (0–1)
+	AvgExecuted   float64 // average executed vertices per build
+	AvgCachedErr  float64 // average cached error replays per build
+	Trend         DurationTrend
 }
 
 // DurationTrend compares recent builds to older ones.
 type DurationTrend string
 
 const (
-	TrendImproving  DurationTrend = "improving"
-	TrendDegrading  DurationTrend = "degrading"
-	TrendStable     DurationTrend = "stable"
+	TrendImproving    DurationTrend = "improving"
+	TrendDegrading    DurationTrend = "degrading"
+	TrendStable       DurationTrend = "stable"
 	TrendInsufficient DurationTrend = "insufficient_data"
 )
 

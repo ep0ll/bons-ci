@@ -79,8 +79,8 @@ func extractNydusRefs(_ context.Context, manifest ocispec.Manifest, configBlob [
 		if dgstStr, ok := layer.Annotations[types.NydusAnnotationSourceDigest]; ok && dgstStr != "" {
 			if dgst, err := digest.Parse(dgstStr); err == nil {
 				add(types.SourceRef{
-					Digest:    dgst,
-					Kind:      types.SourceRefLayer,
+					Digest:      dgst,
+					Kind:        types.SourceRefLayer,
 					Annotations: map[string]string{"layerDigest": layer.Digest.String()},
 				})
 			}
@@ -191,7 +191,9 @@ func detectEstargz(_ context.Context, manifest ocispec.Manifest, configBlob []by
 		return types.AccelEstargz, true, nil
 	}
 	if len(configBlob) > 0 {
-		var cfg struct{ Annotations map[string]string `json:"annotations"` }
+		var cfg struct {
+			Annotations map[string]string `json:"annotations"`
+		}
 		if err := json.Unmarshal(configBlob, &cfg); err == nil {
 			if _, ok := cfg.Annotations[types.StargzAnnotationTOCDigest]; ok {
 				return types.AccelEstargz, true, nil
@@ -256,7 +258,9 @@ func detectOverlayBD(_ context.Context, manifest ocispec.Manifest, configBlob []
 	}
 	if len(configBlob) > 0 {
 		var cfg struct {
-			Config struct{ Labels map[string]string `json:"Labels"` } `json:"config"`
+			Config struct {
+				Labels map[string]string `json:"Labels"`
+			} `json:"config"`
 		}
 		if err := json.Unmarshal(configBlob, &cfg); err == nil {
 			if _, ok := cfg.Config.Labels[types.OverlayBDAnnotationVersion]; ok {

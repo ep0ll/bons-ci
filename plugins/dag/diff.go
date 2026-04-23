@@ -11,7 +11,7 @@ import (
 
 // VertexDiff describes what changed for a single vertex between two snapshots.
 type VertexDiff struct {
-	VertexID  string
+	VertexID   string
 	ChangeType DiffChangeType
 
 	// State fields (populated for StateChanged).
@@ -19,8 +19,8 @@ type VertexDiff struct {
 	NextState State
 
 	// Output file changes (populated for OutputsChanged).
-	AddedFiles   []string
-	RemovedFiles []string
+	AddedFiles    []string
+	RemovedFiles  []string
 	ModifiedFiles []string
 }
 
@@ -28,11 +28,11 @@ type VertexDiff struct {
 type DiffChangeType string
 
 const (
-	DiffAdded         DiffChangeType = "added"         // vertex only in next snapshot
-	DiffRemoved       DiffChangeType = "removed"        // vertex only in prev snapshot
-	DiffStateChanged  DiffChangeType = "state_changed"  // state transitioned
+	DiffAdded          DiffChangeType = "added"           // vertex only in next snapshot
+	DiffRemoved        DiffChangeType = "removed"         // vertex only in prev snapshot
+	DiffStateChanged   DiffChangeType = "state_changed"   // state transitioned
 	DiffOutputsChanged DiffChangeType = "outputs_changed" // output file hashes changed
-	DiffUnchanged     DiffChangeType = "unchanged"      // no diff
+	DiffUnchanged      DiffChangeType = "unchanged"       // no diff
 )
 
 // DAGSnapshot captures vertex states and output files at a point in time.

@@ -12,11 +12,11 @@ import (
 
 // DAGSchema is the top-level JSON envelope for a serialised DAG.
 type DAGSchema struct {
-	Version  int              `json:"version"`
-	SealedAt time.Time        `json:"sealed_at"`
-	Vertices []VertexSchema   `json:"vertices"`
-	Edges    []EdgeSchema     `json:"edges"`
-	FileDeps []FileDepSchema  `json:"file_deps,omitempty"`
+	Version  int             `json:"version"`
+	SealedAt time.Time       `json:"sealed_at"`
+	Vertices []VertexSchema  `json:"vertices"`
+	Edges    []EdgeSchema    `json:"edges"`
+	FileDeps []FileDepSchema `json:"file_deps,omitempty"`
 }
 
 // VertexSchema is the JSON representation of one vertex (without runtime state).

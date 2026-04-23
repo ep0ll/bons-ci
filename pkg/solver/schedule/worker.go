@@ -16,7 +16,7 @@ import (
 // flightcontrol.Group.
 type execFuture struct {
 	done chan struct{} // closed when the task completes
-	err  error        // set before done is closed
+	err  error         // set before done is closed
 }
 
 // Scheduler manages a pool of workers that drain a priority queue. It provides

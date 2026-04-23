@@ -17,8 +17,8 @@ type ObserveFilter func(e Event) bool
 type ObserveOption func(*observerConfig)
 
 type observerConfig struct {
-	filter    ObserveFilter
-	bufSize   int
+	filter     ObserveFilter
+	bufSize    int
 	onOverflow OverflowPolicy
 }
 
@@ -74,10 +74,10 @@ func ForVertices(ids ...string) ObserveFilter {
 // Observer is a live event stream vended by Scheduler.Observe().
 // Read events from Events() until the channel is closed.
 type Observer struct {
-	ch     chan Event
-	unsub  func()
-	once   sync.Once
-	cfg    observerConfig
+	ch    chan Event
+	unsub func()
+	once  sync.Once
+	cfg   observerConfig
 }
 
 // Events returns the channel of incoming events.

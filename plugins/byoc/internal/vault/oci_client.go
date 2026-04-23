@@ -30,15 +30,17 @@ type secretMapping map[string]string
 // It caches secret values for up to cacheTTL to reduce API call volume
 // during burst runner provisioning.
 type OCIVaultClient struct {
-	mu         sync.RWMutex
-	cache      map[string]*cacheEntry
-	cacheTTL   time.Duration
-	mapping    secretMapping // logical name → OCI secret OCID
-	logger     zerolog.Logger
+	mu       sync.RWMutex
+	cache    map[string]*cacheEntry
+	cacheTTL time.Duration
+	mapping  secretMapping // logical name → OCI secret OCID
+	logger   zerolog.Logger
 	// ociClient is the underlying OCI Secrets client.
 	// Type is interface{} here so the package compiles without the OCI SDK
 	// available in restricted network environments; swap for the real type in prod.
-	ociClient  interface{ GetSecretBundle(ctx context.Context, secretID string) (string, error) }
+	ociClient interface {
+		GetSecretBundle(ctx context.Context, secretID string) (string, error)
+	}
 }
 
 // OCIVaultConfig holds configuration for the OCI Vault adapter.

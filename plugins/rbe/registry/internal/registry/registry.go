@@ -26,15 +26,14 @@ import (
 
 	digest "github.com/opencontainers/go-digest"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
-	
 
 	accelreg "github.com/bons/bons-ci/plugins/rbe/registry/internal/accel"
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/dag"
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/index"
+	"github.com/bons/bons-ci/plugins/rbe/registry/internal/logger"
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/metadata"
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/referral"
 	"github.com/bons/bons-ci/plugins/rbe/registry/internal/storage/memory"
-	"github.com/bons/bons-ci/plugins/rbe/registry/internal/logger"
 	"github.com/bons/bons-ci/plugins/rbe/registry/pkg/errors"
 	"github.com/bons/bons-ci/plugins/rbe/registry/pkg/types"
 )

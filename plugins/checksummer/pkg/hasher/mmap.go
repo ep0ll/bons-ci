@@ -77,7 +77,7 @@ func (m *MmapHasher) HashReader(ctx context.Context, r io.Reader) ([]byte, error
 // ─────────────────────────── AdaptiveHasher ───────────────────────────────────
 
 const (
-	SmallFileThreshold  int64 = 8 << 20  // 8 MiB  → sequential
+	SmallFileThreshold  int64 = 8 << 20   // 8 MiB  → sequential
 	MediumFileThreshold int64 = 128 << 20 // 128 MiB → mmap; above → parallel
 )
 

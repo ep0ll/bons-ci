@@ -7,5 +7,5 @@ import (
 // ── manifestEntry accessor methods ────────────────────────────────────────
 
 func (e manifestEntry) Digest() digest.Digest { return e.digest }
-func (e manifestEntry) MediaType() string      { return e.mediaType }
-func (e manifestEntry) Size() int64            { return e.size }
+func (e manifestEntry) MediaType() string     { return e.mediaType }
+func (e manifestEntry) Size() int64           { return e.size }

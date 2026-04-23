@@ -37,11 +37,11 @@ const (
 	CodeTooManyRequests     Code = "TOOMANYREQUESTS"
 
 	// AccelRegistry-specific codes (namespaced with ACCEL_)
-	CodeAccelNotFound       Code = "ACCEL_NOT_FOUND"
-	CodeAccelInvalidType    Code = "ACCEL_INVALID_TYPE"
-	CodeAccelSourceMissing  Code = "ACCEL_SOURCE_MISSING"
-	CodeAccelIndexCorrupt   Code = "ACCEL_INDEX_CORRUPT"
-	CodeDAGIncomplete       Code = "DAG_INCOMPLETE"
+	CodeAccelNotFound      Code = "ACCEL_NOT_FOUND"
+	CodeAccelInvalidType   Code = "ACCEL_INVALID_TYPE"
+	CodeAccelSourceMissing Code = "ACCEL_SOURCE_MISSING"
+	CodeAccelIndexCorrupt  Code = "ACCEL_INDEX_CORRUPT"
+	CodeDAGIncomplete      Code = "DAG_INCOMPLETE"
 )
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -215,8 +215,6 @@ func TestConvertHookFunc_Manifest_DiffIDReconcile(t *testing.T) {
 	}
 }
 
-
-
 // TestConvertHookFunc_Manifest_WithReferrer verifies that manifest.Subject is
 // set to orgDesc when MergeOption.WithReferrer is enabled.
 func TestConvertHookFunc_Manifest_WithReferrer(t *testing.T) {

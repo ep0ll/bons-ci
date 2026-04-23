@@ -46,7 +46,7 @@ type ExportFunc func(ctx context.Context, req *ExportRequest) (*ExportResult, Fi
 
 type pipeline struct {
 	exporter     ExporterInstance
-	transformers []Transformer      // sorted by Priority ascending
+	transformers []Transformer       // sorted by Priority ascending
 	nameIndex    map[string]struct{} // for duplicate detection
 	middlewares  []Middleware
 }

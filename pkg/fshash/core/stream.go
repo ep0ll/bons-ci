@@ -64,8 +64,8 @@ func (s *Stream[T]) closeOnce() {
 		s.closed = true // 2. prevent new wg.Add(1) calls
 		s.mu.Unlock()
 
-		s.wg.Wait()  // 3. wait for in-flight Emits
-		close(s.ch)  // 4. race-free: no senders remain
+		s.wg.Wait() // 3. wait for in-flight Emits
+		close(s.ch) // 4. race-free: no senders remain
 	})
 }
 

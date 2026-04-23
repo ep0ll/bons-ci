@@ -33,9 +33,9 @@ type Store struct {
 	primary map[repoDigestKey]types.ImageMetadata
 
 	// Secondary indices (values are sets of primary keys)
-	byAccelType     map[types.AccelType]map[repoDigestKey]struct{}
-	bySourceDigest  map[digest.Digest]map[repoDigestKey]struct{}
-	byRepo          map[string]map[repoDigestKey]struct{}
+	byAccelType    map[types.AccelType]map[repoDigestKey]struct{}
+	bySourceDigest map[digest.Digest]map[repoDigestKey]struct{}
+	byRepo         map[string]map[repoDigestKey]struct{}
 }
 
 type repoDigestKey struct {
