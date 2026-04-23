@@ -6,9 +6,11 @@ import (
 
 	sociPkg "github.com/awslabs/soci-snapshotter/soci"
 	sociStore "github.com/awslabs/soci-snapshotter/soci/store"
+	portContent "github.com/bons/bons-ci/core/content/store/composite/content"
 	"github.com/bons/bons-ci/core/images/converter"
-	"github.com/containerd/containerd/v2/core/content"
-	"github.com/containerd/containerd/v2/core/images"
+	"github.com/containerd/containerd/content"
+	"github.com/containerd/containerd/images"
+	v2content "github.com/containerd/containerd/v2/core/content"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	pkgerrors "github.com/pkg/errors"
 )
@@ -42,7 +44,7 @@ import (
 // graceful skip: the manifest is returned unmodified rather than failing the
 // conversion.
 func ConvertHookFunc(opt PackOption, mergeOpt MergeOption, builderOpts ...sociPkg.BuilderOption) converter.ConvertHookFunc {
-	return func(ctx context.Context, cs content.Store, orgDesc ocispec.Descriptor, newDesc *ocispec.Descriptor) (*ocispec.Descriptor, error) {
+	return func(ctx context.Context, cs v2content.Store, orgDesc ocispec.Descriptor, newDesc *ocispec.Descriptor) (*ocispec.Descriptor, error) {
 		// Normalise: when no layer conversion occurred newDesc is nil —
 		// route on the original descriptor in that case.
 		targetDesc := newDesc
@@ -52,9 +54,9 @@ func ConvertHookFunc(opt PackOption, mergeOpt MergeOption, builderOpts ...sociPk
 
 		switch {
 		case images.IsIndexType(targetDesc.MediaType):
-			return convertIndex(ctx, cs, targetDesc)
+			return convertIndex(ctx, portContent.V1ContentStore(cs), targetDesc)
 		case images.IsManifestType(targetDesc.MediaType):
-			return convertManifest(ctx, cs, orgDesc, targetDesc, opt, mergeOpt, builderOpts...)
+			return convertManifest(ctx, portContent.V1ContentStore(cs), orgDesc, targetDesc, opt, mergeOpt, builderOpts...)
 		default:
 			return targetDesc, nil
 		}
@@ -66,7 +68,7 @@ func ConvertHookFunc(opt PackOption, mergeOpt MergeOption, builderOpts ...sociPk
 // converters for consistency.
 func convertIndex(ctx context.Context, cs content.Store, newDesc *ocispec.Descriptor) (*ocispec.Descriptor, error) {
 	var index ocispec.Index
-	if _, err := converter.ReadJSON(ctx, cs, &index, *newDesc); err != nil {
+	if _, err := converter.ReadJSON(ctx, portContent.V2ContentStore(cs), &index, *newDesc); err != nil {
 		return nil, pkgerrors.Wrap(err, "soci convert: read index JSON")
 	}
 	if len(index.Manifests) == 1 {
@@ -87,7 +89,7 @@ func convertManifest(
 	builderOpts ...sociPkg.BuilderOption,
 ) (*ocispec.Descriptor, error) {
 	var manifest ocispec.Manifest
-	manifestLabels, err := converter.ReadJSON(ctx, cs, &manifest, *manifestDesc)
+	manifestLabels, err := converter.ReadJSON(ctx, portContent.V2ContentStore(cs), &manifest, *manifestDesc)
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, "soci convert: read manifest JSON")
 	}
@@ -96,7 +98,7 @@ func convertManifest(
 	}
 
 	var config ocispec.Image
-	configLabels, err := converter.ReadJSON(ctx, cs, &config, manifest.Config)
+	configLabels, err := converter.ReadJSON(ctx, portContent.V2ContentStore(cs), &config, manifest.Config)
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, "soci convert: read image config JSON")
 	}
@@ -155,7 +157,7 @@ func convertManifest(
 	}
 
 	// ── 6. Write updated config (GC pinning) ──────────────────────────────
-	newConfigDesc, err := converter.WriteJSON(ctx, cs, config, manifest.Config, configLabels)
+	newConfigDesc, err := converter.WriteJSON(ctx, portContent.V2ContentStore(cs), config, manifest.Config, configLabels)
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, "soci convert: write updated image config")
 	}
@@ -170,7 +172,7 @@ func convertManifest(
 	}
 
 	// ── 8. Write updated manifest ─────────────────────────────────────────
-	newManifestDesc, err := converter.WriteJSON(ctx, cs, manifest, *manifestDesc, manifestLabels)
+	newManifestDesc, err := converter.WriteJSON(ctx, portContent.V2ContentStore(cs), manifest, *manifestDesc, manifestLabels)
 	if err != nil {
 		return nil, pkgerrors.Wrap(err, "soci convert: write updated manifest")
 	}
