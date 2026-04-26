@@ -54,7 +54,7 @@ const kpis = [
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold tracking-tight" style="font-family:'Space Grotesk';color:#F0F0F0">Good afternoon, Ada 👋</h1>
-      <p class="text-sm font-mono mt-0.5" style="color:#666666">Ory session active · {org.name} · Team plan · {new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
+      <p class="text-sm font-mono mt-0.5" style="color:#8A8A8A">Ory session active · {org.name} · Team plan · {new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</p>
     </div>
     <div class="flex items-center gap-2">
       <select class="input !py-2 !text-xs w-36">
@@ -71,9 +71,9 @@ const kpis = [
   <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-0 border-l-2 border-t-2" style="border-color:#2C2C2C">
     {kpis.map(k => (
       <div class="border-r-2 border-b-2 p-4" style="border-color:#2C2C2C;background:#060606">
-        <div class="text-xs font-mono mb-1" style="color:#666666">{k.label}</div>
+        <div class="text-xs font-mono mb-1" style="color:#8A8A8A">{k.label}</div>
         <div class="text-xl font-bold mb-0.5" style={`font-family:'Space Grotesk';color:${k.color};letter-spacing:-0.03em`}>{k.value}</div>
-        <div class="text-xs font-mono mb-2" style="color:#3C3C3C">{k.sub}</div>
+        <div class="text-xs font-mono mb-2" style="color:#8A8A8A">{k.sub}</div>
         {k.delta && (
           <div class="text-xs font-mono mb-2" style={`color:${k.up?'#00FF88':'#FF3333'}`}>{k.up?'↑':'↓'} {k.delta}</div>
         )}
@@ -93,9 +93,9 @@ const kpis = [
       <div class="flex items-center justify-between mb-5">
         <div>
           <div class="text-xs font-mono font-bold uppercase tracking-widest mb-0.5" style="color:#FFEE00">Build volume</div>
-          <div class="text-xs font-mono" style="color:#666666">Daily builds over 30 days</div>
+          <div class="text-xs font-mono" style="color:#8A8A8A">Daily builds over 30 days</div>
         </div>
-        <div class="flex gap-3 text-xs font-mono" style="color:#666666">
+        <div class="flex gap-3 text-xs font-mono" style="color:#8A8A8A">
           <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full" style="background:#00FF88"></div>Passed</div>
           <div class="flex items-center gap-1.5"><div class="w-2 h-2 rounded-full" style="background:#FF3333"></div>Failed</div>
         </div>
@@ -107,11 +107,11 @@ const kpis = [
           <path d={buildArea} fill="url(#bvg)"/>
           <path d={buildPath} fill="none" stroke="#FFEE00" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
         </svg>
-        <div class="absolute top-0 left-0 h-full flex flex-col justify-between text-xs font-mono" style="color:#3C3C3C;padding:2px 0">
+        <div class="absolute top-0 left-0 h-full flex flex-col justify-between text-xs font-mono" style="color:#8A8A8A;padding:2px 0">
           <span>{Math.max(...metrics.series.build_count.map(d=>d.value))}</span>
           <span>{Math.min(...metrics.series.build_count.map(d=>d.value))}</span>
         </div>
-        <div class="absolute bottom-0 left-4 right-0 flex justify-between -mb-5 text-xs font-mono" style="color:#3C3C3C">
+        <div class="absolute bottom-0 left-4 right-0 flex justify-between -mb-5 text-xs font-mono" style="color:#8A8A8A">
           <span>Mar 16</span><span>Mar 23</span><span>Mar 30</span><span>Apr 7</span><span>Today</span>
         </div>
       </div>
@@ -129,11 +129,11 @@ const kpis = [
           {l:'Net in',    v:Math.round(sys.net_in_mbps),    u:'MB/s',  c:'#33AAFF'},
           {l:'Net out',   v:Math.round(sys.net_out_mbps),   u:'MB/s',  c:'#FF7700'},
           {l:'Disk read', v:Math.round(sys.disk_read_mbps), u:'MB/s',  c:'#00FF88'},
-          {l:'Disk write',v:Math.round(sys.disk_write_mbps),u:'MB/s',  c:'#AAAAAA'},
+          {l:'Disk write',v:Math.round(sys.disk_write_mbps),u:'MB/s',  c:'#B0B0B0'},
         ].map(r => (
           <div>
             <div class="flex justify-between text-xs font-mono mb-1">
-              <span style="color:#666666">{r.l}</span>
+              <span style="color:#8A8A8A">{r.l}</span>
               <span style="color:#F0F0F0">{r.v}{r.u}</span>
             </div>
             <div class="h-1.5 border" style="border-color:#2C2C2C;background:#111111">
@@ -143,8 +143,8 @@ const kpis = [
         ))}
       </div>
       <div class="grid grid-cols-2 gap-3 mt-5 pt-4 border-t-2 text-center" style="border-color:#2C2C2C">
-        <div><div class="font-mono font-bold text-lg" style="color:#F0F0F0">{sys.active_runners}</div><div class="text-xs font-mono" style="color:#666666">Active</div></div>
-        <div><div class="font-mono font-bold text-lg" style="color:#F0F0F0">{sys.queued_jobs}</div><div class="text-xs font-mono" style="color:#666666">Queued</div></div>
+        <div><div class="font-mono font-bold text-lg" style="color:#F0F0F0">{sys.active_runners}</div><div class="text-xs font-mono" style="color:#8A8A8A">Active</div></div>
+        <div><div class="font-mono font-bold text-lg" style="color:#F0F0F0">{sys.queued_jobs}</div><div class="text-xs font-mono" style="color:#8A8A8A">Queued</div></div>
       </div>
     </div>
   </div>
@@ -156,9 +156,9 @@ const kpis = [
       <div class="flex items-center justify-between mb-4">
         <div>
           <div class="text-xs font-mono font-bold uppercase tracking-widest mb-0.5" style="color:#FFEE00">Build duration percentiles</div>
-          <div class="text-xs font-mono" style="color:#666666">P50 · P75 · P90 · P95 · P99 by project</div>
+          <div class="text-xs font-mono" style="color:#8A8A8A">P50 · P75 · P90 · P95 · P99 by project</div>
         </div>
-        <div class="flex gap-3 text-xs font-mono" style="color:#666666">
+        <div class="flex gap-3 text-xs font-mono" style="color:#8A8A8A">
           <span class="flex items-center gap-1"><div class="w-3 h-2" style="background:#00FF88;opacity:0.8"></div>P50</span>
           <span class="flex items-center gap-1"><div class="w-3 h-2" style="background:#00EEFF;opacity:0.8"></div>P75-90</span>
           <span class="flex items-center gap-1"><div class="w-3 h-2" style="background:#FF7700;opacity:0.8"></div>P90-95</span>
@@ -189,11 +189,11 @@ const kpis = [
     <!-- Build heatmap -->
     <div class="border-r-2 border-b-2 p-5 flex-shrink-0" style="border-color:#2C2C2C;background:#060606;width:280px">
       <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#FFEE00">Build heatmap</div>
-      <div class="text-xs font-mono mb-3" style="color:#3C3C3C">Day × hour</div>
+      <div class="text-xs font-mono mb-3" style="color:#8A8A8A">Day × hour</div>
       <div class="space-y-1.5">
         {days.map((day, di) => (
           <div class="flex items-center gap-1.5">
-            <span class="text-xs font-mono w-6 flex-shrink-0" style="color:#3C3C3C">{day}</span>
+            <span class="text-xs font-mono w-6 flex-shrink-0" style="color:#8A8A8A">{day}</span>
             <div class="flex gap-0.5">
               {Array.from({length:24},(_,hi) => {
                 const cell = heatmap.find(c=>c.day===di&&c.hour===hi);
@@ -204,13 +204,13 @@ const kpis = [
           </div>
         ))}
         <div class="flex items-center gap-1.5 mt-2 pt-2 border-t-2" style="border-color:#2C2C2C">
-          <span class="text-xs font-mono w-6 flex-shrink-0" style="color:#3C3C3C">UTC</span>
-          <div class="flex justify-between flex-1 text-xs font-mono" style="color:#3C3C3C">
+          <span class="text-xs font-mono w-6 flex-shrink-0" style="color:#8A8A8A">UTC</span>
+          <div class="flex justify-between flex-1 text-xs font-mono" style="color:#8A8A8A">
             <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>23h</span>
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-2 mt-3 text-xs font-mono" style="color:#3C3C3C">
+      <div class="flex items-center gap-2 mt-3 text-xs font-mono" style="color:#8A8A8A">
         <span>Low</span>
         {[0.1,0.3,0.5,0.7,0.9].map(o=><div class="w-2.5 h-2.5" style={`background:rgba(255,238,0,${o})`}></div>)}
         <span>High</span>
@@ -239,21 +239,21 @@ const kpis = [
                   <td>
                     <div class="flex items-center gap-2">
                       <div class="w-2 h-2 rounded-full flex-shrink-0" style={s.dot}></div>
-                      <span class="font-mono text-xs font-bold" style="color:#AAAAAA">#{b.number}</span>
+                      <span class="font-mono text-xs font-bold" style="color:#B0B0B0">#{b.number}</span>
                     </div>
                   </td>
                   <td>
                     <div class="text-xs font-semibold" style="color:#F0F0F0">{b.project_name}</div>
-                    <div class="text-xs font-mono truncate max-w-[120px]" style="color:#666666">{b.branch}</div>
+                    <div class="text-xs font-mono truncate max-w-[120px]" style="color:#8A8A8A">{b.branch}</div>
                   </td>
                   <td class="hidden md:table-cell">
-                    <code class="text-xs font-mono" style="color:#666666">{b.commit_short}</code>
-                    <div class="text-xs truncate max-w-[160px]" style="color:#3C3C3C">{b.commit_message}</div>
+                    <code class="text-xs font-mono" style="color:#8A8A8A">{b.commit_short}</code>
+                    <div class="text-xs truncate max-w-[160px]" style="color:#8A8A8A">{b.commit_message}</div>
                   </td>
                   <td><span class={s.badge}>{s.label}</span></td>
                   <td class="hidden sm:table-cell">
-                    <div class="text-xs font-mono" style="color:#AAAAAA">{b.duration_ms ? formatDuration(b.duration_ms) : '—'}</div>
-                    <div class="text-xs font-mono" style="color:#3C3C3C">{b.started_at ? relativeTime(b.started_at) : ''}</div>
+                    <div class="text-xs font-mono" style="color:#B0B0B0">{b.duration_ms ? formatDuration(b.duration_ms) : '—'}</div>
+                    <div class="text-xs font-mono" style="color:#8A8A8A">{b.started_at ? relativeTime(b.started_at) : ''}</div>
                   </td>
                   <td>
                     <div class="flex items-center gap-2">
@@ -284,15 +284,15 @@ const kpis = [
           ].map(m => (
             <div>
               <div class="flex justify-between text-xs mb-1.5">
-                <span class="font-mono" style="color:#666666">{m.l}</span>
-                <span class="font-mono font-bold" style="color:#AAAAAA">{m.fmt(m.used)}/{m.fmt(m.total)}</span>
+                <span class="font-mono" style="color:#8A8A8A">{m.l}</span>
+                <span class="font-mono font-bold" style="color:#B0B0B0">{m.fmt(m.used)}/{m.fmt(m.total)}</span>
               </div>
               <div class="progress"><div class="progress-bar" style={`width:${m.pct}%${m.pct>80?';background:#FF3333':m.pct>60?';background:#FF7700':''}`}></div></div>
             </div>
           ))}
         </div>
         <div class="flex items-center justify-between mt-4 pt-4 border-t-2" style="border-color:#2C2C2C">
-          <div><div class="text-xs font-mono" style="color:#666666">Resets in</div><div class="text-sm font-mono font-bold" style="color:#F0F0F0">16 days</div></div>
+          <div><div class="text-xs font-mono" style="color:#8A8A8A">Resets in</div><div class="text-sm font-mono font-bold" style="color:#F0F0F0">16 days</div></div>
           <a href="/dashboard/settings" class="btn-secondary btn-sm text-xs">Upgrade</a>
         </div>
       </div>
@@ -308,7 +308,7 @@ const kpis = [
           ].map(a => (
             <div class="px-3 py-2.5 border-2 border-l-4 text-xs" style={`border-color:${a.t==='warning'?'rgba(255,119,0,0.3)':a.t==='info'?'rgba(0,238,255,0.3)':'rgba(0,255,136,0.3)'};border-left-color:${a.t==='warning'?'#FF7700':a.t==='info'?'#00EEFF':'#00FF88'};background:${a.t==='warning'?'rgba(255,119,0,0.05)':a.t==='info'?'rgba(0,238,255,0.05)':'rgba(0,255,136,0.05)'}`}>
               <div class="font-semibold mb-0.5" style={`color:${a.t==='warning'?'#FF7700':a.t==='info'?'#00EEFF':'#00FF88'}`}>{a.title}</div>
-              <div style="color:#666666">{a.body}</div>
+              <div style="color:#8A8A8A">{a.body}</div>
             </div>
           ))}
         </div>

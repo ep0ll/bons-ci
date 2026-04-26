@@ -23,7 +23,7 @@ const catIcons: Record<string, string> = {
     <!-- Left sidebar -->
     <aside class="hidden lg:flex flex-col flex-shrink-0 w-60 border-r-2 pt-8 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto"
            style="border-color:#2C2C2C;background:#060606">
-      <a href="/docs" class="flex items-center gap-2 px-5 pb-5 mb-2 border-b-2 text-xs font-mono" style="border-color:#2C2C2C;color:#666666">
+      <a href="/docs" class="flex items-center gap-2 px-5 pb-5 mb-2 border-b-2 text-xs font-mono" style="border-color:#2C2C2C;color:#8A8A8A">
         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="square" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
@@ -34,7 +34,7 @@ const catIcons: Record<string, string> = {
         const pages = getDocsByCategory(cat);
         return (
           <div class="mb-1">
-            <div class="px-5 py-2 text-xs font-mono uppercase tracking-widest flex items-center gap-2" style="color:#3C3C3C">
+            <div class="px-5 py-2 text-xs font-mono uppercase tracking-widest flex items-center gap-2" style="color:#8A8A8A">
               <span>{catIcons[cat] ?? '◌'}</span>
               {cat}
             </div>
@@ -46,7 +46,7 @@ const catIcons: Record<string, string> = {
                   class="flex items-center gap-2 px-5 py-1.5 text-xs font-medium transition-all border-l-2"
                   style={isActive
                     ? 'border-left-color:#FFEE00;color:#FFEE00;background:rgba(255,238,0,0.06)'
-                    : 'border-left-color:transparent;color:#666666'}
+                    : 'border-left-color:transparent;color:#8A8A8A'}
                 >
                   {p.title}
                 </a>
@@ -61,12 +61,12 @@ const catIcons: Record<string, string> = {
     <div class="flex-1 min-w-0 px-6 sm:px-10 lg:px-16 py-12 max-w-3xl">
 
       <!-- Breadcrumb -->
-      <nav class="flex items-center gap-1.5 text-xs font-mono mb-8" style="color:#3C3C3C">
-        <a href="/docs" style="color:#666666" class="hover:text-[#FFEE00] transition-colors">Docs</a>
+      <nav class="flex items-center gap-1.5 text-xs font-mono mb-8" style="color:#8A8A8A">
+        <a href="/docs" style="color:#8A8A8A" class="hover:text-[#FFEE00] transition-colors">Docs</a>
         <span>›</span>
-        <a href="/docs" style="color:#666666" class="hover:text-[#FFEE00] transition-colors">{doc.category}</a>
+        <a href="/docs" style="color:#8A8A8A" class="hover:text-[#FFEE00] transition-colors">{doc.category}</a>
         <span>›</span>
-        <span style="color:#AAAAAA">{doc.title}</span>
+        <span style="color:#B0B0B0">{doc.title}</span>
       </nav>
 
       <!-- Category badge -->
@@ -79,11 +79,11 @@ const catIcons: Record<string, string> = {
       <!-- Table of contents (inline) -->
       {doc.toc.length > 0 && (
         <div class="card p-5 mb-10">
-          <div class="text-xs font-mono uppercase tracking-widest mb-3" style="color:#3C3C3C">On this page</div>
+          <div class="text-xs font-mono uppercase tracking-widest mb-3" style="color:#8A8A8A">On this page</div>
           <ul class="space-y-1.5">
             {doc.toc.map(item => (
               <li style={`padding-left:${(item.depth - 2) * 12}px`}>
-                <a href={`#${item.id}`} class="text-xs font-mono hover:text-[#FFEE00] transition-colors" style="color:#666666">{item.label}</a>
+                <a href={`#${item.id}`} class="text-xs font-mono hover:text-[#FFEE00] transition-colors" style="color:#8A8A8A">{item.label}</a>
               </li>
             ))}
           </ul>
@@ -121,7 +121,7 @@ const catIcons: Record<string, string> = {
                 <div class="terminal-dot" style="background:#FFBD2E"></div>
                 <div class="terminal-dot" style="background:#28C840"></div>
               </div>
-              <pre class="p-5 text-xs font-mono overflow-x-auto leading-relaxed" style="color:#AAAAAA">
+              <pre class="p-5 text-xs font-mono overflow-x-auto leading-relaxed" style="color:#B0B0B0">
                 <code>{block.replace(/^```[a-z]*\n?/, '').replace(/```$/, '').trim()}</code>
               </pre>
             </div>
@@ -141,14 +141,14 @@ const catIcons: Record<string, string> = {
           if (isList) return (
             <ul class="space-y-1.5 my-3 ml-4">
               {block.split('\n').filter(l => l.trim()).map(l => (
-                <li class="flex items-start gap-2 text-sm" style="color:#AAAAAA">
+                <li class="flex items-start gap-2 text-sm" style="color:#B0B0B0">
                   <span style="color:#FFEE00;flex-shrink:0">→</span>
                   {l.replace(/^[-*]\s+/, '')}
                 </li>
               ))}
             </ul>
           );
-          return <p class="leading-relaxed my-3" style="color:#AAAAAA">{block}</p>;
+          return <p class="leading-relaxed my-3" style="color:#B0B0B0">{block}</p>;
         })}
       </div>
 
@@ -156,13 +156,13 @@ const catIcons: Record<string, string> = {
       <div class="grid sm:grid-cols-2 gap-4 mt-16 pt-8 border-t-2" style="border-color:#2C2C2C">
         {prev ? (
           <a href={`/docs/${prev.slug}`} class="card-hover p-5 group">
-            <div class="text-xs font-mono mb-2" style="color:#3C3C3C">← Previous</div>
+            <div class="text-xs font-mono mb-2" style="color:#8A8A8A">← Previous</div>
             <div class="text-sm font-semibold group-hover:text-[#FFEE00] transition-colors" style="color:#F0F0F0">{prev.title}</div>
           </a>
         ) : <div/>}
         {next && (
           <a href={`/docs/${next.slug}`} class="card-hover p-5 group text-right">
-            <div class="text-xs font-mono mb-2" style="color:#3C3C3C">Next →</div>
+            <div class="text-xs font-mono mb-2" style="color:#8A8A8A">Next →</div>
             <div class="text-sm font-semibold group-hover:text-[#FFEE00] transition-colors" style="color:#F0F0F0">{next.title}</div>
           </a>
         )}
@@ -173,11 +173,11 @@ const catIcons: Record<string, string> = {
     <aside class="hidden xl:flex flex-col w-52 flex-shrink-0 pt-12 px-6 sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
       {doc.toc.length > 0 && (
         <>
-          <div class="text-xs font-mono uppercase tracking-widest mb-4" style="color:#3C3C3C">On this page</div>
+          <div class="text-xs font-mono uppercase tracking-widest mb-4" style="color:#8A8A8A">On this page</div>
           <ul class="space-y-2">
             {doc.toc.map(item => (
               <li style={`padding-left:${(item.depth - 2) * 10}px`}>
-                <a href={`#${item.id}`} class="text-xs font-mono hover:text-[#FFEE00] transition-colors block" style="color:#3C3C3C">{item.label}</a>
+                <a href={`#${item.id}`} class="text-xs font-mono hover:text-[#FFEE00] transition-colors block" style="color:#8A8A8A">{item.label}</a>
               </li>
             ))}
           </ul>

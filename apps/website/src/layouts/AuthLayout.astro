@@ -33,11 +33,11 @@ const { ...rest } = Astro.props;
               <div class="w-2 h-2 rounded-full flex-shrink-0" style={`background:${col}${b.status==='running'?';animation:pulse 1s ease-in-out infinite':''}`}></div>
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-mono font-semibold truncate" style="color:#F0F0F0">{b.repo}</div>
-                <div class="text-xs font-mono truncate" style="color:#666666">{b.branch} · {b.sha}</div>
+                <div class="text-xs font-mono truncate" style="color:#8A8A8A">{b.branch} · {b.sha}</div>
               </div>
               <div class="text-right flex-shrink-0">
                 <div class="text-xs font-mono font-bold" style={`color:${col}`}>{b.status}</div>
-                <div class="text-xs font-mono" style="color:#666666">{b.dur}</div>
+                <div class="text-xs font-mono" style="color:#8A8A8A">{b.dur}</div>
               </div>
             </div>
           );
@@ -48,15 +48,15 @@ const { ...rest } = Astro.props;
           <div class="text-center">
             <div class="font-bold text-2xl" style="font-family:'Space Grotesk';color:#FFEE00;letter-spacing:-0.04em">{s.v}</div>
             <div class="text-xs font-semibold mt-0.5" style="color:#F0F0F0">{s.l}</div>
-            <div class="text-xs font-mono" style="color:#666666">{s.s}</div>
+            <div class="text-xs font-mono" style="color:#8A8A8A">{s.s}</div>
           </div>
         ))}
       </div>
       <div class="card p-5 card-accent">
-        <p class="text-sm italic leading-relaxed mb-3" style="color:#AAAAAA">"Forge CI pays for itself in engineer-hours every week. Migration from Jenkins took two days."</p>
+        <p class="text-sm italic leading-relaxed mb-3" style="color:#B0B0B0">"Forge CI pays for itself in engineer-hours every week. Migration from Jenkins took two days."</p>
         <div class="flex items-center gap-3">
           <div class="avatar-sm">TR</div>
-          <div><div class="text-xs font-semibold" style="color:#F0F0F0">Tomás Reyes</div><div class="text-xs font-mono" style="color:#666666">Platform Lead · Stackline</div></div>
+          <div><div class="text-xs font-semibold" style="color:#F0F0F0">Tomás Reyes</div><div class="text-xs font-mono" style="color:#8A8A8A">Platform Lead · Stackline</div></div>
         </div>
       </div>
       <div class="mt-8 text-xs font-mono" style="color:#3C3C3C">forge-ci v2.4.0 · ory kratos v1.2 · keto v0.11</div>

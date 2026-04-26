@@ -14,7 +14,7 @@ const catCls: Record<string,string> = { Product:'badge-accent', Engineering:'bad
       <div class="section-label mb-5">Blog</div>
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
         <h1 class="section-title max-w-lg">From the <span class="text-gradient">Forge CI team.</span></h1>
-        <a href="/rss/blog.xml" class="btn-ghost btn-sm text-[#AAAAAA] flex items-center gap-1.5">
+        <a href="/rss/blog.xml" class="btn-ghost btn-sm text-[#B0B0B0] flex items-center gap-1.5">
           <svg class="w-3.5 h-3.5 text-[#FF7700]" fill="currentColor" viewBox="0 0 20 20"><path d="M5 3a1 1 0 000 2c5.523 0 10 4.477 10 10a1 1 0 102 0C17 8.373 11.627 3 5 3zm.001 5.924a1 1 0 10-.002 2 5.076 5.076 0 015.077 5.077 1 1 0 102 0 7.077 7.077 0 00-7.075-7.077zM4 15a2 2 0 114 0 2 2 0 01-4 0z"/></svg>
           RSS
         </a>
@@ -22,7 +22,7 @@ const catCls: Record<string,string> = { Product:'badge-accent', Engineering:'bad
       <!-- Category filter -->
       <div class="flex flex-wrap gap-2">
         {cats.map((cat,i) => (
-          <button class:list={['cat-pill text-xs font-medium px-3 py-1.5 rounded-full border transition-all', i===0?'border-[rgba(255,238,0,0.4)] bg-[rgba(255,238,0,0.08)] text-[#FFEE00]':'border-[#2C2C2C] text-[#666666] hover:border-[#3C3C3C] hover:text-[#F0F0F0]']} data-cat={cat} onclick="filterBlog(this)">{cat}</button>
+          <button class:list={['cat-pill text-xs font-medium px-3 py-1.5 rounded-full border transition-all', i===0?'border-[rgba(255,238,0,0.4)] bg-[rgba(255,238,0,0.08)] text-[#FFEE00]':'border-[#2C2C2C] text-[#8A8A8A] hover:border-[#3C3C3C] hover:text-[#F0F0F0]']} data-cat={cat} onclick="filterBlog(this)">{cat}</button>
         ))}
       </div>
     </div>
@@ -38,10 +38,10 @@ const catCls: Record<string,string> = { Product:'badge-accent', Engineering:'bad
             <span class="badge-accent text-xs">Featured</span>
           </div>
           <h2 class="font-bold text-2xl sm:text-3xl text-[#F0F0F0] group-hover:text-[#FFEE00] transition-colors mb-4 leading-tight">{featured.title}</h2>
-          <p class="text-[#AAAAAA] leading-relaxed mb-6">{featured.excerpt}</p>
-          <div class="flex items-center gap-4 text-sm text-[#666666]">
+          <p class="text-[#B0B0B0] leading-relaxed mb-6">{featured.excerpt}</p>
+          <div class="flex items-center gap-4 text-sm text-[#8A8A8A]">
             <div class="avatar-sm avatar-base">{featured.author.initials}</div>
-            <span class="text-[#AAAAAA]">{featured.author.name}</span>
+            <span class="text-[#B0B0B0]">{featured.author.name}</span>
             <span>·</span><span>{featured.published_at}</span>
             <span>·</span><span>{featured.read_time_min} min read</span>
           </div>
@@ -60,25 +60,25 @@ const catCls: Record<string,string> = { Product:'badge-accent', Engineering:'bad
           <div class="p-5 flex flex-col flex-1">
             <div class="flex items-center gap-2 mb-3">
               <span class={`badge border text-xs ${catCls[p.category]??'badge-neutral'}`}>{p.category}</span>
-              <span class="text-xs text-[#666666]">{p.read_time_min} min</span>
+              <span class="text-xs text-[#8A8A8A]">{p.read_time_min} min</span>
             </div>
             <h2 class="font-bold text-base text-[#F0F0F0] group-hover:text-[#FFEE00] transition-colors mb-2 leading-snug flex-1">{p.title}</h2>
-            <p class="text-xs text-[#666666] line-clamp-2 leading-relaxed mb-4">{p.excerpt}</p>
+            <p class="text-xs text-[#8A8A8A] line-clamp-2 leading-relaxed mb-4">{p.excerpt}</p>
             <div class="flex items-center gap-2 pt-4 border-t border-[#2C2C2C]">
               <div class="avatar-sm avatar-base text-xs">{p.author.initials}</div>
-              <div><div class="text-xs text-[#AAAAAA]">{p.author.name}</div><div class="text-xs text-[#666666]">{p.published_at}</div></div>
+              <div><div class="text-xs text-[#B0B0B0]">{p.author.name}</div><div class="text-xs text-[#8A8A8A]">{p.published_at}</div></div>
             </div>
           </div>
         </a>
       ))}
     </div>
-    <div id="blog-empty" class="hidden text-center py-10 text-[#666666]">No posts in this category yet.</div>
+    <div id="blog-empty" class="hidden text-center py-10 text-[#8A8A8A]">No posts in this category yet.</div>
 
     <!-- Newsletter -->
     <div class="card p-8 text-center max-w-lg mx-auto">
       <div class="text-3xl mb-3">📬</div>
       <h3 class="font-bold text-xl text-[#F0F0F0] mb-2">Never miss a post</h3>
-      <p class="text-sm text-[#AAAAAA] mb-5">Engineering deep-dives and product updates. Roughly twice a month.</p>
+      <p class="text-sm text-[#B0B0B0] mb-5">Engineering deep-dives and product updates. Roughly twice a month.</p>
       <div class="flex gap-2"><input type="email" placeholder="you@company.com" class="input flex-1"/><button class="btn-primary btn-md flex-shrink-0">Subscribe</button></div>
     </div>
   </div>
@@ -87,7 +87,7 @@ const catCls: Record<string,string> = { Product:'badge-accent', Engineering:'bad
   const cards = document.querySelectorAll<HTMLElement>('.blog-card');
   const empty = document.getElementById('blog-empty')!;
   function filterBlog(btn: HTMLButtonElement) {
-    document.querySelectorAll('.cat-pill').forEach(b => { b.className = 'cat-pill text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-[#2C2C2C] text-[#666666] hover:border-[#3C3C3C] hover:text-[#F0F0F0]'; });
+    document.querySelectorAll('.cat-pill').forEach(b => { b.className = 'cat-pill text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-[#2C2C2C] text-[#8A8A8A] hover:border-[#3C3C3C] hover:text-[#F0F0F0]'; });
     btn.className = 'cat-pill text-xs font-medium px-3 py-1.5 rounded-full border transition-all border-[rgba(255,238,0,0.4)] bg-[rgba(255,238,0,0.08)] text-[#FFEE00]';
     const cat = btn.dataset.cat!;
     let v = 0;

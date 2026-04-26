@@ -15,7 +15,7 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
         <>
           <div class="onb-dot w-8 h-8 flex items-center justify-center text-xs font-mono font-bold border-2 flex-shrink-0 transition-all"
                data-n={n}
-               style={n===1?'background:#FFEE00;border-color:#FFEE00;color:#0A0A0A':'background:#0A0A0A;border-color:#2C2C2C;color:#666666'}>
+               style={n===1?'background:#FFEE00;border-color:#FFEE00;color:#0A0A0A':'background:#0A0A0A;border-color:#2C2C2C;color:#8A8A8A'}>
             {n}
           </div>
           {i<3 && <div class="flex-1 h-0.5" style="background:#2C2C2C" data-line={n}></div>}
@@ -24,12 +24,12 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
     </div>
 
     <h1 id="onb-title" style="font-family:'Space Grotesk';font-weight:700;font-size:1.5rem;letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0" class="mb-1">Connect your first repo</h1>
-    <p id="onb-sub" class="text-xs font-mono" style="color:#666666">Step 1 of 4 — takes about 2 minutes total</p>
+    <p id="onb-sub" class="text-xs font-mono" style="color:#8A8A8A">Step 1 of 4 — takes about 2 minutes total</p>
   </div>
 
   <!-- Step 1: Connect repo -->
   <div id="onb-1">
-    <p class="text-sm mb-4" style="color:#AAAAAA">Where does your code live?</p>
+    <p class="text-sm mb-4" style="color:#B0B0B0">Where does your code live?</p>
     <div class="space-y-2">
       {[
         {p:'github',    l:'GitHub',    d:'github.com/your-org',    svg:'M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z'},
@@ -47,9 +47,9 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
           }
           <div class="flex-1">
             <div class="text-sm font-semibold">{item.l}</div>
-            <div class="text-xs font-mono" style="color:#666666">{item.d}</div>
+            <div class="text-xs font-mono" style="color:#8A8A8A">{item.d}</div>
           </div>
-          <svg class="w-4 h-4 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          <svg class="w-4 h-4 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         </button>
       ))}
     </div>
@@ -57,9 +57,9 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
 
   <!-- Step 2: Select repo -->
   <div id="onb-2" class="hidden">
-    <p class="text-sm mb-4" style="color:#AAAAAA">Select a repository to enable builds on:</p>
+    <p class="text-sm mb-4" style="color:#B0B0B0">Select a repository to enable builds on:</p>
     <div class="relative mb-3">
-      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+      <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
       <input type="search" class="input pl-9 text-sm" placeholder="Search repositories…"/>
     </div>
     <div class="space-y-1.5 max-h-52 overflow-y-auto mb-4" style="border:2px solid #2C2C2C">
@@ -68,11 +68,11 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
                onmouseover="this.style.background='#1A1A1A'"
                onmouseout="this.style.background='transparent'">
           <input type="radio" name="repo" value={r} class="sr-only" checked={i===0}/>
-          <div class="w-4 h-4 border-2 flex-shrink-0 flex items-center justify-center transition-all" style={i===0?'border-color:#FFEE00;background:#FFEE00':'border-color:#3C3C3C'}>
+          <div class="w-4 h-4 border-2 flex-shrink-0 flex items-center justify-center transition-all" style={i===0?'border-color:#FFEE00;background:#FFEE00':'border-color:#8A8A8A'}>
             {i===0 && <div class="w-2 h-2" style="background:#0A0A0A"></div>}
           </div>
-          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
-          <code class="text-xs font-mono" style="color:#AAAAAA">{r}</code>
+          <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="1.5" d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/></svg>
+          <code class="text-xs font-mono" style="color:#B0B0B0">{r}</code>
         </label>
       ))}
     </div>
@@ -84,16 +84,16 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
 
   <!-- Step 3: Pipeline config -->
   <div id="onb-3" class="hidden">
-    <p class="text-sm mb-4" style="color:#AAAAAA">We detected <strong style="color:#FFEE00">Node.js</strong>. Here's a starter pipeline — edit or use as-is:</p>
+    <p class="text-sm mb-4" style="color:#B0B0B0">We detected <strong style="color:#FFEE00">Node.js</strong>. Here's a starter pipeline — edit or use as-is:</p>
     <div class="terminal mb-4">
       <div class="terminal-header">
         <div class="terminal-dot" style="background:#FF5F57"></div>
         <div class="terminal-dot" style="background:#FFBD2E"></div>
         <div class="terminal-dot" style="background:#28C840"></div>
-        <span class="text-xs font-mono ml-2" style="color:#666666">.forge/pipeline.yml</span>
+        <span class="text-xs font-mono ml-2" style="color:#8A8A8A">.forge/pipeline.yml</span>
         <button id="copy-yaml" class="ml-auto text-xs font-mono transition-colors" style="color:#FFEE00" onmouseover="this.style.opacity='0.7'" onmouseout="this.style.opacity='1'">copy</button>
       </div>
-      <pre id="yaml-content" class="p-4 text-xs font-mono leading-relaxed overflow-x-auto" style="color:#AAAAAA">version: '2'
+      <pre id="yaml-content" class="p-4 text-xs font-mono leading-relaxed overflow-x-auto" style="color:#B0B0B0">version: '2'
 pipelines:
   default:
     - step:
@@ -136,12 +136,12 @@ pipelines:
         ].map(item => (
           <div class="flex items-center gap-3">
             <div class="w-4 h-4 border-2 flex items-center justify-center flex-shrink-0"
-                 style={item.done ? 'border-color:#00FF88;background:#00FF88' : 'border-color:#3C3C3C'}>
+                 style={item.done ? 'border-color:#00FF88;background:#00FF88' : 'border-color:#8A8A8A'}>
               {item.done && <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#0A0A0A"><path stroke-linecap="square" stroke-width="3" d="M5 13l4 4L19 7"/></svg>}
             </div>
             <div>
-              <div class="text-sm font-semibold" style={item.done?'color:#F0F0F0':'color:#AAAAAA'}>{item.l}</div>
-              <div class="text-xs font-mono" style="color:#666666">{item.d}</div>
+              <div class="text-sm font-semibold" style={item.done?'color:#F0F0F0':'color:#B0B0B0'}>{item.l}</div>
+              <div class="text-xs font-mono" style="color:#8A8A8A">{item.d}</div>
             </div>
           </div>
         ))}
@@ -155,7 +155,7 @@ pipelines:
       <a href="/dashboard" class="btn-secondary btn-md w-full justify-center">Go to dashboard →</a>
     </div>
     <div class="mt-4 text-center">
-      <a href="/docs/quickstart" class="text-xs font-mono transition-colors" style="color:#666666" onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#666666'">Read the quickstart guide →</a>
+      <a href="/docs/quickstart" class="text-xs font-mono transition-colors" style="color:#8A8A8A" onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#8A8A8A'">Read the quickstart guide →</a>
     </div>
   </div>
 </div>
@@ -175,7 +175,7 @@ pipelines:
       const line = document.querySelector<HTMLElement>(`[data-line="${i}"]`);
       if (i < n)       { dot.style.cssText='background:#00FF88;border-color:#00FF88;color:#0A0A0A'; dot.textContent='✓'; if(line)line.style.background='#00FF88'; }
       else if (i === n){ dot.style.cssText='background:#FFEE00;border-color:#FFEE00;color:#0A0A0A'; dot.textContent=String(i); }
-      else             { dot.style.cssText='background:#0A0A0A;border-color:#2C2C2C;color:#666666'; dot.textContent=String(i); if(line)line.style.background='#2C2C2C'; }
+      else             { dot.style.cssText='background:#0A0A0A;border-color:#2C2C2C;color:#8A8A8A'; dot.textContent=String(i); if(line)line.style.background='#2C2C2C'; }
     });
   }
 

@@ -26,15 +26,15 @@ const features = [
 ];
 
 const logLines = [
-  {t:0,   cls:'text-[#666666]',               txt:'$ forge run pipeline --branch main'},
+  {t:0,   cls:'text-[#8A8A8A]',               txt:'$ forge run pipeline --branch main'},
   {t:180, cls:'text-[#00EEFF]',               txt:'→ Fetching pipeline config... [0.12s]'},
   {t:400, cls:'text-[#00FF88]',               txt:'→ Cache HIT! node_modules (1.2 GB restored in 0.8s)'},
-  {t:700, cls:'text-[#AAAAAA]',               txt:'→ Runner: linux-x64-medium | Region: us-east-1'},
-  {t:1000,cls:'text-[#AAAAAA]',               txt:'→ Running 24 test workers in parallel'},
+  {t:700, cls:'text-[#B0B0B0]',               txt:'→ Runner: linux-x64-medium | Region: us-east-1'},
+  {t:1000,cls:'text-[#B0B0B0]',               txt:'→ Running 24 test workers in parallel'},
   {t:1500,cls:'text-[#00FF88]',               txt:'  ✓ 1,847 tests passed [12.4s] ↓ was 3m 22s'},
-  {t:1800,cls:'text-[#AAAAAA]',               txt:'→ Building optimized production bundle...'},
+  {t:1800,cls:'text-[#B0B0B0]',               txt:'→ Building optimized production bundle...'},
   {t:2200,cls:'text-[#00FF88]',               txt:'  ✓ Build complete: dist/ 2.4 MB [8.1s]'},
-  {t:2500,cls:'text-[#AAAAAA]',               txt:'→ Deploying to prod-k8s via Ory OIDC...'},
+  {t:2500,cls:'text-[#B0B0B0]',               txt:'→ Deploying to prod-k8s via Ory OIDC...'},
   {t:2900,cls:'text-[#00FF88]',               txt:'  ✓ Deployed to production [4.2s]'},
   {t:3200,cls:'text-[#FFEE00] font-semibold', txt:'✓ Pipeline passed · 25.8s · 10.2× faster · 12 credits used'},
 ];
@@ -88,7 +88,7 @@ const logLines = [
       <!-- Trust chips -->
       <div class="flex flex-wrap gap-3 mb-14">
         {['No credit card required','Free plan forever','Set up in 2 minutes','SOC 2 Type II','Ory-powered identity'].map(t => (
-          <div class="flex items-center gap-1.5 text-sm font-mono" style="color:#666666">
+          <div class="flex items-center gap-1.5 text-sm font-mono" style="color:#8A8A8A">
             <svg class="w-3.5 h-3.5" fill="#00FF88" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
             {t}
           </div>
@@ -100,7 +100,7 @@ const logLines = [
         {[{n:'50K+',l:'Teams building'},{n:'2.4B',l:'Builds run'},{n:'99.99%',l:'Uptime SLA'}].map(s => (
           <div>
             <div class="text-3xl sm:text-4xl font-bold" style="font-family:'Space Grotesk';color:#FFEE00;letter-spacing:-0.04em">{s.n}</div>
-            <div class="text-xs font-mono mt-0.5" style="color:#666666">{s.l}</div>
+            <div class="text-xs font-mono mt-0.5" style="color:#8A8A8A">{s.l}</div>
           </div>
         ))}
       </div>
@@ -113,7 +113,7 @@ const logLines = [
         <div class="terminal-dot" style="background:#FFBD2E"></div>
         <div class="terminal-dot" style="background:#28C840"></div>
         <div class="flex-1"></div>
-        <div class="flex items-center gap-2 text-xs font-mono" style="color:#666666">
+        <div class="flex items-center gap-2 text-xs font-mono" style="color:#8A8A8A">
           <span class="w-1.5 h-1.5 rounded-full bg-[#00FF88] animate-pulse"></span>
           forge-ci · main · build #1847 · ory/kratos auth
         </div>
@@ -128,7 +128,7 @@ const logLines = [
 
     <!-- Company marquee -->
     <div class="mt-16">
-      <p class="text-xs font-mono uppercase tracking-widest mb-6" style="color:#3C3C3C">Trusted by engineering teams at</p>
+      <p class="text-xs font-mono uppercase tracking-widest mb-6" style="color:#8A8A8A">Trusted by engineering teams at</p>
       <div class="relative overflow-hidden">
         <div class="absolute left-0 top-0 bottom-0 w-20 z-10 pointer-events-none" style="background:linear-gradient(to right,#0A0A0A,transparent)"></div>
         <div class="absolute right-0 top-0 bottom-0 w-20 z-10 pointer-events-none" style="background:linear-gradient(to left,#0A0A0A,transparent)"></div>
@@ -152,24 +152,24 @@ const logLines = [
         <div>
           <div class="text-4xl sm:text-5xl font-bold mb-1" style="font-family:'Space Grotesk';color:#FFEE00;letter-spacing:-0.04em">{m.v}</div>
           <div class="text-sm font-semibold" style="color:#F0F0F0">{m.l}</div>
-          <div class="text-xs font-mono mt-0.5" style="color:#666666">{m.s}</div>
+          <div class="text-xs font-mono mt-0.5" style="color:#8A8A8A">{m.s}</div>
         </div>
       ))}
     </div>
 
     <!-- Benchmark bars -->
     <div class="max-w-3xl mx-auto space-y-3 appear">
-      <p class="text-xs font-mono text-center mb-5" style="color:#3C3C3C">Node.js monorepo · 1,800 tests · 3-service Docker build · c5.2xlarge · warm cache</p>
+      <p class="text-xs font-mono text-center mb-5" style="color:#8A8A8A">Node.js monorepo · 1,800 tests · 3-service Docker build · c5.2xlarge · warm cache</p>
       {benchmarks.map(b => (
         <div class:list={['flex items-center gap-4 p-4 border-2', b.accent ? 'border-[#FFEE00]' : 'border-[#2C2C2C]']} style={b.accent ? 'background:rgba(255,238,0,0.04)' : ''}>
-          <div class="text-sm font-semibold w-36 flex-shrink-0" style={b.accent ? 'color:#FFEE00' : 'color:#AAAAAA'}>
+          <div class="text-sm font-semibold w-36 flex-shrink-0" style={b.accent ? 'color:#FFEE00' : 'color:#B0B0B0'}>
             {b.name}
             {b.accent && <span class="badge-accent text-xs ml-2">Fastest</span>}
           </div>
           <div class="flex-1 h-2 border border-[#2C2C2C] overflow-hidden" style="background:#0A0A0A">
             <div class="h-full transition-all duration-1000" style={`width:${b.pct}%;background:${b.accent ? '#FFEE00' : '#2C2C2C'}`}></div>
           </div>
-          <div class="text-sm font-mono w-16 text-right flex-shrink-0 font-bold" style={b.accent ? 'color:#FFEE00' : 'color:#3C3C3C'}>{b.time}</div>
+          <div class="text-sm font-mono w-16 text-right flex-shrink-0 font-bold" style={b.accent ? 'color:#FFEE00' : 'color:#8A8A8A'}>{b.time}</div>
         </div>
       ))}
     </div>
@@ -193,11 +193,11 @@ const logLines = [
               {f.icon}
             </div>
             <div>
-              <div class="text-xs font-mono uppercase tracking-widest mb-0.5" style="color:#666666">{f.cat}</div>
+              <div class="text-xs font-mono uppercase tracking-widest mb-0.5" style="color:#8A8A8A">{f.cat}</div>
               <h3 class="text-base font-bold transition-colors" style="font-family:'Space Grotesk';color:#F0F0F0">{f.title}</h3>
             </div>
           </div>
-          <p class="text-sm leading-relaxed mb-4" style="color:#AAAAAA">{f.desc}</p>
+          <p class="text-sm leading-relaxed mb-4" style="color:#B0B0B0">{f.desc}</p>
           <div class="text-xs font-mono font-bold" style="color:#FFEE00">→ {f.metric}</div>
         </div>
       ))}
@@ -218,7 +218,7 @@ const logLines = [
             </div>
             <div>
               <div class="text-sm font-bold" style="color:#F0F0F0">Sherlock — AI Build Intelligence</div>
-              <div class="text-xs font-mono" style="color:#666666">Build #1845 failed · analyzed in 8.2s</div>
+              <div class="text-xs font-mono" style="color:#8A8A8A">Build #1845 failed · analyzed in 8.2s</div>
             </div>
             <div class="ml-auto badge-danger">Build failed</div>
           </div>
@@ -231,7 +231,7 @@ const logLines = [
               <div class="w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 mt-0.5" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)">
                 <span class="text-xs font-mono font-bold" style="color:#00EEFF">S</span>
               </div>
-              <div class="text-xs leading-relaxed" style="color:#AAAAAA">
+              <div class="text-xs leading-relaxed" style="color:#B0B0B0">
                 I analyzed <strong style="color:#F0F0F0">1,847 log lines</strong>, <strong style="color:#F0F0F0">jest.config.ts</strong>, and the git diff from <strong style="color:#F0F0F0">fix/null-pointer</strong>. The failure is <strong style="color:#FF3333">deterministic</strong>, not flaky. Root cause found.
               </div>
             </div>
@@ -242,10 +242,10 @@ const logLines = [
               <div class="flex gap-2 mt-3">
                 <button class="btn-success btn-sm text-xs">Apply fix & re-run</button>
                 <button class="btn-secondary btn-sm text-xs">Open PR</button>
-                <button class="btn-ghost btn-sm text-xs" style="color:#666666">Explain more</button>
+                <button class="btn-ghost btn-sm text-xs" style="color:#8A8A8A">Explain more</button>
               </div>
             </div>
-            <div class="flex items-center gap-2 text-xs font-mono" style="color:#666666">
+            <div class="flex items-center gap-2 text-xs font-mono" style="color:#8A8A8A">
               <div class="flex gap-0.5">{Array.from({length:5}).map(()=><div class="w-5 h-1.5" style="background:#00FF88"></div>)}</div>
               97% confidence · 8.2s analysis
             </div>
@@ -259,7 +259,7 @@ const logLines = [
         <h2 class="font-bold tracking-tight mb-5" style="font-family:'Space Grotesk';font-size:clamp(2rem,4vw,3rem);letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0">
           Your build failed.<br/><span style="color:#00EEFF">Sherlock knows why.</span>
         </h2>
-        <p class="text-lg leading-relaxed mb-6" style="color:#AAAAAA">
+        <p class="text-lg leading-relaxed mb-6" style="color:#B0B0B0">
           Stop scrolling 2,000 log lines. One click and Sherlock reads your logs, config, and git diff simultaneously — then hands you the exact file, line, and fix.
         </p>
         <ul class="space-y-4 mb-8">
@@ -275,7 +275,7 @@ const logLines = [
               </div>
               <div>
                 <div class="text-sm font-semibold mb-0.5" style="color:#F0F0F0">{t}</div>
-                <div class="text-sm" style="color:#666666">{d}</div>
+                <div class="text-sm" style="color:#8A8A8A">{d}</div>
               </div>
             </li>
           ))}
@@ -304,13 +304,13 @@ const logLines = [
               <svg class="w-4 h-4" fill="#FFEE00" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
             ))}
           </div>
-          <blockquote class="text-sm leading-relaxed flex-1 italic" style="color:#AAAAAA">"{t.quote}"</blockquote>
+          <blockquote class="text-sm leading-relaxed flex-1 italic" style="color:#B0B0B0">"{t.quote}"</blockquote>
           <span class="badge-accent self-start">{t.metric}</span>
           <div class="flex items-center gap-3 pt-3 border-t-2" style="border-color:#2C2C2C">
             <div class="avatar-md">{t.initials}</div>
             <div>
               <div class="text-sm font-semibold" style="color:#F0F0F0">{t.author}</div>
-              <div class="text-xs font-mono" style="color:#666666">{t.title} · {t.company}</div>
+              <div class="text-xs font-mono" style="color:#8A8A8A">{t.title} · {t.company}</div>
             </div>
           </div>
         </div>
@@ -333,25 +333,25 @@ const logLines = [
             <div class="text-4xl">{cs.logo_emoji}</div>
             <div>
               <div class="text-xl font-bold" style="font-family:'Space Grotesk';color:#F0F0F0">{cs.company}</div>
-              <div class="text-xs font-mono" style="color:#666666">{cs.industry} · {cs.team_size}</div>
+              <div class="text-xs font-mono" style="color:#8A8A8A">{cs.industry} · {cs.team_size}</div>
             </div>
           </div>
           <h3 class="text-lg font-bold mb-5 leading-tight" style="font-family:'Space Grotesk';color:#F0F0F0">{cs.headline}</h3>
           <div class="space-y-2 mb-6">
             {cs.results.map(r => (
               <div class="flex items-center justify-between p-3 border-2" style="border-color:#2C2C2C;background:#111111">
-                <span class="text-sm" style="color:#AAAAAA">{r.metric}</span>
+                <span class="text-sm" style="color:#B0B0B0">{r.metric}</span>
                 <div class="flex items-center gap-3 text-sm font-mono">
-                  <span style="color:#3C3C3C;text-decoration:line-through">{r.before}</span>
+                  <span style="color:#8A8A8A;text-decoration:line-through">{r.before}</span>
                   <span style="color:#FFEE00">→</span>
                   <strong style="color:#FFEE00">{r.after}</strong>
                 </div>
               </div>
             ))}
           </div>
-          <blockquote class="text-sm italic leading-relaxed border-l-2 border-[#FFEE00] pl-4" style="color:#AAAAAA">
+          <blockquote class="text-sm italic leading-relaxed border-l-2 border-[#FFEE00] pl-4" style="color:#B0B0B0">
             "{cs.quote}"
-            <footer class="text-xs font-mono mt-2 not-italic" style="color:#666666">— {cs.quote_author}</footer>
+            <footer class="text-xs font-mono mt-2 not-italic" style="color:#8A8A8A">— {cs.quote_author}</footer>
           </blockquote>
         </div>
       ))}
@@ -371,15 +371,15 @@ const logLines = [
       {tiers.map(tier => (
         <div class:list={['border-r-2 border-b-2 p-6 flex flex-col', tier.featured ? 'bg-[rgba(255,238,0,0.03)]' : '']} style="border-color:#2C2C2C">
           {tier.badge && <div class="badge-accent mb-3 self-start">{tier.badge}</div>}
-          <div class="text-xs font-mono uppercase tracking-widest mb-1" style="color:#666666">{tier.name}</div>
+          <div class="text-xs font-mono uppercase tracking-widest mb-1" style="color:#8A8A8A">{tier.name}</div>
           <div class="text-3xl font-bold mb-0.5" style={`font-family:'Space Grotesk';letter-spacing:-0.04em;color:${tier.featured?'#FFEE00':'#F0F0F0'}`}>
             {tier.custom ? 'Custom' : tier.monthly_price === 0 ? 'Free' : `$${tier.monthly_price}`}
-            {!tier.custom && tier.monthly_price! > 0 && <span class="text-sm font-normal" style="color:#666666">/user/mo</span>}
+            {!tier.custom && tier.monthly_price! > 0 && <span class="text-sm font-normal" style="color:#8A8A8A">/user/mo</span>}
           </div>
-          <p class="text-xs font-mono mb-5" style="color:#666666">{tier.tagline}</p>
+          <p class="text-xs font-mono mb-5" style="color:#8A8A8A">{tier.tagline}</p>
           <ul class="space-y-2 mb-5 flex-1">
             {tier.features.slice(0,5).map(f => (
-              <li class="flex items-start gap-2 text-xs" style="color:#AAAAAA">
+              <li class="flex items-start gap-2 text-xs" style="color:#B0B0B0">
                 <span style="color:#00FF88;flex-shrink:0">✓</span>{f}
               </li>
             ))}
@@ -403,7 +403,7 @@ const logLines = [
     <h2 class="font-bold tracking-tight mb-8" style="font-family:'Space Grotesk';font-size:clamp(2rem,5vw,3.5rem);letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0">
       Your next build<br/><span class="text-gradient-brut">starts in 2 minutes.</span>
     </h2>
-    <p class="text-xl mb-10 max-w-xl mx-auto" style="color:#666666">
+    <p class="text-xl mb-10 max-w-xl mx-auto" style="color:#8A8A8A">
       Connect your repo, push a commit, and watch Forge CI do the rest. Free forever. No credit card. No lock-in.
     </p>
     <div class="flex flex-col sm:flex-row gap-3 justify-center mb-14">
@@ -415,7 +415,7 @@ const logLines = [
         <div class="border-r-2 border-b-2 p-5 text-center" style="border-color:#2C2C2C">
           <div class="text-2xl mb-2" style="color:#FFEE00">{i}</div>
           <div class="text-xs font-semibold mb-1" style="color:#F0F0F0">{t}</div>
-          <div class="text-xs font-mono" style="color:#666666">{d}</div>
+          <div class="text-xs font-mono" style="color:#8A8A8A">{d}</div>
         </div>
       ))}
     </div>

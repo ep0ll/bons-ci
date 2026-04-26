@@ -23,6 +23,7 @@ const navGroups = [
     {id:'cache',     href:'/dashboard/cache',    svg:'M13 10V3L4 14h7v7l9-11h-7z',                             label:'Cache'},
   ]},
   { label:'Pipelines', items:[
+    {id:'pipeline',    href:'/dashboard/pipeline',   svg:'M4 6h4v4H4zM4 14h4v4H4zM12 6h4v4h-4zM12 14h4v4h-4zM20 10h0M8 8h4M8 16h4M16 8h4M16 16h4',label:'Pipeline',badge:'Live'},
     {id:'templates',   href:'/dashboard/templates',  svg:'M3 3h18v4H3zM3 10h11v11H3zM17 10h4v11h-4z',          label:'Templates'},
     {id:'marketplace', href:'/dashboard/marketplace',svg:'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17',label:'Marketplace'},
   ]},
@@ -43,7 +44,9 @@ const navGroups = [
 
   <!-- Sidebar -->
   <aside id="sidebar" class="flex flex-col w-58 flex-shrink-0 border-r-2 fixed lg:relative inset-y-0 left-0 z-40 -translate-x-full lg:translate-x-0 transition-transform duration-200"
-         style="width:232px;border-color:#2C2C2C;background:#060606">
+         style="width:232px;border-color:#2C2C2C;background:#060606"
+         role="complementary"
+         aria-label="Dashboard sidebar">
 
     <!-- Sidebar header -->
     <div class="flex items-center justify-between h-14 px-4 border-b-2 flex-shrink-0" style="border-color:#2C2C2C">
@@ -55,8 +58,8 @@ const navGroups = [
         </svg>
         <span style="font-family:'Space Grotesk';font-weight:700;font-size:0.9rem;color:#F0F0F0">Forge<span style="color:#FFEE00">CI</span></span>
       </a>
-      <button id="sidebar-close" class="lg:hidden border p-1 transition-all" style="border-color:#2C2C2C;color:#666666">
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      <button id="sidebar-close" class="lg:hidden border p-1 transition-all" style="border-color:#2C2C2C;color:#8A8A8A" aria-label="Close sidebar">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="square" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     </div>
 
@@ -69,29 +72,30 @@ const navGroups = [
         <div class="w-6 h-6 flex items-center justify-center text-xs font-bold flex-shrink-0" style="background:#FFEE00;color:#0A0A0A;font-family:'JetBrains Mono'">A</div>
         <div class="flex-1 text-left min-w-0">
           <div class="text-xs font-semibold truncate" style="font-family:'Space Grotesk'">{org.name}</div>
-          <div class="text-xs font-mono capitalize" style="color:#666666">{org.plan} plan</div>
+          <div class="text-xs font-mono capitalize" style="color:#8A8A8A">{org.plan} plan</div>
         </div>
-        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
       </button>
     </div>
 
     <!-- Nav -->
-    <nav class="flex-1 overflow-y-auto no-scrollbar py-2 px-3 space-y-0.5">
-      {navGroups.map(group => (
-        <div class="mb-1">
+    <nav class="flex-1 overflow-y-auto no-scrollbar py-2 px-3 space-y-0.5" aria-label="Dashboard navigation">
+      {navGroups.map((group, gi) => (
+        <div class="mb-1" role="group" aria-labelledby={group.label ? `nav-group-${gi}` : undefined}>
           {group.label && (
-            <div class="px-2 py-2 text-xs font-mono uppercase tracking-widest" style="color:#3C3C3C">{group.label}</div>
+            <div id={`nav-group-${gi}`} class="px-2 py-2 text-xs font-mono uppercase tracking-widest" style="color:#8A8A8A">{group.label}</div>
           )}
           {group.items.map(item => {
             const isActive = activeNav === item.id;
             return (
               <a href={item.href}
                  class="flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold transition-all duration-75 border mb-0.5"
+                 aria-current={isActive ? 'page' : undefined}
                  style={isActive
                    ? 'background:rgba(255,238,0,0.08);color:#FFEE00;border-color:#FFEE00;border-left-width:2px;border-left-color:#FFEE00;border-top-color:transparent;border-right-color:transparent;border-bottom-color:transparent'
-                   : 'color:#AAAAAA;border-color:transparent;background:transparent'}
+                   : 'color:#B0B0B0;border-color:transparent;background:transparent'}
                  onmouseover={!isActive ? "this.style.background='#1A1A1A';this.style.color='#F0F0F0';this.style.borderColor='#2C2C2C'" : ''}
-                 onmouseout={!isActive ? "this.style.background='transparent';this.style.color='#AAAAAA';this.style.borderColor='transparent'" : ''}>
+                 onmouseout={!isActive ? "this.style.background='transparent';this.style.color='#B0B0B0';this.style.borderColor='transparent'" : ''}>
                 <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.75">
                   <path stroke-linecap="square" stroke-linejoin="miter" d={item.svg}/>
                 </svg>
@@ -113,8 +117,8 @@ const navGroups = [
     <div class="border-t-2 p-3 space-y-2 flex-shrink-0" style="border-color:#2C2C2C">
       <div class="px-2 py-2 border border-transparent">
         <div class="flex justify-between text-xs mb-1.5">
-          <span class="font-mono" style="color:#666666">Build minutes</span>
-          <span class="font-mono" style="color:#AAAAAA">{org.build_minutes_used.toLocaleString()}/{org.build_minutes_limit.toLocaleString()}</span>
+          <span class="font-mono" style="color:#8A8A8A">Build minutes</span>
+          <span class="font-mono" style="color:#B0B0B0">{org.build_minutes_used.toLocaleString()}/{org.build_minutes_limit.toLocaleString()}</span>
         </div>
         <div class="progress"><div class="progress-bar" style={`width:${minutesPct}%`}></div></div>
       </div>
@@ -127,9 +131,9 @@ const navGroups = [
         <div class="avatar-sm flex-shrink-0">AL</div>
         <div class="flex-1 text-left min-w-0">
           <div class="text-xs font-semibold truncate">Ada Lovelace</div>
-          <div class="text-xs font-mono truncate" style="color:#666666">ada@acme-corp.io</div>
+          <div class="text-xs font-mono truncate" style="color:#8A8A8A">ada@acme-corp.io</div>
         </div>
-        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#666666"><path stroke-linecap="square" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
+        <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
       </button>
     </div>
   </aside>
@@ -143,18 +147,18 @@ const navGroups = [
     <!-- Topbar -->
     <header class="h-14 flex items-center gap-3 px-4 sm:px-6 border-b-2 flex-shrink-0" style="border-color:#2C2C2C;background:#060606">
 
-      <button id="sidebar-open" class="lg:hidden border p-1.5 transition-all" style="border-color:#2C2C2C;color:#AAAAAA">
+      <button id="sidebar-open" class="lg:hidden border p-1.5 transition-all" style="border-color:#2C2C2C;color:#B0B0B0">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
 
       <!-- Breadcrumbs -->
       <nav class="flex items-center gap-1.5 text-sm font-mono min-w-0 flex-1" aria-label="Breadcrumb">
-        <a href="/dashboard" class="transition-colors hover:text-[#FFEE00] flex-shrink-0" style="color:#666666">Dashboard</a>
+        <a href="/dashboard" class="transition-colors hover:text-[#FFEE00] flex-shrink-0" style="color:#8A8A8A">Dashboard</a>
         {breadcrumbs.map((c, i) => (
           <>
             <svg class="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
             {c.href && i < breadcrumbs.length - 1
-              ? <a href={c.href} class="hover:text-[#FFEE00] transition-colors truncate" style="color:#AAAAAA">{c.label}</a>
+              ? <a href={c.href} class="hover:text-[#FFEE00] transition-colors truncate" style="color:#B0B0B0">{c.label}</a>
               : <span class="font-semibold truncate" style="color:#F0F0F0">{c.label}</span>
             }
           </>
@@ -163,9 +167,9 @@ const navGroups = [
 
       <!-- Search -->
       <button id="cmd-trigger" class="hidden sm:flex items-center gap-2 px-3 py-1.5 border text-xs font-mono transition-all flex-shrink-0"
-              style="border-color:#2C2C2C;background:#0A0A0A;color:#666666"
+              style="border-color:#2C2C2C;background:#0A0A0A;color:#8A8A8A"
               onmouseover="this.style.borderColor='#FFEE00';this.style.color='#FFEE00'"
-              onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#666666'">
+              onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#8A8A8A'">
         <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         Search…
         <kbd class="hidden xl:inline text-xs border px-1 font-mono" style="border-color:#3C3C3C;color:#444444">⌘K</kbd>
@@ -180,16 +184,16 @@ const navGroups = [
 
       <!-- Notifications -->
       <button class="relative border p-2 transition-all"
-              style="border-color:#2C2C2C;color:#AAAAAA"
+              style="border-color:#2C2C2C;color:#B0B0B0"
               onmouseover="this.style.borderColor='#3C3C3C';this.style.color='#F0F0F0'"
-              onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#AAAAAA'">
+              onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#B0B0B0'">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="1.75" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
         <span class="absolute top-0.5 right-0.5 w-2 h-2 rounded-full border" style="background:#FF3333;border-color:#0A0A0A"></span>
       </button>
     </header>
 
     <!-- Page content -->
-    <main class="flex-1 overflow-y-auto" style="background:#0A0A0A"><slot/></main>
+    <main id="main-content" class="flex-1 overflow-y-auto" style="background:#0A0A0A"><slot/></main>
   </div>
 </div>
 
@@ -204,7 +208,7 @@ const navGroups = [
         <input type="text" id="cmd-input" placeholder="Search builds, projects, settings…"
                class="flex-1 text-sm font-mono bg-transparent outline-none" style="color:#F0F0F0"
                autocomplete="off" spellcheck="false"/>
-        <kbd class="text-xs font-mono border px-1.5 py-0.5" style="border-color:#3C3C3C;color:#666666">ESC</kbd>
+        <kbd class="text-xs font-mono border px-1.5 py-0.5" style="border-color:#3C3C3C;color:#8A8A8A">ESC</kbd>
       </div>
       <!-- Results -->
       <div class="p-2 max-h-72 overflow-y-auto">
@@ -231,7 +235,7 @@ const navGroups = [
                 <span class="text-base w-5 text-center flex-shrink-0" style="color:#FFEE00">{item.i}</span>
                 <div>
                   <div class="text-sm font-semibold" style="color:#F0F0F0">{item.l}</div>
-                  <div class="text-xs font-mono" style="color:#666666">{item.s}</div>
+                  <div class="text-xs font-mono" style="color:#8A8A8A">{item.s}</div>
                 </div>
               </button>
             ))}

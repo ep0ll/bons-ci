@@ -9,7 +9,7 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
       <span style="font-family:'Space Grotesk';font-weight:700;font-size:1.1rem;color:#F0F0F0">Forge<span style="color:#FFEE00">CI</span></span>
     </a>
     <h1 style="font-family:'Space Grotesk';font-weight:700;font-size:1.875rem;letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0" class="mb-2">Welcome back</h1>
-    <p class="text-sm" style="color:#AAAAAA">New here? <a href="/auth/signup" style="color:#FFEE00;font-weight:600">Create an account →</a></p>
+    <p class="text-sm" style="color:#B0B0B0">New here? <a href="/auth/signup" style="color:#FFEE00;font-weight:600">Create an account →</a></p>
   </div>
 
   <!-- OAuth + social -->
@@ -21,7 +21,7 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
     ].map(item => (
       <a href={`/api/auth/ory?provider=${item.p}&flow=login`}
          class="w-full flex items-center justify-center gap-3 px-4 py-2.5 text-sm font-semibold border-2 transition-all"
-         style={`background:${item.bg};border-color:#3C3C3C;color:#F0F0F0`}
+         style={`background:${item.bg};border-color:#8A8A8A;color:#F0F0F0`}
          onmouseover="this.style.borderColor='#FFEE00';this.style.color='#FFEE00'"
          onmouseout="this.style.borderColor='#3C3C3C';this.style.color='#F0F0F0'">
         {item.svg && <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d={item.svg}/></svg>}
@@ -46,9 +46,9 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
     <!-- Passkey -->
     <button id="passkey-btn" type="button"
             class="w-full flex items-center justify-center gap-3 px-4 py-2.5 text-sm font-semibold border-2 transition-all"
-            style="background:#1A1A1A;border-color:#3C3C3C;color:#AAAAAA"
+            style="background:#1A1A1A;border-color:#8A8A8A;color:#B0B0B0"
             onmouseover="this.style.borderColor='#FFEE00';this.style.color='#FFEE00'"
-            onmouseout="this.style.borderColor='#3C3C3C';this.style.color='#AAAAAA'">
+            onmouseout="this.style.borderColor='#3C3C3C';this.style.color='#B0B0B0'">
       <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
       Sign in with passkey / hardware key
     </button>
@@ -57,13 +57,13 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
   <!-- Divider -->
   <div class="relative mb-5">
     <div class="absolute inset-0 flex items-center"><div class="w-full border-t-2" style="border-color:#2C2C2C"></div></div>
-    <div class="relative flex justify-center"><span class="px-3 text-xs font-mono" style="background:#0A0A0A;color:#666666">OR</span></div>
+    <div class="relative flex justify-center"><span class="px-3 text-xs font-mono" style="background:#0A0A0A;color:#8A8A8A">OR</span></div>
   </div>
 
   <!-- SSO input -->
   <div class="mb-5">
     <button id="sso-toggle" class="w-full flex items-center justify-between px-4 py-2.5 text-sm border-2 mb-2 transition-all"
-            style="background:#1A1A1A;border-color:#2C2C2C;color:#AAAAAA"
+            style="background:#1A1A1A;border-color:#2C2C2C;color:#B0B0B0"
             onmouseover="this.style.borderColor='#FFEE00'"
             onmouseout="this.style.borderColor='#2C2C2C'">
       <span class="flex items-center gap-2 font-semibold">
@@ -73,12 +73,12 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
       <svg id="sso-chevron" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="transition:transform 0.15s"><path stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
     </button>
     <div id="sso-form" class="hidden">
-      <div class="flex gap-0 border-2" style="border-color:#3C3C3C">
+      <div class="flex gap-0 border-2" style="border-color:#8A8A8A">
         <span class="input-addon">@</span>
         <input type="text" id="sso-domain" placeholder="yourcompany.com" class="input border-0" style="border-radius:0" autocomplete="off" spellcheck="false"/>
         <button id="sso-submit" class="btn-primary btn-sm flex-shrink-0" style="border-radius:0">→</button>
       </div>
-      <p class="text-xs font-mono mt-1.5" style="color:#666666">We'll redirect you to your identity provider</p>
+      <p class="text-xs font-mono mt-1.5" style="color:#8A8A8A">We'll redirect you to your identity provider</p>
     </div>
   </div>
 
@@ -96,7 +96,7 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
       </div>
       <div class="relative">
         <input type="password" id="password" name="password" class="input pr-10" placeholder="••••••••••••" autocomplete="current-password" required/>
-        <button type="button" id="pw-toggle" class="absolute right-3 top-1/2 -translate-y-1/2" style="color:#666666">
+        <button type="button" id="pw-toggle" class="absolute right-3 top-1/2 -translate-y-1/2" style="color:#8A8A8A">
           <svg id="eye-show" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-width="1.5" stroke-linecap="square" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
           <svg id="eye-hide" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" class="hidden"><path stroke-width="1.5" stroke-linecap="square" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
         </button>
@@ -111,7 +111,7 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
     </button>
 
     <!-- Magic link option -->
-    <button type="button" id="magic-link-btn" class="btn-ghost btn-sm w-full justify-center text-xs font-mono" style="color:#666666">
+    <button type="button" id="magic-link-btn" class="btn-ghost btn-sm w-full justify-center text-xs font-mono" style="color:#8A8A8A">
       Send me a magic link instead
     </button>
   </form>
@@ -119,26 +119,26 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
   <!-- Magic link sent confirmation -->
   <div id="magic-link-sent" class="hidden mt-4 card p-4 card-green">
     <div class="text-xs font-mono font-bold uppercase" style="color:#00FF88">✓ Magic link sent!</div>
-    <p class="text-xs mt-1.5" style="color:#AAAAAA">Check your inbox at <span id="magic-email" class="font-mono" style="color:#F0F0F0"></span>. Expires in 10 minutes.</p>
+    <p class="text-xs mt-1.5" style="color:#B0B0B0">Check your inbox at <span id="magic-email" class="font-mono" style="color:#F0F0F0"></span>. Expires in 10 minutes.</p>
   </div>
 
   <!-- MFA panel -->
   <div id="mfa-panel" class="hidden mt-5">
     <div class="card card-accent p-5">
       <div class="text-xs font-mono font-bold uppercase tracking-widest mb-1" style="color:#FFEE00">⬡ 2-Factor Auth Required</div>
-      <p class="text-xs mb-4" style="color:#AAAAAA">Enter the 6-digit code from your authenticator app.</p>
+      <p class="text-xs mb-4" style="color:#B0B0B0">Enter the 6-digit code from your authenticator app.</p>
       <div class="flex gap-2 mb-4">
         {Array.from({length:6}).map((_, i) => (
           <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]"
             class="w-10 h-12 text-center text-xl font-mono font-bold border-2 outline-none transition-all"
-            style="background:#1A1A1A;border-color:#3C3C3C;color:#F0F0F0"
+            style="background:#1A1A1A;border-color:#8A8A8A;color:#F0F0F0"
             data-mfa-digit aria-label={`Digit ${i+1}`}/>
         ))}
       </div>
       <button id="totp-submit" class="btn-primary btn-md w-full justify-center">Verify →</button>
       <div class="flex gap-4 mt-3 justify-center">
-        <button id="use-backup" class="btn-ghost btn-xs font-mono" style="color:#666666">Use backup code</button>
-        <button id="use-webauthn" class="btn-ghost btn-xs font-mono" style="color:#666666">Use hardware key</button>
+        <button id="use-backup" class="btn-ghost btn-xs font-mono" style="color:#8A8A8A">Use backup code</button>
+        <button id="use-webauthn" class="btn-ghost btn-xs font-mono" style="color:#8A8A8A">Use hardware key</button>
       </div>
     </div>
     <div id="backup-panel" class="hidden mt-3 card p-4">
@@ -149,7 +149,7 @@ import AuthLayout from '../../layouts/AuthLayout.astro';
   </div>
 
   <div class="mt-6 pt-5 border-t-2" style="border-color:#2C2C2C">
-    <p class="text-xs text-center font-mono" style="color:#444444">
+    <p class="text-xs text-center font-mono" style="color:#8A8A8A">
       By signing in you agree to our <a href="/terms" style="color:#FFEE00">Terms</a> and <a href="/privacy" style="color:#FFEE00">Privacy</a>.
     </p>
   </div>

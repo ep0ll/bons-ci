@@ -36,7 +36,7 @@ const studies = MOCK_CASE_STUDIES;
         ].map(s => (
           <div class="border-r-2 p-8 last:border-r-0" style="border-color:#2C2C2C">
             <div class="text-3xl sm:text-4xl font-bold mb-1" style="font-family:'Space Grotesk';color:#FFEE00;letter-spacing:-0.04em">{s.v}</div>
-            <div class="text-xs font-mono" style="color:#666666">{s.l}</div>
+            <div class="text-xs font-mono" style="color:#8A8A8A">{s.l}</div>
           </div>
         ))}
       </div>
@@ -57,7 +57,7 @@ const studies = MOCK_CASE_STUDIES;
               <div class="text-5xl">{cs.logo_emoji}</div>
               <div>
                 <div class="text-xl font-bold group-hover:text-[#FFEE00] transition-colors" style="font-family:'Space Grotesk';color:#F0F0F0">{cs.company}</div>
-                <div class="text-xs font-mono" style="color:#666666">{cs.industry} · {cs.team_size}</div>
+                <div class="text-xs font-mono" style="color:#8A8A8A">{cs.industry} · {cs.team_size}</div>
               </div>
             </div>
 
@@ -66,9 +66,9 @@ const studies = MOCK_CASE_STUDIES;
             <div class="space-y-2 mb-6">
               {cs.results.map(r => (
                 <div class="flex items-center justify-between p-3 border-2" style="border-color:#2C2C2C;background:#111111">
-                  <span class="text-sm" style="color:#AAAAAA">{r.metric}</span>
+                  <span class="text-sm" style="color:#B0B0B0">{r.metric}</span>
                   <div class="flex items-center gap-3 text-sm font-mono">
-                    <span style="color:#3C3C3C;text-decoration:line-through">{r.before}</span>
+                    <span style="color:#8A8A8A;text-decoration:line-through">{r.before}</span>
                     <span style="color:#FFEE00">→</span>
                     <strong style="color:#FFEE00">{r.after}</strong>
                   </div>
@@ -76,9 +76,9 @@ const studies = MOCK_CASE_STUDIES;
               ))}
             </div>
 
-            <blockquote class="text-sm italic leading-relaxed border-l-2 border-[#FFEE00] pl-4 mb-5" style="color:#AAAAAA">
+            <blockquote class="text-sm italic leading-relaxed border-l-2 border-[#FFEE00] pl-4 mb-5" style="color:#B0B0B0">
               "{cs.quote}"
-              <footer class="text-xs font-mono mt-2 not-italic" style="color:#666666">— {cs.quote_author}</footer>
+              <footer class="text-xs font-mono mt-2 not-italic" style="color:#8A8A8A">— {cs.quote_author}</footer>
             </blockquote>
 
             <div class="flex items-center gap-2 text-sm font-semibold group-hover:text-[#FFEE00] transition-colors" style="color:#FFEE00">
@@ -96,7 +96,7 @@ const studies = MOCK_CASE_STUDIES;
   <!-- Featured logos -->
   <section class="py-16 border-y-2" style="border-color:#2C2C2C;background:#060606">
     <div class="container-forge text-center">
-      <p class="text-xs font-mono uppercase tracking-widest mb-8" style="color:#3C3C3C">Engineering teams that ship with Forge CI</p>
+      <p class="text-xs font-mono uppercase tracking-widest mb-8" style="color:#8A8A8A">Engineering teams that ship with Forge CI</p>
       <div class="flex flex-wrap justify-center gap-x-12 gap-y-4">
         {['Vercel','Stripe','Linear','Notion','Figma','Supabase','PlanetScale','Railway','Resend','Trigger.dev','Neon','Fly.io'].map(co => (
           <span class="font-bold text-lg cursor-default transition-colors" style="font-family:'Space Grotesk';color:#2C2C2C;letter-spacing:-0.02em"

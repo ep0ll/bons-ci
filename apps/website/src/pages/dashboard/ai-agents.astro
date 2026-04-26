@@ -28,7 +28,7 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-0 border-l-2 border-t-2" style="border-color:#2C2C2C">
     {[{l:'Failures diagnosed',v:'847',c:'#00EEFF'},{l:'Avg confidence',v:'93.4%',c:'#00FF88'},{l:'Fixes applied',v:'612',c:'#FFEE00'},{l:'MTTR reduction',v:'74%',c:'#00FF88'}].map(s=>(
       <div class="border-r-2 border-b-2 p-5" style="border-color:#2C2C2C;background:#060606">
-        <div class="text-xs font-mono mb-1" style="color:#666666">{s.l}</div>
+        <div class="text-xs font-mono mb-1" style="color:#8A8A8A">{s.l}</div>
         <div class="text-2xl font-bold" style={`font-family:'Space Grotesk';color:${s.c};letter-spacing:-0.04em`}>{s.v}</div>
       </div>
     ))}
@@ -54,9 +54,9 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
                     <span class="badge-neutral">{p.project_name}</span>
                     {p.occurrence_count ? <span class="text-xs font-mono" style="color:#FF7700">{p.occurrence_count}×</span> : null}
                   </div>
-                  <p class="text-xs mb-2" style="color:#666666">{p.description}</p>
-                  <div class="flex items-start gap-2 text-xs" style="color:#3C3C3C">
-                    <span style="color:#00EEFF;flex-shrink:0">→</span><span style="color:#666666">{p.suggestion}</span>
+                  <p class="text-xs mb-2" style="color:#8A8A8A">{p.description}</p>
+                  <div class="flex items-start gap-2 text-xs" style="color:#8A8A8A">
+                    <span style="color:#00EEFF;flex-shrink:0">→</span><span style="color:#8A8A8A">{p.suggestion}</span>
                   </div>
                 </div>
               </div>
@@ -89,17 +89,17 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
                     <a href={`/dashboard/builds/${a.build_id}`} class="text-sm font-semibold transition-colors" style="color:#F0F0F0" onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#F0F0F0'">
                       #{a.build_id.replace('b','')} — {a.project_name}
                     </a>
-                    <span class="text-xs font-mono" style="color:#666666">{a.branch}</span>
+                    <span class="text-xs font-mono" style="color:#8A8A8A">{a.branch}</span>
                   </div>
-                  <div class="text-xs font-mono mb-1" style="color:#666666">Failed: <span style="color:#FF3333">{a.failed_step}</span></div>
-                  <p class="text-xs mb-2" style="color:#AAAAAA">{a.root_cause}</p>
+                  <div class="text-xs font-mono mb-1" style="color:#8A8A8A">Failed: <span style="color:#FF3333">{a.failed_step}</span></div>
+                  <p class="text-xs mb-2" style="color:#B0B0B0">{a.root_cause}</p>
                   {a.fix_diff ? (
                     <pre class="text-xs font-mono border-2 p-2 overflow-x-auto" style="border-color:#2C2C2C;background:#050505"><code class="code-remove">{a.fix_diff.split('\n')[0]}</code>
 <code class="code-add">{a.fix_diff.split('\n')[1]}</code></pre>
                   ) : null}
                 </div>
                 <div class="flex flex-col items-end gap-2 flex-shrink-0">
-                  <span class="text-xs font-mono" style="color:#3C3C3C">{a.analyzed_at.slice(11,16)} UTC</span>
+                  <span class="text-xs font-mono" style="color:#8A8A8A">{a.analyzed_at.slice(11,16)} UTC</span>
                   <button class="text-xs font-mono border-2 px-2 py-0.5 transition-all"
                           style="border-color:rgba(0,255,136,0.3);color:#00FF88"
                           onmouseover="this.style.background='#00FF88';this.style.color='#0A0A0A'"
@@ -134,16 +134,16 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
             <span class="text-xs font-mono font-bold" style="color:#00EEFF">S</span>
           </div>
           <div class="px-4 py-3 border-2 max-w-[88%]" style="border-color:#2C2C2C;background:#111111">
-            <p class="text-sm leading-relaxed" style="color:#AAAAAA">Hi! I can analyze build failures, detect patterns, and suggest fixes. Try asking: "Why did the last build fail?" or "What's causing the flaky tests?"</p>
+            <p class="text-sm leading-relaxed" style="color:#B0B0B0">Hi! I can analyze build failures, detect patterns, and suggest fixes. Try asking: "Why did the last build fail?" or "What's causing the flaky tests?"</p>
           </div>
         </div>
         <!-- Quick prompts -->
         <div class="flex flex-wrap gap-1.5 pl-9">
           {['Diagnose last failure','Why is sccache slow?','Show flaky tests','What broke main?'].map(p => (
             <button class="text-xs font-mono border-2 px-2.5 py-1 transition-all"
-                    style="border-color:#2C2C2C;color:#666666"
+                    style="border-color:#2C2C2C;color:#8A8A8A"
                     onmouseover="this.style.borderColor='#FFEE00';this.style.color='#FFEE00'"
-                    onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#666666'"
+                    onmouseout="this.style.borderColor='#2C2C2C';this.style.color='#8A8A8A'"
                     onclick={`sendMsg('${p}')`}>{p}</button>
           ))}
         </div>
@@ -177,7 +177,7 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
           <div class={`toggle-switch flex-shrink-0 mt-0.5 ${s.on ? 'on' : ''}`} onclick="this.classList.toggle('on')">
             <div class="toggle-thumb"></div>
           </div>
-          <div><div class="text-sm font-semibold" style="color:#F0F0F0">{s.l}</div><div class="text-xs mt-0.5" style="color:#666666">{s.d}</div></div>
+          <div><div class="text-sm font-semibold" style="color:#F0F0F0">{s.l}</div><div class="text-xs mt-0.5" style="color:#8A8A8A">{s.d}</div></div>
         </div>
       ))}
     </div>
@@ -195,7 +195,7 @@ const patterns = MOCK_SHERLOCK_PATTERNS;
     const div = document.createElement('div');
     div.className = 'flex gap-2.5 ' + (role === 'user' ? 'justify-end' : '');
     if (role === 's') {
-      div.innerHTML = `<div class="w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 mt-0.5" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)"><span class="text-xs font-mono font-bold" style="color:#00EEFF">S</span></div><div class="px-4 py-3 border-2 max-w-[88%]" style="border-color:#2C2C2C;background:#111111">${loading ? '<div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.15s"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.3s"></span></div>' : `<p class="text-sm leading-relaxed whitespace-pre-line" style="color:#AAAAAA">${text}</p>`}</div>`;
+      div.innerHTML = `<div class="w-6 h-6 border-2 flex items-center justify-center flex-shrink-0 mt-0.5" style="border-color:#00EEFF;background:rgba(0,238,255,0.08)"><span class="text-xs font-mono font-bold" style="color:#00EEFF">S</span></div><div class="px-4 py-3 border-2 max-w-[88%]" style="border-color:#2C2C2C;background:#111111">${loading ? '<div class="flex gap-1"><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.15s"></span><span class="w-1.5 h-1.5 rounded-full animate-bounce" style="background:#00EEFF;animation-delay:0.3s"></span></div>' : `<p class="text-sm leading-relaxed whitespace-pre-line" style="color:#B0B0B0">${text}</p>`}</div>`;
     } else {
       div.innerHTML = `<div class="px-4 py-3 border-2 max-w-[88%]" style="border-color:rgba(255,238,0,0.3);background:rgba(255,238,0,0.06)"><p class="text-sm" style="color:#F0F0F0">${text}</p></div>`;
     }

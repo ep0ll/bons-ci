@@ -24,7 +24,7 @@ const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-bold tracking-tight" style="font-family:'Space Grotesk';color:#F0F0F0">Builds</h1>
-      <p class="text-xs font-mono mt-0.5" style="color:#666666">{allBuilds.length.toLocaleString()} total · all projects · last 30 days</p>
+      <p class="text-xs font-mono mt-0.5" style="color:#8A8A8A">{allBuilds.length.toLocaleString()} total · all projects · last 30 days</p>
     </div>
     <div class="flex gap-2">
       <button class="btn-secondary btn-sm text-xs">
@@ -46,11 +46,11 @@ const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'
         const cnt = tab.k==='all' ? allBuilds.length : allBuilds.filter(b=>b.status===tab.k).length;
         return (
           <button class="tab-btn flex items-center gap-1.5 px-3 py-2 text-xs font-semibold font-mono transition-all border-r-2 last:border-r-0"
-                  style={i===0 ? 'background:#FFEE00;color:#0A0A0A;border-color:#2C2C2C' : 'background:transparent;color:#666666;border-color:#2C2C2C'}
+                  style={i===0 ? 'background:#FFEE00;color:#0A0A0A;border-color:#2C2C2C' : 'background:transparent;color:#8A8A8A;border-color:#2C2C2C'}
                   data-tab={tab.k} onclick="switchTab(this)">
             {tab.l}
             <span class="px-1.5 py-0.5 text-xs font-mono border"
-                  style={tab.k==='failed'?'background:rgba(255,51,51,0.1);color:#FF3333;border-color:rgba(255,51,51,0.3)':tab.k==='running'?'background:rgba(0,238,255,0.1);color:#00EEFF;border-color:rgba(0,238,255,0.3)':'background:#1A1A1A;color:#666666;border-color:#2C2C2C'}>
+                  style={tab.k==='failed'?'background:rgba(255,51,51,0.1);color:#FF3333;border-color:rgba(255,51,51,0.3)':tab.k==='running'?'background:rgba(0,238,255,0.1);color:#00EEFF;border-color:rgba(0,238,255,0.3)':'background:#1A1A1A;color:#8A8A8A;border-color:#2C2C2C'}>
               {cnt}
             </span>
           </button>
@@ -61,7 +61,7 @@ const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'
     <!-- Search + filters -->
     <div class="flex flex-1 gap-2 flex-wrap">
       <div class="relative flex-1 min-w-[180px]">
-        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
         <input type="search" id="build-search" placeholder="Search commit, branch, message…" class="input !pl-9 !py-2 !text-xs w-full"/>
       </div>
       <select id="proj-filter" class="input !py-2 !text-xs w-36">
@@ -101,24 +101,24 @@ const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'
               <td>
                 <div class="flex items-center gap-2">
                   <div class="w-2 h-2 rounded-full flex-shrink-0" style={s.dot}></div>
-                  <span class="font-mono text-xs font-bold" style="color:#AAAAAA">#{b.number}</span>
+                  <span class="font-mono text-xs font-bold" style="color:#B0B0B0">#{b.number}</span>
                 </div>
               </td>
               <td>
                 <div class="text-xs font-semibold" style="color:#F0F0F0">{b.project_name}</div>
-                <div class="text-xs font-mono truncate max-w-[130px]" style="color:#666666">{b.branch}</div>
+                <div class="text-xs font-mono truncate max-w-[130px]" style="color:#8A8A8A">{b.branch}</div>
               </td>
               <td class="hidden md:table-cell">
-                <code class="text-xs font-mono" style="color:#666666">{b.commit_short}</code>
-                <div class="text-xs truncate max-w-[180px]" style="color:#3C3C3C">{b.commit_message}</div>
+                <code class="text-xs font-mono" style="color:#8A8A8A">{b.commit_short}</code>
+                <div class="text-xs truncate max-w-[180px]" style="color:#8A8A8A">{b.commit_message}</div>
               </td>
               <td><span class={s.cls}>{s.label}</span></td>
               <td class="hidden sm:table-cell">
-                <div class="text-xs font-mono" style="color:#AAAAAA">{b.duration_ms ? formatDuration(b.duration_ms) : '—'}</div>
-                <div class="text-xs font-mono" style="color:#3C3C3C">{b.started_at ? relativeTime(b.started_at) : ''}</div>
+                <div class="text-xs font-mono" style="color:#B0B0B0">{b.duration_ms ? formatDuration(b.duration_ms) : '—'}</div>
+                <div class="text-xs font-mono" style="color:#8A8A8A">{b.started_at ? relativeTime(b.started_at) : ''}</div>
               </td>
-              <td class="hidden lg:table-cell"><span class="text-xs font-mono" style="color:#666666">{b.credits_used > 0 ? b.credits_used : '—'}</span></td>
-              <td class="hidden xl:table-cell"><span class="text-xs font-mono" style="color:#666666">{triggerLabel[b.trigger] ?? b.trigger}</span></td>
+              <td class="hidden lg:table-cell"><span class="text-xs font-mono" style="color:#8A8A8A">{b.credits_used > 0 ? b.credits_used : '—'}</span></td>
+              <td class="hidden xl:table-cell"><span class="text-xs font-mono" style="color:#8A8A8A">{triggerLabel[b.trigger] ?? b.trigger}</span></td>
               <td>
                 <div class="flex items-center gap-2">
                   <div class="avatar-sm">{b.author.name.split(' ').map((n:string)=>n[0]).join('')}</div>
@@ -133,7 +133,7 @@ const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'
               </td>
               <td onclick="event.stopPropagation()">
                 <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button class="btn-ghost btn-xs text-xs" style="color:#666666" title="Retry">
+                  <button class="btn-ghost btn-xs text-xs" style="color:#8A8A8A" title="Retry">
                     <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                   </button>
                 </div>
@@ -147,18 +147,18 @@ const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'
     <div id="builds-empty" class="hidden py-14 text-center" style="background:#060606">
       <div class="text-4xl mb-3" style="color:#2C2C2C">◎</div>
       <h3 class="font-bold text-lg mb-1" style="font-family:'Space Grotesk';color:#F0F0F0">No builds found</h3>
-      <p class="text-xs font-mono" style="color:#666666">Try adjusting your filters or search query.</p>
+      <p class="text-xs font-mono" style="color:#8A8A8A">Try adjusting your filters or search query.</p>
     </div>
 
     <!-- Pagination -->
     <div class="flex items-center justify-between px-5 py-3.5 border-t-2" style="border-color:#2C2C2C">
-      <p class="text-xs font-mono" style="color:#666666">
+      <p class="text-xs font-mono" style="color:#8A8A8A">
         Showing <span style="color:#F0F0F0">{allBuilds.length}</span> of <span style="color:#F0F0F0">1,847</span>
       </p>
       <div class="flex gap-1">
-        <button class="btn-ghost btn-xs font-mono" style="color:#3C3C3C" disabled>← Prev</button>
+        <button class="btn-ghost btn-xs font-mono" style="color:#8A8A8A" disabled>← Prev</button>
         {[1,2,3,'…',154,155].map(p => (
-          <button class="btn-xs font-mono" style={p===1?'background:#FFEE00;color:#0A0A0A;border:none':'background:transparent;border:1px solid #2C2C2C;color:#666666'}>{p}</button>
+          <button class="btn-xs font-mono" style={p===1?'background:#FFEE00;color:#0A0A0A;border:none':'background:transparent;border:1px solid #2C2C2C;color:#8A8A8A'}>{p}</button>
         ))}
         <button class="btn-ghost btn-xs font-mono" style="color:#FFEE00">Next →</button>
       </div>
@@ -196,7 +196,7 @@ const tabs = [{k:'all',l:'All'},{k:'running',l:'Running'},{k:'failed',l:'Failed'
 
   function switchTab(btn: HTMLButtonElement) {
     document.querySelectorAll<HTMLElement>('.tab-btn').forEach(b => {
-      b.style.background = 'transparent'; b.style.color = '#666666';
+      b.style.background = 'transparent'; b.style.color = '#8A8A8A';
       delete b.dataset.active;
     });
     btn.style.background = '#FFEE00'; btn.style.color = '#0A0A0A';

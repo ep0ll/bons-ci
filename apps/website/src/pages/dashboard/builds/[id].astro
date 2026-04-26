@@ -3,8 +3,14 @@ import DashboardLayout from '../../../layouts/DashboardLayout.astro';
 import { MOCK_BUILDS, formatDuration, relativeTime } from '../../../data/mock.ts';
 import { generateResourceTimeline, formatBytes } from '../../../lib/charts.ts';
 
-const { id } = Astro.params;
-const build = MOCK_BUILDS.find(b=>b.id===id) ?? MOCK_BUILDS[2];
+export function getStaticPaths() {
+  return MOCK_BUILDS.map(build => ({
+    params: { id: build.id },
+    props: { build },
+  }));
+}
+
+const { build } = Astro.props as { build: typeof MOCK_BUILDS[number] };
 const totalMs = build.duration_ms ?? build.steps.reduce((s,step)=>s+step.duration_ms,0);
 const resourceTimeline = build.resources
   ? generateResourceTimeline(Math.round(totalMs/1000), build.resources.cpu_avg, build.resources.mem_avg_mb, 40)
@@ -36,14 +42,14 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
       <div class="flex-1 min-w-0">
         <div class="flex flex-wrap items-center gap-2 mb-2">
           <span class={bs.cls}>{bs.label}</span>
-          <span class="text-xs font-mono" style="color:#666666">#{build.number}</span>
-          <span class="text-xs font-mono" style="color:#3C3C3C">·</span>
-          <span class="text-xs font-semibold" style="color:#AAAAAA">{build.project_name}</span>
-          <span class="text-xs font-mono" style="color:#3C3C3C">·</span>
-          <span class="text-xs font-mono" style="color:#666666">{build.branch}</span>
+          <span class="text-xs font-mono" style="color:#8A8A8A">#{build.number}</span>
+          <span class="text-xs font-mono" style="color:#8A8A8A">·</span>
+          <span class="text-xs font-semibold" style="color:#B0B0B0">{build.project_name}</span>
+          <span class="text-xs font-mono" style="color:#8A8A8A">·</span>
+          <span class="text-xs font-mono" style="color:#8A8A8A">{build.branch}</span>
         </div>
         <h1 class="text-xl font-bold tracking-tight mb-3" style="font-family:'Space Grotesk';color:#F0F0F0;leading:1.1">{build.commit_message}</h1>
-        <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs font-mono" style="color:#666666">
+        <div class="flex flex-wrap gap-x-5 gap-y-2 text-xs font-mono" style="color:#8A8A8A">
           <div class="flex items-center gap-1.5"><div class="avatar-sm">{build.author.name.split(' ').map((n:string)=>n[0]).join('')}</div>{build.author.name}</div>
           {build.pr_number && <span>PR #{build.pr_number}</span>}
           <code>{build.commit_short}</code>
@@ -63,7 +69,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
             ◎ Ask Sherlock
           </button>
         )}
-        <a href="/dashboard/builds" class="btn-ghost btn-sm font-mono text-xs" style="color:#666666">← All builds</a>
+        <a href="/dashboard/builds" class="btn-ghost btn-sm font-mono text-xs" style="color:#8A8A8A">← All builds</a>
       </div>
     </div>
   </div>
@@ -77,32 +83,32 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
         </div>
         <div>
           <div class="text-sm font-semibold" style="color:#F0F0F0">Sherlock — AI Build Intelligence</div>
-          <div class="text-xs font-mono" style="color:#666666">Analyzed {allLogs.length || 200} log lines · 8.2s</div>
+          <div class="text-xs font-mono" style="color:#8A8A8A">Analyzed {allLogs.length || 200} log lines · 8.2s</div>
         </div>
         <div class="ml-auto flex items-center gap-2">
           <span class="badge-success">97% confidence</span>
-          <button id="sherlock-close" style="color:#666666">
+          <button id="sherlock-close" style="color:#8A8A8A">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
       </div>
       <div class="p-5 grid lg:grid-cols-2 gap-5">
         <div>
-          <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#666666">Root cause</div>
-          <div class="px-4 py-3 border-2 text-sm leading-relaxed" style="border-color:rgba(255,51,51,0.3);background:rgba(255,51,51,0.06);color:#AAAAAA">
+          <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#8A8A8A">Root cause</div>
+          <div class="px-4 py-3 border-2 text-sm leading-relaxed" style="border-color:rgba(255,51,51,0.3);background:rgba(255,51,51,0.06);color:#B0B0B0">
             <code class="font-mono px-1.5 py-0.5 text-xs mr-1" style="background:#111111;color:#FFEE00">AuthMiddleware.ts:34</code>
             calls <code class="font-mono px-1 text-xs" style="color:#00EEFF">user.id</code> without null-checking <code class="font-mono px-1 text-xs" style="color:#F0F0F0">user</code> first.
             The new test in commit <code class="font-mono text-xs" style="color:#F0F0F0">c1b2f3d</code> passes an unauthenticated request that sets <code class="font-mono text-xs" style="color:#F0F0F0">user = null</code>.
           </div>
         </div>
         <div>
-          <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#666666">Suggested fix</div>
+          <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#8A8A8A">Suggested fix</div>
           <pre class="border-2 p-3 overflow-x-auto text-xs font-mono" style="border-color:rgba(0,255,136,0.3);background:#050505"><code class="code-remove">- if (user.id !== req.params.userId) {'{'}</code>
 <code class="code-add">+ if (!user || user.id !== req.params.userId) {'{'}</code></pre>
           <div class="flex gap-2 mt-3">
             <button class="btn-success btn-sm text-xs">Apply fix & re-run</button>
             <button class="btn-secondary btn-sm text-xs">Open PR</button>
-            <button class="btn-ghost btn-sm text-xs font-mono" style="color:#666666">Explain</button>
+            <button class="btn-ghost btn-sm text-xs font-mono" style="color:#8A8A8A">Explain</button>
           </div>
         </div>
       </div>
@@ -114,7 +120,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
 
     <!-- Step timeline (left) -->
     <div class="border-r-2 p-4" style="border-color:#2C2C2C;background:#060606">
-      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#666666">Pipeline steps</div>
+      <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#8A8A8A">Pipeline steps</div>
 
       <!-- Proportional duration bar -->
       <div class="h-2 border flex overflow-hidden mb-4" style="border-color:#2C2C2C">
@@ -134,12 +140,12 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
               step.status==='failed' ? 'border-[rgba(255,51,51,0.3)] bg-[rgba(255,51,51,0.06)]' : 'border-transparent hover:border-[#2C2C2C] hover:bg-[#111111]']}
                     onclick={`scrollStep(${i})`}>
               <div class="w-5 h-5 border flex items-center justify-center flex-shrink-0 text-xs font-mono font-bold"
-                   style={`border-color:${step.status==='success'?'rgba(0,255,136,0.4)':step.status==='failed'?'rgba(255,51,51,0.4)':step.status==='running'?'rgba(0,238,255,0.4)':'#3C3C3C'};color:${step.status==='success'?'#00FF88':step.status==='failed'?'#FF3333':step.status==='running'?'#00EEFF':'#666666'}`}>
+                   style={`border-color:${step.status==='success'?'rgba(0,255,136,0.4)':step.status==='failed'?'rgba(255,51,51,0.4)':step.status==='running'?'rgba(0,238,255,0.4)':'#3C3C3C'};color:${step.status==='success'?'#00FF88':step.status==='failed'?'#FF3333':step.status==='running'?'#00EEFF':'#8A8A8A'}`}>
                 {ss.icon}
               </div>
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-semibold truncate" style={`color:${step.status==='failed'?'#FF3333':step.status==='running'?'#00EEFF':'#F0F0F0'}`}>{step.name}</div>
-                <div class="text-xs font-mono" style="color:#3C3C3C">{step.duration_ms > 0 ? formatDuration(step.duration_ms) : '—'}</div>
+                <div class="text-xs font-mono" style="color:#8A8A8A">{step.duration_ms > 0 ? formatDuration(step.duration_ms) : '—'}</div>
               </div>
             </button>
           );
@@ -154,23 +160,23 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
         <div class="terminal-dot" style="background:#FF5F57"></div>
         <div class="terminal-dot" style="background:#FFBD2E"></div>
         <div class="terminal-dot" style="background:#28C840"></div>
-        <span class="text-xs font-mono ml-1" style="color:#3C3C3C">build.log</span>
+        <span class="text-xs font-mono ml-1" style="color:#8A8A8A">build.log</span>
         <div class="ml-auto flex items-center gap-2">
           <!-- Regex search -->
           <div class="relative hidden sm:block">
-            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input type="text" id="log-search" placeholder="Filter logs (regex)…" class="input !py-1 !pl-7 !text-xs w-44"/>
           </div>
           <!-- Level filter buttons -->
           {(['info','warn','error'] as const).map(lvl => (
             <button class="text-xs px-2 py-0.5 border-2 font-mono transition-all level-btn" data-level={lvl}
-                    style={lvl==='error'?'border-color:rgba(255,51,51,0.3);color:#FF3333':lvl==='warn'?'border-color:rgba(255,119,0,0.3);color:#FF7700':'border-color:#2C2C2C;color:#666666'}
+                    style={lvl==='error'?'border-color:rgba(255,51,51,0.3);color:#FF3333':lvl==='warn'?'border-color:rgba(255,119,0,0.3);color:#FF7700':'border-color:#2C2C2C;color:#8A8A8A'}
                     onclick="toggleLevel(this)">{lvl}</button>
           ))}
           <!-- Timestamp toggle -->
-          <button id="ts-toggle" class="text-xs border-2 font-mono px-2 py-0.5 transition-all" style="border-color:#2C2C2C;color:#3C3C3C">HH:MM</button>
+          <button id="ts-toggle" class="text-xs border-2 font-mono px-2 py-0.5 transition-all" style="border-color:#2C2C2C;color:#8A8A8A">HH:MM</button>
           <!-- Download -->
-          <button class="btn-ghost btn-xs text-xs" style="color:#666666">
+          <button class="btn-ghost btn-xs text-xs" style="color:#8A8A8A">
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           </button>
         </div>
@@ -184,7 +190,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
             const levelCls = line.level==='error'?'log-line-error':line.level==='warn'?'log-line-warn':'';
             return (
               <div class={`log-line ${levelCls}`} data-level={line.level??'info'}>
-                <span class="ts-label select-none text-xs font-mono flex-shrink-0" style="color:#3C3C3C;width:64px">{ts}</span>
+                <span class="ts-label select-none text-xs font-mono flex-shrink-0" style="color:#8A8A8A;width:64px">{ts}</span>
                 <span class="break-all text-xs font-mono">{line.text}</span>
               </div>
             );
@@ -200,7 +206,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
                 ]).flat(),
               ].map(line => (
                 <div class="log-line" data-level="info">
-                  <span class="ts-label select-none text-xs font-mono flex-shrink-0" style="color:#3C3C3C;width:64px">{line.t}</span>
+                  <span class="ts-label select-none text-xs font-mono flex-shrink-0" style="color:#8A8A8A;width:64px">{line.t}</span>
                   <span class={`break-all text-xs font-mono ${line.c}`}>{line.tx}</span>
                 </div>
               ))}
@@ -211,8 +217,8 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
 
       <!-- Log footer -->
       <div class="flex items-center justify-between px-4 py-2 border-t-2" style="border-color:#2C2C2C;background:#111111">
-        <span id="log-count" class="text-xs font-mono" style="color:#3C3C3C">{allLogs.length || build.steps.reduce((s,st)=>s+st.log_lines.length,0)} lines</span>
-        <span class="text-xs font-mono" style="color:#3C3C3C">Retained 90 days · <a href="#" style="color:#FFEE00">Download full log</a></span>
+        <span id="log-count" class="text-xs font-mono" style="color:#8A8A8A">{allLogs.length || build.steps.reduce((s,st)=>s+st.log_lines.length,0)} lines</span>
+        <span class="text-xs font-mono" style="color:#8A8A8A">Retained 90 days · <a href="#" style="color:#FFEE00">Download full log</a></span>
       </div>
     </div>
   </div>
@@ -227,21 +233,21 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
         const col = stepColors[step.status] ?? 'rgba(60,60,60,0.5)';
         return (
           <div class="flex items-center gap-3" style="height:24px">
-            <div class="text-xs font-mono flex-shrink-0" style="width:140px;color:#666666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{step.name}</div>
+            <div class="text-xs font-mono flex-shrink-0" style="width:140px;color:#8A8A8A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{step.name}</div>
             <div class="flex-1 relative" style="height:20px;background:#111111;border:1px solid #2C2C2C">
               <div class="absolute top-0 h-full flex items-center px-1.5 overflow-hidden"
                    style={`left:${startPct}%;width:${widthPct}%;background:${col};min-width:4px`}>
                 {widthPct > 8 && <span class="text-xs font-mono font-bold text-black truncate">{formatDuration(step.duration_ms)}</span>}
               </div>
             </div>
-            <div class="text-xs font-mono flex-shrink-0 text-right" style="width:56px;color:#666666">{formatDuration(step.duration_ms)}</div>
+            <div class="text-xs font-mono flex-shrink-0 text-right" style="width:56px;color:#8A8A8A">{formatDuration(step.duration_ms)}</div>
           </div>
         );
       })}
       <!-- Timescale -->
       <div class="flex items-center gap-3 mt-1 pt-1 border-t-2" style="border-color:#2C2C2C">
         <div style="width:140px"></div>
-        <div class="flex-1 flex justify-between text-xs font-mono" style="color:#3C3C3C">
+        <div class="flex-1 flex justify-between text-xs font-mono" style="color:#8A8A8A">
           <span>0</span><span>{formatDuration(totalMs/4)}</span><span>{formatDuration(totalMs/2)}</span><span>{formatDuration(totalMs*3/4)}</span><span>{formatDuration(totalMs)}</span>
         </div>
         <div style="width:56px"></div>
@@ -255,7 +261,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
       <div class="text-xs font-mono font-bold uppercase tracking-widest mb-4" style="color:#FFEE00">Resource usage during build</div>
       <div class="grid lg:grid-cols-2 gap-6">
         <div>
-          <div class="flex items-center gap-4 mb-3 text-xs font-mono" style="color:#666666">
+          <div class="flex items-center gap-4 mb-3 text-xs font-mono" style="color:#8A8A8A">
             <div class="flex items-center gap-1.5"><div class="w-4 h-0.5" style="background:#FFEE00"></div>CPU %</div>
             <div class="flex items-center gap-1.5"><div class="w-4 h-0.5" style="background:#00EEFF"></div>Memory %</div>
           </div>
@@ -265,7 +271,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
               <polyline points={resourceTimeline.map((p,i)=>`${(i/(resourceTimeline.length-1))*400},${120-(p.cpu/100)*110}`).join(' ')} fill="none" stroke="#FFEE00" stroke-width="1.5" stroke-linejoin="round"/>
               <polyline points={resourceTimeline.map((p,i)=>`${(i/(resourceTimeline.length-1))*400},${120-((p.mem_mb/(build.resources?.mem_peak_mb??4096))*110)}`).join(' ')} fill="none" stroke="#00EEFF" stroke-width="1.5" stroke-linejoin="round"/>
             </svg>
-            <div class="absolute top-0 left-0 h-full flex flex-col justify-between text-xs font-mono" style="color:#3C3C3C;padding:2px 0">
+            <div class="absolute top-0 left-0 h-full flex flex-col justify-between text-xs font-mono" style="color:#8A8A8A;padding:2px 0">
               <span>100%</span><span>50%</span><span>0%</span>
             </div>
           </div>
@@ -274,7 +280,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 content-start">
             {[{l:'CPU avg',v:`${build.resources.cpu_avg}%`},{l:'CPU peak',v:`${build.resources.cpu_peak}%`},{l:'Mem avg',v:`${Math.round(build.resources.mem_avg_mb)}MB`},{l:'Mem peak',v:`${build.resources.mem_peak_mb}MB`},{l:'Net in',v:formatBytes(build.resources.net_in_mb*1e6)},{l:'Net out',v:formatBytes(build.resources.net_out_mb*1e6)},{l:'Disk read',v:formatBytes(build.resources.disk_read_mb*1e6)},{l:'Disk write',v:formatBytes(build.resources.disk_write_mb*1e6)}].map(r=>(
               <div class="px-3 py-2.5 border-2 text-center" style="border-color:#2C2C2C">
-                <div class="text-xs font-mono" style="color:#666666">{r.l}</div>
+                <div class="text-xs font-mono" style="color:#8A8A8A">{r.l}</div>
                 <div class="text-sm font-mono font-bold mt-0.5" style="color:#F0F0F0">{r.v}</div>
               </div>
             ))}
@@ -293,16 +299,16 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
         <div class="space-y-2">
           {build.artifacts.map(a => (
             <div class="flex items-center gap-3 px-3 py-2.5 border-2 border-transparent transition-all hover:border-[#3C3C3C] group" style="background:#111111">
-              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#3C3C3C"><path stroke-linecap="square" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#8A8A8A"><path stroke-linecap="square" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-mono font-semibold truncate" style="color:#F0F0F0">{a.name}</div>
-                <div class="text-xs font-mono" style="color:#666666">{formatBytes(a.size_bytes)}</div>
+                <div class="text-xs font-mono" style="color:#8A8A8A">{formatBytes(a.size_bytes)}</div>
               </div>
               <button class="opacity-0 group-hover:opacity-100 transition-opacity" style="color:#FFEE00">↓</button>
             </div>
           ))}
         </div>
-      ) : <p class="text-xs font-mono" style="color:#3C3C3C">No artifacts from this build.</p>}
+      ) : <p class="text-xs font-mono" style="color:#8A8A8A">No artifacts from this build.</p>}
     </div>
 
     <!-- Test results -->
@@ -312,7 +318,7 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
         <div class="space-y-3">
           {[{l:'Passed',v:build.test_results.passed,c:'#00FF88'},{l:'Failed',v:build.test_results.failed,c:'#FF3333'},{l:'Skipped',v:build.test_results.skipped,c:'#3C3C3C'}].map(r=>(
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full" style={`background:${r.c}`}></div><span class="text-xs font-mono" style="color:#AAAAAA">{r.l}</span></div>
+              <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full" style={`background:${r.c}`}></div><span class="text-xs font-mono" style="color:#B0B0B0">{r.l}</span></div>
               <span class="text-sm font-mono font-bold" style={`color:${r.c}`}>{r.v.toLocaleString()}</span>
             </div>
           ))}
@@ -320,18 +326,18 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
             <div class="h-full" style={`width:${(build.test_results.passed/build.test_results.total)*100}%;background:#00FF88`}></div>
             <div class="h-full" style={`width:${(build.test_results.failed/build.test_results.total)*100}%;background:#FF3333`}></div>
           </div>
-          <div class="flex justify-between text-xs font-mono" style="color:#3C3C3C">
+          <div class="flex justify-between text-xs font-mono" style="color:#8A8A8A">
             <span>{((build.test_results.passed/build.test_results.total)*100).toFixed(1)}% pass</span>
             <span>{build.test_results.total.toLocaleString()} total</span>
           </div>
           {build.test_results.coverage_pct && (
             <div class="pt-2 border-t-2" style="border-color:#2C2C2C">
-              <div class="flex justify-between text-xs mb-1"><span class="font-mono" style="color:#666666">Coverage</span><span class="font-mono font-bold" style="color:#F0F0F0">{build.test_results.coverage_pct}%</span></div>
+              <div class="flex justify-between text-xs mb-1"><span class="font-mono" style="color:#8A8A8A">Coverage</span><span class="font-mono font-bold" style="color:#F0F0F0">{build.test_results.coverage_pct}%</span></div>
               <div class="h-1.5 border" style="border-color:#2C2C2C;background:#111111"><div class="h-full" style={`width:${build.test_results.coverage_pct}%;background:#33AAFF`}></div></div>
             </div>
           )}
         </div>
-      ) : <p class="text-xs font-mono" style="color:#3C3C3C">No test results for this build.</p>}
+      ) : <p class="text-xs font-mono" style="color:#8A8A8A">No test results for this build.</p>}
     </div>
 
     <!-- Build metadata -->
@@ -349,8 +355,8 @@ const stepColors: Record<string,string> = {success:'rgba(0,255,136,0.8)',failed:
           ['Pipeline',   build.pipeline_file],
         ].map(([k,v]) => (
           <div class="flex items-center justify-between gap-2">
-            <dt class="text-xs font-mono flex-shrink-0" style="color:#666666">{k}</dt>
-            <dd class="text-xs font-mono text-right truncate" style="color:#AAAAAA">{v}</dd>
+            <dt class="text-xs font-mono flex-shrink-0" style="color:#8A8A8A">{k}</dt>
+            <dd class="text-xs font-mono text-right truncate" style="color:#B0B0B0">{v}</dd>
           </div>
         ))}
       </dl>

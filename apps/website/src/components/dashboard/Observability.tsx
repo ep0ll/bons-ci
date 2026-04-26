@@ -20,8 +20,8 @@ export const BRUT = {
   cyan: '#00EEFF',
   purple: '#CC44FF',
   text: '#F0F0F0',
-  t2: '#AAAAAA',
-  t3: '#666666',
+  t2: '#B0B0B0',
+  t3: '#8A8A8A',
   t4: '#3C3C3C',
 } as const;
 

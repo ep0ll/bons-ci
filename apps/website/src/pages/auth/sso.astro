@@ -7,12 +7,12 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
 <AuthLayout title="Configure SSO — Forge CI">
 <div class="max-w-md w-full">
   <div class="mb-6">
-    <a href="/auth/login" class="inline-flex items-center gap-2 text-sm font-mono mb-6 transition-colors" style="color:#666666" onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#666666'">
+    <a href="/auth/login" class="inline-flex items-center gap-2 text-sm font-mono mb-6 transition-colors" style="color:#8A8A8A" onmouseover="this.style.color='#FFEE00'" onmouseout="this.style.color='#8A8A8A'">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
       Back to sign in
     </a>
     <h1 style="font-family:'Space Grotesk';font-weight:700;font-size:1.75rem;letter-spacing:-0.04em;color:#F0F0F0;line-height:1.0" class="mb-1">Configure SSO</h1>
-    <p class="text-sm" style="color:#AAAAAA">Set up SAML 2.0 via Ory Kratos for your organization.</p>
+    <p class="text-sm" style="color:#B0B0B0">Set up SAML 2.0 via Ory Kratos for your organization.</p>
   </div>
 
   <!-- Provider selector -->
@@ -32,11 +32,11 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
   <div class="card p-4 mb-5" style="border-color:rgba(0,238,255,0.3);background:rgba(0,238,255,0.04)">
     <div class="text-xs font-mono font-bold uppercase tracking-widest mb-3" style="color:#00EEFF">◎ Setup guide — <span id="provider-name-label">Okta</span></div>
     <ol class="space-y-2" id="guide-steps">
-      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">1.</span>In Okta Admin → Applications → Create App Integration</li>
-      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">2.</span>Select SAML 2.0 as sign-on method</li>
-      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">3.</span>Copy the Forge CI ACS URL and Entity ID below into Okta</li>
-      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">4.</span>Download the Okta metadata XML and paste below</li>
-      <li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">5.</span>Assign users/groups in Okta → your app → Assignments</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#B0B0B0"><span class="font-mono font-bold" style="color:#00EEFF">1.</span>In Okta Admin → Applications → Create App Integration</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#B0B0B0"><span class="font-mono font-bold" style="color:#00EEFF">2.</span>Select SAML 2.0 as sign-on method</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#B0B0B0"><span class="font-mono font-bold" style="color:#00EEFF">3.</span>Copy the Forge CI ACS URL and Entity ID below into Okta</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#B0B0B0"><span class="font-mono font-bold" style="color:#00EEFF">4.</span>Download the Okta metadata XML and paste below</li>
+      <li class="flex items-start gap-2.5 text-xs" style="color:#B0B0B0"><span class="font-mono font-bold" style="color:#00EEFF">5.</span>Assign users/groups in Okta → your app → Assignments</li>
     </ol>
   </div>
 
@@ -55,9 +55,9 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
         const val = epMap[e.key] ?? '—';
         return (
           <div>
-            <div class="text-xs font-mono mb-1" style="color:#666666">{e.label}</div>
+            <div class="text-xs font-mono mb-1" style="color:#8A8A8A">{e.label}</div>
             <div class="flex items-center gap-0 border-2" style="border-color:#2C2C2C">
-              <code class="text-xs font-mono flex-1 px-3 py-2 truncate" style="color:#AAAAAA">
+              <code class="text-xs font-mono flex-1 px-3 py-2 truncate" style="color:#B0B0B0">
                 {val}
               </code>
               <button
@@ -80,12 +80,12 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
     <div>
       <label class="input-label">IdP Metadata URL</label>
       <input type="url" id="metadata-url" class="input input-mono" placeholder="https://your-idp.com/saml/metadata" autocomplete="off"/>
-      <p class="text-xs font-mono mt-1.5" style="color:#666666">We'll fetch and parse automatically from a URL.</p>
+      <p class="text-xs font-mono mt-1.5" style="color:#8A8A8A">We'll fetch and parse automatically from a URL.</p>
     </div>
 
     <div class="relative">
       <div class="absolute inset-0 flex items-center"><div class="w-full border-t" style="border-color:#2C2C2C"></div></div>
-      <div class="relative flex justify-center"><span class="px-3 text-xs font-mono" style="background:#0A0A0A;color:#666666">OR PASTE XML</span></div>
+      <div class="relative flex justify-center"><span class="px-3 text-xs font-mono" style="background:#0A0A0A;color:#8A8A8A">OR PASTE XML</span></div>
     </div>
 
     <div>
@@ -104,7 +104,7 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
           {l:'Groups / Roles',       v:'groups',                ph:'memberOf'},
         ].map(a => (
           <div class="grid grid-cols-[120px_1fr] gap-2 items-center">
-            <label class="text-xs font-mono" style="color:#666666">{a.l}</label>
+            <label class="text-xs font-mono" style="color:#8A8A8A">{a.l}</label>
             <input type="text" class="input input-mono text-xs" value={a.v} placeholder={a.ph}/>
           </div>
         ))}
@@ -125,7 +125,7 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
           </div>
           <div>
             <div class="text-sm font-semibold" style="color:#F0F0F0">{s.l}</div>
-            <div class="text-xs" style="color:#666666">{s.d}</div>
+            <div class="text-xs" style="color:#8A8A8A">{s.d}</div>
           </div>
         </label>
       ))}
@@ -141,7 +141,7 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
   <!-- Test result -->
   <div id="test-result" class="hidden mt-4 card p-4 card-green">
     <div class="text-xs font-mono font-bold uppercase" style="color:#00FF88">✓ Connection verified</div>
-    <p class="text-xs mt-1" style="color:#AAAAAA">Successfully received SAML response. SSO is ready to enable.</p>
+    <p class="text-xs mt-1" style="color:#B0B0B0">Successfully received SAML response. SSO is ready to enable.</p>
   </div>
 </div>
 </AuthLayout>
@@ -161,7 +161,7 @@ const providerKeys = Object.keys(SSO_PROVIDER_GUIDES);
     if (!g) return;
     document.getElementById('provider-name-label')!.textContent = g.name;
     document.getElementById('guide-steps')!.innerHTML = g.steps
-      .map((s, i) => `<li class="flex items-start gap-2.5 text-xs" style="color:#AAAAAA"><span class="font-mono font-bold" style="color:#00EEFF">${i+1}.</span>${s}</li>`)
+      .map((s, i) => `<li class="flex items-start gap-2.5 text-xs" style="color:#B0B0B0"><span class="font-mono font-bold" style="color:#00EEFF">${i+1}.</span>${s}</li>`)
       .join('');
   }
   (window as any).updateGuide = updateGuide;

@@ -34,25 +34,25 @@ const matrix = [
         {tiers.map(tier => (
           <div class:list={['border-r-2 border-b-2 p-6 flex flex-col relative', tier.featured ? 'bg-[rgba(255,238,0,0.03)]' : '']} style="border-color:#2C2C2C">
             {tier.badge && <div class="badge-accent mb-3 self-start">{tier.badge}</div>}
-            <div class="text-xs font-mono uppercase tracking-widest mb-1" style="color:#666666">{tier.name}</div>
+            <div class="text-xs font-mono uppercase tracking-widest mb-1" style="color:#8A8A8A">{tier.name}</div>
             <div class="flex items-baseline gap-1 mb-0.5">
               <span class="text-3xl font-bold" style={`font-family:'Space Grotesk';letter-spacing:-0.04em;color:${tier.featured?'#FFEE00':'#F0F0F0'}`}>
                 {tier.custom ? 'Custom' : tier.monthly_price === 0 ? 'Free' : `$${tier.monthly_price}`}
               </span>
-              {!tier.custom && tier.monthly_price! > 0 && <span class="text-sm" style="color:#666666">/user/mo</span>}
+              {!tier.custom && tier.monthly_price! > 0 && <span class="text-sm" style="color:#8A8A8A">/user/mo</span>}
             </div>
-            <p class="text-xs font-mono mb-5" style="color:#666666">{tier.tagline}</p>
+            <p class="text-xs font-mono mb-5" style="color:#8A8A8A">{tier.tagline}</p>
             <div class="p-3 border-2 mb-5" style="border-color:#2C2C2C;background:#111111">
               {[['Build mins', tier.build_minutes],['Parallelism', tier.parallelism],['Cache', tier.cache_gb],['Runners', tier.runners]].map(([k,v]) => (
                 <div class="flex justify-between text-xs py-1 border-b last:border-0" style="border-color:#222222">
-                  <span style="color:#666666">{k}</span>
+                  <span style="color:#8A8A8A">{k}</span>
                   <span class="font-mono font-semibold" style="color:#F0F0F0">{v}</span>
                 </div>
               ))}
             </div>
             <ul class="space-y-2 mb-5 flex-1">
               {tier.features.map(f => (
-                <li class="flex items-start gap-2 text-xs" style="color:#AAAAAA">
+                <li class="flex items-start gap-2 text-xs" style="color:#B0B0B0">
                   <span style="color:#00FF88;flex-shrink:0">✓</span>{f}
                 </li>
               ))}
@@ -81,16 +81,16 @@ const matrix = [
               {matrix.map(section => (
                 <>
                   <tr style="background:#111111">
-                    <td colspan={5} class="text-xs font-mono uppercase tracking-widest" style="color:#3C3C3C;padding:8px 16px">{section.cat}</td>
+                    <td colspan={5} class="text-xs font-mono uppercase tracking-widest" style="color:#8A8A8A;padding:8px 16px">{section.cat}</td>
                   </tr>
                   {section.rows.map(([feat, vals]) => (
                     <tr>
-                      <td class="text-xs" style="color:#AAAAAA">{feat}</td>
+                      <td class="text-xs" style="color:#B0B0B0">{feat}</td>
                       {(vals as (boolean|string)[]).map((val, vi) => (
                         <td class="text-center" style={tiers[vi]?.featured ? 'background:rgba(255,238,0,0.02)' : ''}>
                           {val === true  ? <span style="color:#00FF88;font-size:14px">✓</span>
                           : val === false ? <span style="color:#2C2C2C">—</span>
-                          : <span class="text-xs font-mono" style={tiers[vi]?.featured?'color:#FFEE00;font-weight:600':'color:#AAAAAA'}>{val}</span>}
+                          : <span class="text-xs font-mono" style={tiers[vi]?.featured?'color:#FFEE00;font-weight:600':'color:#B0B0B0'}>{val}</span>}
                         </td>
                       ))}
                     </tr>
@@ -123,7 +123,7 @@ const matrix = [
               <svg class={`faq-icon-${i} w-4 h-4 flex-shrink-0 transition-transform`} fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#FFEE00"><path stroke-linecap="square" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
             </button>
             <div class={`faq-body-${i} hidden pb-5`}>
-              <p class="text-sm" style="color:#666666">{a}</p>
+              <p class="text-sm" style="color:#8A8A8A">{a}</p>
             </div>
           </div>
         ))}

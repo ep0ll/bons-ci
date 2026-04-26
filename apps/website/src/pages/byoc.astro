@@ -52,7 +52,7 @@ const benefits = [
           <div class="card p-6 hover:border-[rgba(255,238,0,0.2)] transition-colors">
             <div class="text-4xl mb-4">{c.emoji}</div>
             <h3 class="font-bold text-xl text-[#F0F0F0] mb-2">{c.name}</h3>
-            <p class="text-sm text-[#AAAAAA] leading-relaxed">{c.desc}</p>
+            <p class="text-sm text-[#B0B0B0] leading-relaxed">{c.desc}</p>
           </div>
         ))}
       </div>
@@ -69,7 +69,7 @@ const benefits = [
             <div class="w-10 h-10 rounded-full bg-[#FFEE00] flex items-center justify-center font-bold text-[#0A0A0A] flex-shrink-0">{s.n}</div>
             <div>
               <h3 class="font-bold text-lg text-[#F0F0F0] mb-1">{s.title}</h3>
-              <p class="text-[#AAAAAA] leading-relaxed">{s.body}</p>
+              <p class="text-[#B0B0B0] leading-relaxed">{s.body}</p>
             </div>
           </div>
         ))}
@@ -81,19 +81,19 @@ const benefits = [
           <div class="terminal-dot bg-[#FF5F57]"></div>
           <div class="terminal-dot bg-[#FFBD2E]"></div>
           <div class="terminal-dot bg-[#28C840]"></div>
-          <span class="text-xs font-mono text-[#666666] ml-2">Install runner agent</span>
+          <span class="text-xs font-mono text-[#8A8A8A] ml-2">Install runner agent</span>
         </div>
-        <pre class="p-5 font-mono text-xs text-[#AAAAAA] leading-relaxed overflow-x-auto"><code><span class="text-[#666666]"># Install on any Linux host (x64 or ARM64)</span>
+        <pre class="p-5 font-mono text-xs text-[#B0B0B0] leading-relaxed overflow-x-auto"><code><span class="text-[#8A8A8A]"># Install on any Linux host (x64 or ARM64)</span>
 <span class="text-[#FFEE00]">curl -sSL https://install.forge-ci.dev/runner | bash</span>
 
-<span class="text-[#666666]"># Register with your organization</span>
+<span class="text-[#8A8A8A]"># Register with your organization</span>
 <span class="text-[#F0F0F0]">forge runner register \
   --org acme-corp \
   --token $FORGE_RUNNER_TOKEN \
   --labels linux,x64,large,us-west-2 \
   --concurrency 4</span>
 
-<span class="text-[#666666]"># Runner is now active</span>
+<span class="text-[#8A8A8A]"># Runner is now active</span>
 <span class="text-[#00FF88]">✓ Runner acme-r8f2 registered · waiting for jobs</span></code></pre>
       </div>
     </div>
@@ -107,7 +107,7 @@ const benefits = [
           <div class="card p-6 text-center hover:border-[rgba(255,238,0,0.2)] transition-colors">
             <div class="text-4xl mb-4">{b.icon}</div>
             <h3 class="font-bold text-base text-[#F0F0F0] mb-2">{b.title}</h3>
-            <p class="text-sm text-[#AAAAAA] leading-relaxed">{b.desc}</p>
+            <p class="text-sm text-[#B0B0B0] leading-relaxed">{b.desc}</p>
           </div>
         ))}
       </div>
@@ -118,7 +118,7 @@ const benefits = [
   <section class="section border-t border-[#2C2C2C] bg-[rgba(12,16,24,0.4)]">
     <div class="container-forge max-w-xl text-center">
       <h2 class="font-bold text-3xl text-[#F0F0F0] mb-4">BYOC is available on Team and Enterprise plans.</h2>
-      <p class="text-[#AAAAAA] mb-8">Start a 14-day free trial, or talk to our team about enterprise licensing.</p>
+      <p class="text-[#B0B0B0] mb-8">Start a 14-day free trial, or talk to our team about enterprise licensing.</p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
         <a href="/auth/signup?plan=team" class="btn-primary btn-xl">Start free trial</a>
         <a href="/enterprise" class="btn-secondary btn-xl">Talk to enterprise sales</a>

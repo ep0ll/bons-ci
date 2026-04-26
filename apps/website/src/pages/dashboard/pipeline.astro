@@ -1,0 +1,42 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import { LivePipelineDAG } from '../../components/pipeline/LivePipelineDAG';
+
+const buildId = Astro.url.searchParams.get('build') || 'demo-001';
+---
+
+<DashboardLayout title="Pipeline — LLB DAG Viewer" activeNav="pipeline" breadcrumbs={[{label:'Pipeline'}]}>
+  <div style="height: calc(100vh - 120px); min-height: 600px;">
+    <LivePipelineDAG buildId={buildId} client:only="react" />
+  </div>
+</DashboardLayout>
+
+<style is:global>
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes shimmer {
+    0%, 100% { opacity: 0; transform: translateX(-100%); }
+    50% { opacity: 1; transform: translateX(100%); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  /* Override ReactFlow defaults for brutalist theme */
+  .react-flow__panel { border-radius: 0 !important; }
+  .react-flow__controls button {
+    background: #111111 !important;
+    border-color: #2C2C2C !important;
+    color: #B0B0B0 !important;
+    border-radius: 0 !important;
+  }
+  .react-flow__controls button:hover {
+    background: #1A1A1A !important;
+    color: #FFEE00 !important;
+  }
+  .react-flow__minimap {
+    border-radius: 0 !important;
+  }
+  .react-flow__attribution { display: none !important; }
+</style>

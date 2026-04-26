@@ -56,10 +56,10 @@ const sectionFeatures = [
           <div class:list={[si%2===1 ? 'lg:order-2' : '']}>
             <div class="section-label mb-5" style={`color:${sec.color};border-color:${sec.color}40`}>{sec.label}</div>
             <h2 class="font-bold tracking-tight mb-5" style={`font-family:'Space Grotesk';font-size:clamp(1.75rem,3.5vw,2.5rem);letter-spacing:-0.04em;color:#F0F0F0;line-height:1.05`}>{sec.title}</h2>
-            <p class="text-lg leading-relaxed mb-8" style="color:#AAAAAA">{sec.desc}</p>
+            <p class="text-lg leading-relaxed mb-8" style="color:#B0B0B0">{sec.desc}</p>
             <ul class="space-y-2.5 mb-8">
               {sec.features.map(f => (
-                <li class="flex items-start gap-3 text-sm" style="color:#AAAAAA">
+                <li class="flex items-start gap-3 text-sm" style="color:#B0B0B0">
                   <span class="flex-shrink-0 mt-0.5 font-mono font-bold" style={`color:${sec.color}`}>→</span>
                   {f}
                 </li>
@@ -74,12 +74,12 @@ const sectionFeatures = [
           <div class:list={[si%2===1 ? 'lg:order-1' : '']}>
             <div class="card p-6" style={`border-color:${sec.color}40;box-shadow:4px 4px 0 ${sec.color}30`}>
               <div class="text-4xl mb-4">{sec.icon}</div>
-              <div class="text-xs font-mono uppercase tracking-widest mb-4" style="color:#666666">{sec.label} highlights</div>
+              <div class="text-xs font-mono uppercase tracking-widest mb-4" style="color:#8A8A8A">{sec.label} highlights</div>
               <div class="space-y-2">
                 {sec.features.slice(0,5).map(f => (
                   <div class="flex items-center gap-2.5 px-3 py-2.5 border" style="border-color:#2C2C2C;background:#111111">
                     <div class="w-1.5 h-1.5 flex-shrink-0 rounded-full" style={`background:${sec.color}`}></div>
-                    <span class="text-xs" style="color:#AAAAAA">{f}</span>
+                    <span class="text-xs" style="color:#B0B0B0">{f}</span>
                   </div>
                 ))}
               </div>
@@ -107,7 +107,7 @@ const sectionFeatures = [
             </div>
             <ul class="space-y-1.5">
               {cat.charts.map(c => (
-                <li class="flex items-start gap-2 text-xs" style="color:#666666">
+                <li class="flex items-start gap-2 text-xs" style="color:#8A8A8A">
                   <span style="color:#2C2C2C;flex-shrink:0">▸</span>{c}
                 </li>
               ))}

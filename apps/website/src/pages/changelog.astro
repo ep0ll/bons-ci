@@ -30,7 +30,7 @@ const typeConfig: Record<ChangelogEntryType, { cls: string; icon: string; label:
     <!-- Version legend -->
     <div class="flex flex-wrap gap-3 mb-12 pb-8 border-b-2" style="border-color:#2C2C2C">
       {Object.entries(typeConfig).map(([, cfg]) => (
-        <div class="flex items-center gap-2 text-xs font-mono" style="color:#AAAAAA">
+        <div class="flex items-center gap-2 text-xs font-mono" style="color:#B0B0B0">
           <span class={`badge ${cfg.cls}`}>{cfg.icon} {cfg.label}</span>
         </div>
       ))}
@@ -48,7 +48,7 @@ const typeConfig: Record<ChangelogEntryType, { cls: string; icon: string; label:
           <div class="grid grid-cols-[96px_1fr] gap-8 pb-14">
             <!-- Date column -->
             <div class="pt-3 text-right">
-              <div class="text-xs font-mono leading-relaxed" style="color:#666666">
+              <div class="text-xs font-mono leading-relaxed" style="color:#8A8A8A">
                 {release.date.slice(0, 7)}
               </div>
             </div>
@@ -80,7 +80,7 @@ const typeConfig: Record<ChangelogEntryType, { cls: string; icon: string; label:
                         {entry.tags.slice(0, 2).map(t => <span class="badge-neutral flex-shrink-0">{t}</span>)}
                       </div>
                       <div class="text-sm font-semibold mb-2" style="color:#F0F0F0;font-family:'Space Grotesk'">{entry.title}</div>
-                      <p class="text-xs leading-relaxed" style="color:#AAAAAA">{entry.body}</p>
+                      <p class="text-xs leading-relaxed" style="color:#B0B0B0">{entry.body}</p>
                     </div>
                   );
                 })}
@@ -95,7 +95,7 @@ const typeConfig: Record<ChangelogEntryType, { cls: string; icon: string; label:
     <div class="card p-8 text-center mt-8 border-t-2" style="border-color:#2C2C2C">
       <div class="section-label mb-4 justify-center">Stay updated</div>
       <h2 class="text-xl font-bold mb-3" style="font-family:'Space Grotesk';color:#F0F0F0">Get release notifications</h2>
-      <p class="text-sm mb-5" style="color:#666666">Subscribe to the RSS feed or follow us on Twitter.</p>
+      <p class="text-sm mb-5" style="color:#8A8A8A">Subscribe to the RSS feed or follow us on Twitter.</p>
       <div class="flex flex-col sm:flex-row gap-3 justify-center">
         <a href="/rss/changelog.xml" class="btn-secondary btn-md">
           <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

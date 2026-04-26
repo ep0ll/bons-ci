@@ -17,7 +17,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
         <>
           <div class="step-dot w-8 h-8 flex items-center justify-center text-xs font-mono font-bold border-2 transition-all flex-shrink-0"
                data-step-dot={n}
-               style={n===1 ? 'background:#FFEE00;border-color:#FFEE00;color:#0A0A0A' : 'background:#0A0A0A;border-color:#3C3C3C;color:#666666'}>
+               style={n===1 ? 'background:#FFEE00;border-color:#FFEE00;color:#0A0A0A' : 'background:#0A0A0A;border-color:#8A8A8A;color:#8A8A8A'}>
             {n}
           </div>
           {i < 3 && <div class="flex-1 h-0.5 transition-all" style="background:#2C2C2C" data-step-line={n}></div>}
@@ -25,7 +25,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
       ))}
     </div>
     <h1 id="step-title" style="font-family:'Space Grotesk';font-weight:700;font-size:1.5rem;letter-spacing:-0.04em;color:#F0F0F0" class="mb-1">Create your account</h1>
-    <p class="text-sm" style="color:#AAAAAA">Already have an account? <a href="/auth/login" style="color:#FFEE00;font-weight:600">Sign in</a></p>
+    <p class="text-sm" style="color:#B0B0B0">Already have an account? <a href="/auth/login" style="color:#FFEE00;font-weight:600">Sign in</a></p>
   </div>
 
   <!-- Step 1: Account -->
@@ -38,7 +38,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
       ].map(item => (
         <a href={`/api/auth/ory?provider=${item.p}&flow=registration`}
            class="w-full flex items-center justify-center gap-3 px-4 py-2.5 text-sm font-semibold border-2 transition-all"
-           style="background:#1A1A1A;border-color:#3C3C3C;color:#F0F0F0"
+           style="background:#1A1A1A;border-color:#8A8A8A;color:#F0F0F0"
            onmouseover="this.style.borderColor='#FFEE00';this.style.color='#FFEE00'"
            onmouseout="this.style.borderColor='#3C3C3C';this.style.color='#F0F0F0'">
           {item.p === 'github' && <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>}
@@ -49,7 +49,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
     </div>
     <div class="relative mb-5">
       <div class="absolute inset-0 flex items-center"><div class="w-full border-t-2" style="border-color:#2C2C2C"></div></div>
-      <div class="relative flex justify-center"><span class="px-3 text-xs font-mono" style="background:#0A0A0A;color:#666666">OR EMAIL</span></div>
+      <div class="relative flex justify-center"><span class="px-3 text-xs font-mono" style="background:#0A0A0A;color:#8A8A8A">OR EMAIL</span></div>
     </div>
     <div class="space-y-3">
       <div class="grid grid-cols-2 gap-3">
@@ -59,7 +59,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
       <div>
         <label class="input-label">Work email</label>
         <input type="email" id="signup-email" class="input" placeholder="ada@company.com" autocomplete="email"/>
-        <div id="email-hint" class="hidden text-xs font-mono mt-1" style="color:#666666"></div>
+        <div id="email-hint" class="hidden text-xs font-mono mt-1" style="color:#8A8A8A"></div>
       </div>
       <div>
         <label class="input-label">Password</label>
@@ -72,13 +72,13 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
             </div>
           ))}
         </div>
-        <div id="pw-label" class="text-xs font-mono mt-1" style="color:#666666"></div>
+        <div id="pw-label" class="text-xs font-mono mt-1" style="color:#8A8A8A"></div>
       </div>
     </div>
     <button type="button" onclick="goStep(2)" class="btn-primary btn-md w-full justify-center mt-5">
       Continue → <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="square" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
     </button>
-    <p class="text-xs font-mono text-center mt-4" style="color:#444444">
+    <p class="text-xs font-mono text-center mt-4" style="color:#8A8A8A">
       By signing up you agree to our <a href="/terms" style="color:#FFEE00">Terms</a> and <a href="/privacy" style="color:#FFEE00">Privacy Policy</a>.
     </p>
   </div>
@@ -120,7 +120,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
         <input type="radio" name="plan" value={t.id} class="sr-only" checked={t.featured}
                onchange="document.querySelectorAll('.plan-label').forEach(l=>l.style.borderColor='#2C2C2C');this.closest('label').style.borderColor='#FFEE00'"/>
         <div class="w-4 h-4 border-2 flex-shrink-0 flex items-center justify-center transition-all"
-             style={t.featured ? 'border-color:#FFEE00;background:#FFEE00' : 'border-color:#3C3C3C'}>
+             style={t.featured ? 'border-color:#FFEE00;background:#FFEE00' : 'border-color:#8A8A8A'}>
           {t.featured && <div class="w-2 h-2" style="background:#0A0A0A"></div>}
         </div>
         <div class="flex-1">
@@ -128,12 +128,12 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
             <span class="text-sm font-semibold" style="color:#F0F0F0">{t.name}</span>
             {t.featured && <span class="badge-accent text-xs">Recommended</span>}
           </div>
-          <div class="text-xs font-mono mt-0.5" style="color:#666666">{t.build_minutes} · {t.parallelism}</div>
+          <div class="text-xs font-mono mt-0.5" style="color:#8A8A8A">{t.build_minutes} · {t.parallelism}</div>
         </div>
         <div class="text-sm font-mono font-bold" style="color:#FFEE00">{t.monthly_price === 0 ? 'Free' : `$${t.monthly_price}/mo`}</div>
       </label>
     ))}
-    <p class="text-xs font-mono" style="color:#666666">✓ 14-day free trial on Pro & Team. No card required.</p>
+    <p class="text-xs font-mono" style="color:#8A8A8A">✓ 14-day free trial on Pro & Team. No card required.</p>
     <div class="flex gap-3">
       <button type="button" onclick="goStep(2)" class="btn-secondary btn-md flex-shrink-0 px-4">←</button>
       <button type="button" onclick="createAccount()" id="create-btn" class="btn-primary btn-md flex-1 justify-center">
@@ -148,12 +148,12 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
       <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:#00FF88"><path stroke-linecap="square" stroke-width="1.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
     </div>
     <h2 class="text-2xl font-bold mb-3" style="font-family:'Space Grotesk';letter-spacing:-0.03em;color:#F0F0F0">Check your inbox</h2>
-    <p class="text-sm mb-6" style="color:#AAAAAA">
+    <p class="text-sm mb-6" style="color:#B0B0B0">
       Ory Kratos sent a verification link to<br/>
       <strong class="font-mono" style="color:#F0F0F0" id="verify-email"></strong>
     </p>
     <a href="/auth/onboarding" class="btn-primary btn-md w-full justify-center">I've verified my email →</a>
-    <button class="btn-ghost btn-sm w-full justify-center mt-2 text-xs font-mono" style="color:#666666">Resend verification email</button>
+    <button class="btn-ghost btn-sm w-full justify-center mt-2 text-xs font-mono" style="color:#8A8A8A">Resend verification email</button>
   </div>
 </div>
 </AuthLayout>
@@ -180,7 +180,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
         dot.textContent = String(i);
         if (line) line.style.background = '#2C2C2C';
       } else {
-        dot.style.cssText = 'background:#0A0A0A;border-color:#3C3C3C;color:#666666';
+        dot.style.cssText = 'background:#0A0A0A;border-color:#8A8A8A;color:#8A8A8A';
         dot.textContent = String(i);
         if (line) line.style.background = '#2C2C2C';
       }
@@ -210,7 +210,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
     orgSlug.value = v;
     clearTimeout(slugTimer);
     if (!v) { slugStatus.innerHTML = ''; return; }
-    slugStatus.innerHTML = '<span style="color:#666666">Checking availability…</span>';
+    slugStatus.innerHTML = '<span style="color:#8A8A8A">Checking availability…</span>';
     slugTimer = setTimeout(() => {
       const taken = ['acme','forge','test','demo','admin'].includes(v);
       slugStatus.innerHTML = taken
@@ -238,7 +238,7 @@ const plans = PRICING_TIERS.filter(t => t.id !== 'enterprise');
       bar.style.background = i < s ? barColors[s] : 'transparent';
     });
     pwLabel.textContent  = barLabels[s] ?? '';
-    pwLabel.style.color  = barColors[s] ?? '#666666';
+    pwLabel.style.color  = barColors[s] ?? '#8A8A8A';
   });
 
   (window as any).goStep = goStep;

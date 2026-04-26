@@ -8,6 +8,6 @@ const { transparentHeader = false, ...rest } = Astro.props;
 <BaseLayout {...rest}>
   <slot name="head" slot="head"/>
   <Header transparent={transparentHeader}/>
-  <main><slot/></main>
+  <main id="main-content"><slot/></main>
   <Footer/>
 </BaseLayout>

@@ -1,30 +1,109 @@
 ---
 import MarketingLayout from '../layouts/MarketingLayout.astro';
+
+const requestedPath = Astro.url.pathname;
+
+/* Popular destinations for quick navigation */
+const quickLinks = [
+  { label: 'Homepage',     href: '/',                icon: '⌂', description: 'Start from the top' },
+  { label: 'Dashboard',    href: '/dashboard',       icon: '◧', description: 'Your build overview' },
+  { label: 'Documentation',href: '/docs',            icon: '◈', description: 'Guides & reference' },
+  { label: 'Blog',         href: '/blog',            icon: '▤', description: 'Engineering articles' },
+  { label: 'Pricing',      href: '/pricing',         icon: '◆', description: 'Plans & features' },
+  { label: 'Status',       href: '/status',          icon: '●', description: 'Service uptime' },
+  { label: 'Changelog',    href: '/changelog',       icon: '◎', description: 'Latest releases' },
+  { label: 'Security',     href: '/security',        icon: '◉', description: 'Trust & compliance' },
+];
+
+/* Funny terminal messages */
+const messages = [
+  "Layer sha256:404...abc not found in cache",
+  "Error: ENOENT: no such page or directory",
+  "fatal: bad object: HEAD at this path",
+  "exit status 404: resource has been garbage-collected",
+];
+const msg = messages[Math.floor(Math.random() * messages.length)];
 ---
-<MarketingLayout title="404 — Page not found — Forge CI" noindex={true}>
-  <div class="min-h-[90svh] flex items-center justify-center px-4 relative overflow-hidden">
-    <div class="absolute inset-0 bg-grid opacity-20 pointer-events-none"></div>
-    <div class="relative z-10 text-center max-w-xl">
-      <div class="terminal max-w-sm mx-auto mb-10">
-        <div class="terminal-header"><div class="terminal-dot bg-[#FF5F57]"></div><div class="terminal-dot bg-[#FFBD2E]"></div><div class="terminal-dot bg-[#28C840]"></div></div>
-        <div class="p-5 font-mono text-sm space-y-1">
-          <div><span class="text-[#666666]">$</span> <span class="text-[#F0F0F0]">forge get {Astro.url.pathname}</span></div>
-          <div class="text-[#FF3333]">Error: 404 Not Found</div>
-          <div class="text-[#666666]">This page doesn't exist.</div>
+
+<MarketingLayout title="404 — Page Not Found — Forge CI" noindex={true}>
+  <div class="min-h-[90svh] flex items-center justify-center px-4 relative overflow-hidden" role="main" aria-label="Page not found">
+    <!-- Background grid -->
+    <div class="absolute inset-0 bg-grid-brut opacity-30 pointer-events-none" aria-hidden="true"></div>
+
+    <!-- Animated scan line -->
+    <div class="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+      <div class="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#FFEE00] to-transparent opacity-20"
+           style="animation: scan 4s linear infinite"></div>
+    </div>
+
+    <div class="relative z-10 w-full max-w-2xl">
+      <!-- Terminal widget -->
+      <div class="terminal max-w-lg mx-auto mb-10" role="img" aria-label="Terminal showing 404 error">
+        <div class="terminal-header">
+          <div class="terminal-dot bg-[#FF5F57]"></div>
+          <div class="terminal-dot bg-[#FFBD2E]"></div>
+          <div class="terminal-dot bg-[#28C840]"></div>
+          <span class="ml-3 text-xs font-mono text-[#8A8A8A]">forge-ci — zsh</span>
+        </div>
+        <div class="p-5 font-mono text-sm space-y-1.5">
+          <div><span class="text-[#8A8A8A]">$</span> <span class="text-[#F0F0F0]">forge get</span> <span class="text-[#FFEE00]">{requestedPath}</span></div>
+          <div class="text-[#FF3333] font-bold">{msg}</div>
+          <div class="text-[#8A8A8A]">Hint: did you mean one of the pages below?</div>
           <div class="cursor-blink text-[#FFEE00] mt-2"></div>
         </div>
       </div>
-      <h1 class="font-bold text-5xl text-[#F0F0F0] mb-3">404</h1>
-      <p class="text-[#AAAAAA] mb-8">This page doesn't exist. Maybe it moved, or you followed a stale link.</p>
-      <div class="flex flex-col sm:flex-row gap-3 justify-center mb-10">
-        <a href="/" class="btn-primary btn-lg">Go to homepage</a>
-        <a href="/dashboard" class="btn-secondary btn-lg">Open dashboard</a>
-        <a href="/docs" class="btn-ghost btn-lg text-[#666666]">Read docs</a>
+
+      <!-- Heading -->
+      <div class="text-center mb-10">
+        <h1 class="font-bold text-6xl sm:text-7xl text-[#F0F0F0] mb-3 tracking-tight">
+          4<span class="text-[#FFEE00]">0</span>4
+        </h1>
+        <p class="text-lg text-[#B0B0B0] max-w-md mx-auto leading-relaxed">
+          This page doesn't exist. It may have been moved, deleted, or you followed a broken link.
+        </p>
       </div>
-      <div class="grid grid-cols-4 gap-2 text-sm">
-        {['Features','Pricing','Blog','Status','Docs','Changelog','Contact','Sign in'].map(l => (
-          <a href={`/${l.toLowerCase().replace(' ','-')}`} class="card p-3 text-center text-[#666666] hover:text-[#FFEE00] hover:border-[rgba(255,238,0,0.3)] transition-all">{l}</a>
-        ))}
+
+      <!-- Primary CTAs -->
+      <div class="flex flex-col sm:flex-row gap-3 justify-center mb-12" role="navigation" aria-label="Primary navigation">
+        <a href="/" class="btn-primary btn-lg">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3"/>
+          </svg>
+          Go to homepage
+        </a>
+        <a href="/dashboard" class="btn-secondary btn-lg">Open dashboard</a>
+        <a href="/docs" class="btn-ghost btn-lg text-[#B0B0B0]">Read docs →</a>
+      </div>
+
+      <!-- Quick links grid -->
+      <nav aria-label="Quick links">
+        <div class="text-xs font-mono font-bold text-[#FFEE00] uppercase tracking-[0.2em] text-center mb-4">Quick links</div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {quickLinks.map(l => (
+            <a
+              href={l.href}
+              class="card p-4 text-center hover:border-[rgba(255,238,0,0.4)] hover:bg-[rgba(255,238,0,0.03)] transition-all group"
+            >
+              <div class="text-xl mb-1.5 group-hover:scale-110 transition-transform" aria-hidden="true">{l.icon}</div>
+              <div class="text-sm font-semibold text-[#F0F0F0] group-hover:text-[#FFEE00] transition-colors">{l.label}</div>
+              <div class="text-xs text-[#8A8A8A] mt-0.5">{l.description}</div>
+            </a>
+          ))}
+        </div>
+      </nav>
+
+      <!-- Help section -->
+      <div class="mt-12 text-center border-t-2 border-[#2C2C2C] pt-8">
+        <p class="text-sm text-[#8A8A8A] mb-3">
+          Still lost? We can help.
+        </p>
+        <div class="flex flex-wrap justify-center gap-3 text-sm">
+          <a href="mailto:support@forge-ci.com" class="text-[#B0B0B0] hover:text-[#FFEE00] transition-colors underline decoration-[#555555] underline-offset-4">Email support</a>
+          <span class="text-[#555555]" aria-hidden="true">·</span>
+          <a href="https://github.com/forge-ci" class="text-[#B0B0B0] hover:text-[#FFEE00] transition-colors underline decoration-[#555555] underline-offset-4">GitHub</a>
+          <span class="text-[#555555]" aria-hidden="true">·</span>
+          <a href="/status" class="text-[#B0B0B0] hover:text-[#FFEE00] transition-colors underline decoration-[#555555] underline-offset-4">Service status</a>
+        </div>
       </div>
     </div>
   </div>

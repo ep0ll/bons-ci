@@ -55,7 +55,7 @@ const certs = [
                 <span class="text-sm font-medium text-[#F0F0F0]">{c.name}</span>
                 <span class={`badge text-xs ${c.cls}`}>{c.status}</span>
               </div>
-              <p class="text-xs text-[#666666] leading-relaxed">
+              <p class="text-xs text-[#8A8A8A] leading-relaxed">
                 {c.name === 'SOC 2 Type II' && 'Annual third-party audit. Report available under NDA within 24h.'}
                 {c.name === 'ISO 27001'     && 'ISMS certification. Audited by BSI Group annually.'}
                 {c.name === 'GDPR'          && 'DPA available. EU-US Data Privacy Framework certified.'}
@@ -75,7 +75,7 @@ const certs = [
     <div class="container-forge">
       <div class="text-center mb-12">
         <h2 class="font-bold text-3xl text-[#F0F0F0]">Security controls</h2>
-        <p class="text-[#AAAAAA] mt-3">How we protect every build, every secret, every byte.</p>
+        <p class="text-[#B0B0B0] mt-3">How we protect every build, every secret, every byte.</p>
       </div>
       <div class="grid sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
         {controls.map(c=>(
@@ -85,7 +85,7 @@ const certs = [
             </div>
             <div>
               <h3 class="text-sm font-medium text-[#F0F0F0] mb-1">{c.title}</h3>
-              <p class="text-xs text-[#AAAAAA] leading-relaxed">{c.desc}</p>
+              <p class="text-xs text-[#B0B0B0] leading-relaxed">{c.desc}</p>
             </div>
           </div>
         ))}
@@ -98,15 +98,15 @@ const certs = [
     <div class="container-forge max-w-3xl">
       <h2 class="font-bold text-3xl text-[#F0F0F0] text-center mb-10">Build isolation model</h2>
       <div class="card p-6 font-mono text-sm space-y-2">
-        <div class="text-[#666666]">┌─ Build Job #{`{id}`} ────────────────────────────────────────────┐</div>
-        <div class="text-[#666666]">│</div>
-        <div class="pl-4 text-[#AAAAAA]">│  <span class="text-[#FFEE00]">VM: freshly provisioned</span> · ephemeral · destroyed after job</div>
-        <div class="pl-4 text-[#AAAAAA]">│  <span class="text-[#00EEFF]">Network: isolated namespace</span> · egress firewall applied</div>
-        <div class="pl-4 text-[#AAAAAA]">│  <span class="text-[#00FF88]">Secrets: tmpfs memory mount</span> · never on disk · auto-masked</div>
-        <div class="pl-4 text-[#AAAAAA]">│  <span class="text-[#FF7700]">Cloud creds: OIDC tokens</span> · scoped per job · auto-expired</div>
-        <div class="text-[#666666]">│</div>
-        <div class="text-[#666666]">└──────────────────────────────────────────────────────────────┘</div>
-        <div class="text-xs text-[#666666] pt-2">→ After job: VM destroyed · secrets purged · network torn down · OIDC tokens expire</div>
+        <div class="text-[#8A8A8A]">┌─ Build Job #{`{id}`} ────────────────────────────────────────────┐</div>
+        <div class="text-[#8A8A8A]">│</div>
+        <div class="pl-4 text-[#B0B0B0]">│  <span class="text-[#FFEE00]">VM: freshly provisioned</span> · ephemeral · destroyed after job</div>
+        <div class="pl-4 text-[#B0B0B0]">│  <span class="text-[#00EEFF]">Network: isolated namespace</span> · egress firewall applied</div>
+        <div class="pl-4 text-[#B0B0B0]">│  <span class="text-[#00FF88]">Secrets: tmpfs memory mount</span> · never on disk · auto-masked</div>
+        <div class="pl-4 text-[#B0B0B0]">│  <span class="text-[#FF7700]">Cloud creds: OIDC tokens</span> · scoped per job · auto-expired</div>
+        <div class="text-[#8A8A8A]">│</div>
+        <div class="text-[#8A8A8A]">└──────────────────────────────────────────────────────────────┘</div>
+        <div class="text-xs text-[#8A8A8A] pt-2">→ After job: VM destroyed · secrets purged · network torn down · OIDC tokens expire</div>
       </div>
     </div>
   </section>
@@ -116,7 +116,7 @@ const certs = [
     <div class="container-forge max-w-2xl text-center">
       <div class="text-5xl mb-6">🔍</div>
       <h2 class="font-bold text-3xl text-[#F0F0F0] mb-4">Found a vulnerability?</h2>
-      <p class="text-[#AAAAAA] mb-8 leading-relaxed">
+      <p class="text-[#B0B0B0] mb-8 leading-relaxed">
         We run a responsible disclosure program on HackerOne. We target a 90-day coordinated disclosure timeline
         and offer bug bounties for qualifying reports. We will never pursue legal action against researchers acting in good faith.
       </p>
@@ -124,7 +124,7 @@ const certs = [
         <a href="https://hackerone.com/forge-ci" class="btn-primary btn-lg" target="_blank" rel="noopener noreferrer">Report on HackerOne</a>
         <a href="mailto:security@forge-ci.dev" class="btn-secondary btn-lg">Email security team</a>
       </div>
-      <p class="text-xs text-[#666666]">
+      <p class="text-xs text-[#8A8A8A]">
         PGP key: <code class="font-mono text-[#FFEE00]">forge-ci.dev/.well-known/pgp-key.asc</code>
       </p>
     </div>

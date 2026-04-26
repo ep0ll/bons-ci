@@ -50,12 +50,12 @@ const nav = [
         {nav.map(item => (
           item.mega ? (
             <div class="relative group">
-              <button class="flex items-center gap-1 px-3 py-2 text-sm font-medium transition-all duration-100 border border-transparent" style="color:#AAAAAA;background:transparent"
+              <button class="flex items-center gap-1 px-3 py-2 text-sm font-medium transition-all duration-100 border border-transparent" style="color:#B0B0B0;background:transparent"
                       onmouseover="this.style.color='#FFEE00';this.style.borderColor='#2C2C2C'"
-                      onmouseout="this.style.color='#AAAAAA';this.style.borderColor='transparent'"
+                      onmouseout="this.style.color='#B0B0B0';this.style.borderColor='transparent'"
                       aria-haspopup="true">
                 {item.label}
-                <svg class="w-3 h-3 transition-transform duration-150 group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg class="w-3 h-3 transition-transform duration-150 group-hover:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path stroke-linecap="square" stroke-width="2.5" d="M19 9l-7 7-7-7"/>
                 </svg>
               </button>
@@ -72,7 +72,7 @@ const nav = [
                         <span class="text-lg flex-shrink-0" style="color:#FFEE00">{sub.icon}</span>
                         <div>
                           <div class="text-sm font-semibold" style="font-family:'Space Grotesk',sans-serif">{sub.l}</div>
-                          <div class="text-xs mt-0.5" style="color:#666666">{sub.desc}</div>
+                          <div class="text-xs mt-0.5" style="color:#8A8A8A">{sub.desc}</div>
                         </div>
                       </a>
                     ))}
@@ -83,7 +83,7 @@ const nav = [
           ) : (
             <a href={item.href}
                class:list={['px-3 py-2 text-sm font-medium transition-all duration-100 border border-transparent',
-                 path === item.href ? 'text-[#FFEE00] border-b-2 border-[#FFEE00]' : 'text-[#AAAAAA]']}
+                 path === item.href ? 'text-[#FFEE00] border-b-2 border-[#FFEE00]' : 'text-[#B0B0B0]']}
                style={path === item.href ? 'border-bottom-color:#FFEE00' : ''}>
               {item.label}
             </a>
@@ -100,9 +100,9 @@ const nav = [
         </a>
         <div class="w-px h-4" style="background:#2C2C2C"></div>
         <a href="/auth/login" class="text-sm font-semibold px-3 py-1.5 border border-transparent transition-all"
-           style="color:#AAAAAA"
+           style="color:#B0B0B0"
            onmouseover="this.style.color='#FFEE00';this.style.borderColor='#3C3C3C'"
-           onmouseout="this.style.color='#AAAAAA';this.style.borderColor='transparent'">
+           onmouseout="this.style.color='#B0B0B0';this.style.borderColor='transparent'">
           Sign in
         </a>
         <a href="/auth/signup" class="btn-primary btn-sm">
@@ -115,7 +115,7 @@ const nav = [
 
       <!-- Mobile toggle -->
       <button id="mobile-toggle" class="lg:hidden ml-auto p-2 border transition-all"
-              style="border-color:#2C2C2C;background:#111111;color:#AAAAAA"
+              style="border-color:#2C2C2C;background:#111111;color:#B0B0B0"
               aria-label="Menu" aria-expanded="false">
         <svg id="ico-open" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="square" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
@@ -133,21 +133,21 @@ const nav = [
       {nav.map(item => (
         item.mega ? (
           <div>
-            <p class="px-3 py-1.5 text-xs font-mono uppercase tracking-widest" style="color:#3C3C3C">{item.label}</p>
+            <p class="px-3 py-1.5 text-xs font-mono uppercase tracking-widest" style="color:#8A8A8A">{item.label}</p>
             {item.mega.map(sub => (
               <a href={sub.href} class="flex items-center gap-2 px-4 py-2 text-sm transition-all border border-transparent"
-                 style="color:#AAAAAA"
+                 style="color:#B0B0B0"
                  onmouseover="this.style.color='#FFEE00';this.style.borderColor='#3C3C3C';this.style.background='#1A1A1A'"
-                 onmouseout="this.style.color='#AAAAAA';this.style.borderColor='transparent';this.style.background='transparent'">
+                 onmouseout="this.style.color='#B0B0B0';this.style.borderColor='transparent';this.style.background='transparent'">
                 <span style="color:#FFEE00">{sub.icon}</span>{sub.l}
               </a>
             ))}
           </div>
         ) : (
           <a href={item.href} class="flex px-3 py-2.5 text-sm font-medium border border-transparent transition-all"
-             style="color:#AAAAAA"
+             style="color:#B0B0B0"
              onmouseover="this.style.color='#F0F0F0'"
-             onmouseout="this.style.color='#AAAAAA'">
+             onmouseout="this.style.color='#B0B0B0'">
             {item.label}
           </a>
         )
