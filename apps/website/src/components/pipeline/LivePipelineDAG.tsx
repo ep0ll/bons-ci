@@ -224,34 +224,134 @@ function PipelineFlow({ vertices, selectedVertex, onSelectVertex }: {
     selectedVertex: string | null;
     onSelectVertex: (id: string | null) => void;
 }) {
-    const { fitView } = useReactFlow();
+    const { fitView, setCenter } = useReactFlow();
     const prevCountRef = useRef(0);
 
-    const { nodes, edges } = useMemo(() => layoutDAG(vertices), [vertices]);
+    // Track user-dragged positions so dagre doesn't override them
+    const positionOverrides = useRef<Map<string, { x: number; y: number }>>(new Map());
+    const layoutedIdsRef = useRef<Set<string>>(new Set());
 
-    // Auto-fit when new vertices appear
+    // Controlled state for nodes and edges
+    const [flowNodes, setFlowNodes] = useState<Node[]>([]);
+    const [flowEdges, setFlowEdges] = useState<Edge[]>([]);
+
+    // Compute layout — only position NEW nodes via dagre, preserve dragged positions
     useEffect(() => {
-        if (vertices.length > prevCountRef.current) {
-            setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
-            prevCountRef.current = vertices.length;
+        if (vertices.length === 0) { setFlowNodes([]); setFlowEdges([]); return; }
+
+        const { nodes: dagreNodes, edges } = layoutDAG(vertices);
+        const newNodes = dagreNodes.map(n => {
+            const override = positionOverrides.current.get(n.id);
+            if (override) {
+                return { ...n, position: override };
+            }
+            return n;
+        });
+
+        setFlowNodes(newNodes);
+        setFlowEdges(prevEdges => {
+            // Highlight edges connected to selected vertex
+            if (selectedVertex) {
+                return edges.map(e => ({
+                    ...e,
+                    style: {
+                        ...e.style,
+                        opacity: (e.source === selectedVertex || e.target === selectedVertex)
+                            ? 1
+                            : 0.15,
+                        strokeWidth: (e.source === selectedVertex || e.target === selectedVertex)
+                            ? ((e.style?.strokeWidth as number) ?? 1.5) + 0.5
+                            : ((e.style?.strokeWidth as number) ?? 1.5),
+                    },
+                }));
+            }
+            return edges;
+        });
+
+        // Auto-fit when new vertices appear
+        const hasNew = vertices.some(v => !layoutedIdsRef.current.has(v.id));
+        if (hasNew) {
+            vertices.forEach(v => layoutedIdsRef.current.add(v.id));
+            if (vertices.length > prevCountRef.current) {
+                setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 100);
+                prevCountRef.current = vertices.length;
+            }
         }
-    }, [vertices.length, fitView]);
+    }, [vertices, selectedVertex, fitView]);
+
+    // Handle node position changes (drag, selection, etc.)
+    const onNodesChange = useCallback((changes: any[]) => {
+        setFlowNodes(nds => {
+            const updated = [...nds];
+            for (const change of changes) {
+                if (change.type === 'position' && change.position) {
+                    const idx = updated.findIndex(n => n.id === change.id);
+                    if (idx !== -1) {
+                        updated[idx] = {
+                            ...updated[idx],
+                            position: change.position,
+                            ...(change.dragging !== undefined ? { dragging: change.dragging } : {}),
+                        };
+                    }
+                }
+                if (change.type === 'select') {
+                    const idx = updated.findIndex(n => n.id === change.id);
+                    if (idx !== -1) {
+                        updated[idx] = { ...updated[idx], selected: change.selected };
+                    }
+                }
+            }
+            return updated;
+        });
+    }, []);
+
+    // Save dragged position permanently
+    const onNodeDragStop = useCallback((_: any, node: Node) => {
+        positionOverrides.current.set(node.id, { ...node.position });
+    }, []);
 
     const onNodeClick = useCallback((_: any, node: Node) => {
         onSelectVertex(node.id === selectedVertex ? null : node.id);
     }, [selectedVertex, onSelectVertex]);
 
+    // Double-click to zoom-and-center on a node
+    const onNodeDoubleClick = useCallback((_: any, node: Node) => {
+        setCenter(
+            node.position.x + NODE_WIDTH / 2,
+            node.position.y + NODE_HEIGHT / 2,
+            { zoom: 1.5, duration: 500 }
+        );
+    }, [setCenter]);
+
+    // Reset layout (re-apply dagre to all nodes)
+    const resetLayout = useCallback(() => {
+        positionOverrides.current.clear();
+        layoutedIdsRef.current.clear();
+        prevCountRef.current = 0;
+        const { nodes, edges } = layoutDAG(vertices);
+        setFlowNodes(nodes);
+        setFlowEdges(edges);
+        setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
+    }, [vertices, fitView]);
+
     return (
         <ReactFlow
-            nodes={nodes}
-            edges={edges}
+            nodes={flowNodes}
+            edges={flowEdges}
             nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
             onNodeClick={onNodeClick}
+            onNodeDragStop={onNodeDragStop}
+            onNodeDoubleClick={onNodeDoubleClick}
+            onPaneClick={() => onSelectVertex(null)}
+            nodesDraggable={true}
             fitView
             fitViewOptions={{ padding: 0.15 }}
             proOptions={{ hideAttribution: true }}
             minZoom={0.2}
-            maxZoom={2}
+            maxZoom={2.5}
+            snapToGrid={true}
+            snapGrid={[12, 12]}
             style={{ background: BRUT.bg }}
             defaultEdgeOptions={{
                 type: 'smoothstep',
@@ -277,7 +377,40 @@ function PipelineFlow({ vertices, selectedVertex, onSelectVertex }: {
                     return VERTEX_STATUS_COLORS[status]?.border ?? BRUT.t4;
                 }}
                 maskColor="rgba(0,0,0,0.7)"
+                pannable
+                zoomable
             />
+            {/* Reset layout button */}
+            <div style={{
+                position: 'absolute',
+                top: 12,
+                left: 12,
+                zIndex: 5,
+                display: 'flex',
+                gap: 6,
+            }}>
+                <button
+                    onClick={resetLayout}
+                    title="Reset layout (re-apply auto dagre layout)"
+                    style={{
+                        background: BRUT.surface,
+                        border: `1px solid ${BRUT.border}`,
+                        color: BRUT.t2,
+                        padding: '6px 10px',
+                        fontSize: 10,
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        transition: 'all 0.15s',
+                    }}
+                    onMouseOver={e => { (e.target as HTMLElement).style.borderColor = BRUT.accent; (e.target as HTMLElement).style.color = BRUT.accent; }}
+                    onMouseOut={e => { (e.target as HTMLElement).style.borderColor = BRUT.border; (e.target as HTMLElement).style.color = BRUT.t2; }}
+                >
+                    ⟲ Reset Layout
+                </button>
+            </div>
         </ReactFlow>
     );
 }
