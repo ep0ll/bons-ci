@@ -187,8 +187,7 @@ func (v *Vertex) build() error {
 		core.ConstraintsAddCap(&cfg.Constraints, pb.CapSourceGitChecksum)
 	}
 	if cfg.MTimePolicy == MTimePolicyCommit {
-		attrs[pb.AttrGitMTime] = "commit"
-		core.ConstraintsAddCap(&cfg.Constraints, pb.CapSourceGitMTime)
+		attrs["git.mtime"] = "commit"
 	}
 	if remote != nil && remote.Scheme == gitutil.SSHProtocol {
 		if cfg.KnownSSHHosts != "" {

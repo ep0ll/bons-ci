@@ -105,37 +105,15 @@ func (v *Vertex) Marshal(ctx context.Context, c *core.Constraints) (*core.Marsha
 func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	newCfg := v.config
 	if len(inputs) > 0 {
-		newCfg.Lower = &edgeOutput{edge: inputs[0]}
+		newCfg.Lower = &core.EdgeOutput{E: inputs[0]}
 	}
 	if len(inputs) > 1 {
-		newCfg.Upper = &edgeOutput{edge: inputs[1]}
+		newCfg.Upper = &core.EdgeOutput{E: inputs[1]}
 	}
 	return &Vertex{config: newCfg}, nil
 }
 
-func (v *Vertex) Output() core.Output { return &diffOutput{v: v} }
-
-type diffOutput struct{ v *Vertex }
-
-func (o *diffOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return o.v }
-func (o *diffOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := o.v.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: 0}, nil
-}
-
-type edgeOutput struct{ edge core.Edge }
-
-func (e *edgeOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return e.edge.Vertex }
-func (e *edgeOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := e.edge.Vertex.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: int64(e.edge.Index)}, nil
-}
+func (v *Vertex) Output() core.Output { return &core.SimpleOutput{V: v, Slot: 0} }
 
 var (
 	_ core.Vertex         = (*Vertex)(nil)

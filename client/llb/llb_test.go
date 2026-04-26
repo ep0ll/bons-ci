@@ -11,12 +11,15 @@ import (
 	"github.com/bons/bons-ci/client/llb/graph"
 	"github.com/bons/bons-ci/client/llb/ops/conditional"
 	"github.com/bons/bons-ci/client/llb/ops/diff"
+	"github.com/bons/bons-ci/client/llb/ops/dyn"
 	execop "github.com/bons/bons-ci/client/llb/ops/exec"
+	"github.com/bons/bons-ci/client/llb/ops/export"
 	fileop "github.com/bons/bons-ci/client/llb/ops/file"
 	"github.com/bons/bons-ci/client/llb/ops/gate"
 	"github.com/bons/bons-ci/client/llb/ops/matrix"
 	"github.com/bons/bons-ci/client/llb/ops/merge"
 	selectorop "github.com/bons/bons-ci/client/llb/ops/selector"
+	"github.com/bons/bons-ci/client/llb/ops/solve"
 	"github.com/bons/bons-ci/client/llb/ops/source/git"
 	"github.com/bons/bons-ci/client/llb/ops/source/http"
 	"github.com/bons/bons-ci/client/llb/ops/source/image"
@@ -1006,5 +1009,442 @@ func TestBuilder_EmitsEvents(t *testing.T) {
 	}
 	if count.Load() < 2 {
 		t.Errorf("expected ≥2 events, got %d", count.Load())
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SolveOp
+// ═══════════════════════════════════════════════════════════════════
+
+func TestSolveOp_WrapSubGraph(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	sv, err := solve.New(solve.WithInput(alpine.Output()), solve.WithEntryPoint("build"))
+	if err != nil {
+		t.Fatalf("solve.New: %v", err)
+	}
+	if sv.Type() != core.VertexTypeSolve {
+		t.Errorf("Type = %v, want solve", sv.Type())
+	}
+	if len(sv.Inputs()) != 1 {
+		t.Errorf("expected 1 input, got %d", len(sv.Inputs()))
+	}
+	if len(sv.Outputs()) != 1 {
+		t.Errorf("expected 1 output, got %d", len(sv.Outputs()))
+	}
+	mv, err := sv.Marshal(ctx, c)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if mv.Digest == "" {
+		t.Error("empty digest")
+	}
+}
+
+func TestSolveOp_RequiresInput(t *testing.T) {
+	t.Parallel()
+	_, err := solve.New()
+	if err == nil {
+		t.Fatal("expected error for missing Input")
+	}
+}
+
+func TestSolveOp_DeterministicDigest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	sv, _ := solve.New(solve.WithInput(alpine.Output()))
+
+	var prevDigest string
+	for i := 0; i < 20; i++ {
+		mv, err := sv.Marshal(ctx, c)
+		if err != nil {
+			t.Fatalf("iter %d: Marshal: %v", i, err)
+		}
+		if prevDigest != "" && string(mv.Digest) != prevDigest {
+			t.Fatalf("iter %d: non-deterministic digest", i)
+		}
+		prevDigest = string(mv.Digest)
+	}
+}
+
+func TestSolveOp_StateFluent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	b := builder.New()
+
+	alpine := b.Image("alpine:3.20")
+	solved := alpine.Solve()
+
+	if solved.IsScratch() {
+		t.Fatal("Solve() returned scratch")
+	}
+	def, err := b.Serialize(ctx, solved)
+	if err != nil {
+		t.Fatalf("Serialize: %v", err)
+	}
+	if len(def.Def) == 0 {
+		t.Error("solve definition is empty")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ExportOp
+// ═══════════════════════════════════════════════════════════════════
+
+func TestExportOp_OCIImage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	ev, err := export.New(
+		export.WithInput(alpine.Output()),
+		export.WithFormat(export.FormatOCIImage),
+		export.WithImageRef("registry.example.com/myapp:latest"),
+		export.WithCompression(export.CompressionZstd),
+	)
+	if err != nil {
+		t.Fatalf("export.New: %v", err)
+	}
+	if ev.Type() != core.VertexTypeExport {
+		t.Errorf("Type = %v, want export", ev.Type())
+	}
+	mv, err := ev.Marshal(ctx, c)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if mv.Digest == "" {
+		t.Error("empty digest")
+	}
+}
+
+func TestExportOp_RegistryPush(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	ev, err := export.New(
+		export.WithInput(alpine.Output()),
+		export.WithFormat(export.FormatRegistryPush),
+		export.WithImageRef("ghcr.io/bons/ci:v1.0"),
+		export.WithPush(true),
+		export.WithAnnotation("org.opencontainers.image.source", "https://github.com/bons/bons-ci"),
+	)
+	if err != nil {
+		t.Fatalf("export.New: %v", err)
+	}
+	mv, err := ev.Marshal(ctx, c)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if mv.Digest == "" {
+		t.Error("empty digest")
+	}
+}
+
+func TestExportOp_RequiresInput(t *testing.T) {
+	t.Parallel()
+	_, err := export.New(export.WithFormat(export.FormatOCIImage))
+	if err == nil {
+		t.Fatal("expected error for missing Input")
+	}
+}
+
+func TestExportOp_InvalidFormat(t *testing.T) {
+	t.Parallel()
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	_, err := export.New(
+		export.WithInput(alpine.Output()),
+		export.WithFormat("bogus"),
+	)
+	if err == nil {
+		t.Fatal("expected error for invalid format")
+	}
+}
+
+func TestExportOp_DifferentFormats_DifferentDigests(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	ociExport, _ := export.New(
+		export.WithInput(alpine.Output()),
+		export.WithFormat(export.FormatOCIImage),
+		export.WithImageRef("a:latest"),
+	)
+	regExport, _ := export.New(
+		export.WithInput(alpine.Output()),
+		export.WithFormat(export.FormatRegistryPush),
+		export.WithImageRef("b:latest"),
+	)
+
+	mv1, _ := ociExport.Marshal(ctx, c)
+	mv2, _ := regExport.Marshal(ctx, c)
+	if mv1.Digest == mv2.Digest {
+		t.Error("different formats should produce different digests")
+	}
+}
+
+func TestExportOp_StateFluent(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	b := builder.New()
+
+	alpine := b.Image("alpine:3.20")
+	exported := alpine.Export(
+		export.WithFormat(export.FormatOCIImage),
+		export.WithImageRef("myapp:latest"),
+	)
+	if exported.IsScratch() {
+		t.Fatal("Export() returned scratch")
+	}
+	def, err := b.Serialize(ctx, exported)
+	if err != nil {
+		t.Fatalf("Serialize: %v", err)
+	}
+	if len(def.Def) == 0 {
+		t.Error("export definition is empty")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DynOp
+// ═══════════════════════════════════════════════════════════════════
+
+func TestDynOp_Construction(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	dv, err := dyn.New(
+		dyn.WithRootMount(alpine.Output()),
+		dyn.WithCommand("sh", "-c", "cat /policies/check.rego > /output/policy.rego"),
+		dyn.WithPolicyPath("/output/policy.rego"),
+		dyn.WithPolicyFormat(dyn.PolicyFormatRego),
+		dyn.WithWorkingDir("/"),
+	)
+	if err != nil {
+		t.Fatalf("dyn.New: %v", err)
+	}
+	if dv.Type() != core.VertexTypeDyn {
+		t.Errorf("Type = %v, want dyn", dv.Type())
+	}
+	// Should have 2 outputs: filesystem and policy.
+	if len(dv.Outputs()) != 2 {
+		t.Errorf("expected 2 outputs, got %d", len(dv.Outputs()))
+	}
+	mv, err := dv.Marshal(ctx, c)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if mv.Digest == "" {
+		t.Error("empty digest")
+	}
+}
+
+func TestDynOp_RequiresPolicyPath(t *testing.T) {
+	t.Parallel()
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	_, err := dyn.New(
+		dyn.WithRootMount(alpine.Output()),
+		dyn.WithCommand("echo", "hello"),
+	)
+	if err == nil {
+		t.Fatal("expected error for missing PolicyPath")
+	}
+}
+
+func TestDynOp_PolicyOutput(t *testing.T) {
+	t.Parallel()
+	alpine, _ := image.New(image.WithRef("alpine:3.20"))
+	dv, _ := dyn.New(
+		dyn.WithRootMount(alpine.Output()),
+		dyn.WithCommand("echo", "policy"),
+		dyn.WithPolicyPath("/output/policy.rego"),
+		dyn.WithWorkingDir("/"),
+	)
+	fsOut := dv.Output()
+	policyOut := dv.PolicyOutput()
+
+	if fsOut == nil {
+		t.Error("Output() should not be nil")
+	}
+	if policyOut == nil {
+		t.Error("PolicyOutput() should not be nil")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Conditional Switch
+// ═══════════════════════════════════════════════════════════════════
+
+func TestConditional_Switch(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	linuxImg, _ := image.New(image.WithRef("alpine:linux"))
+	windowsImg, _ := image.New(image.WithRef("mcr.microsoft.com/nanoserver:ltsc2022"))
+	darwinImg, _ := image.New(image.WithRef("macos-base:latest"))
+	fallbackImg, _ := image.New(image.WithRef("scratch-fallback:latest"))
+
+	sw, err := conditional.NewSwitch(
+		conditional.SwitchCase(conditional.PlatformOS("linux"), linuxImg.Output(), "linux"),
+		conditional.SwitchCase(conditional.PlatformOS("windows"), windowsImg.Output(), "windows"),
+		conditional.SwitchCase(conditional.PlatformOS("darwin"), darwinImg.Output(), "darwin"),
+	).WithDefault(fallbackImg.Output()).Build()
+	if err != nil {
+		t.Fatalf("NewSwitch: %v", err)
+	}
+
+	// Linux → linux image
+	cLinux := core.DefaultConstraints()
+	cLinux.Platform = &ocispecs.Platform{OS: "linux", Architecture: "amd64"}
+	mvLinux, err := sw.Marshal(ctx, cLinux)
+	if err != nil {
+		t.Fatalf("Marshal linux: %v", err)
+	}
+
+	// Windows → windows image
+	cWin := core.DefaultConstraints()
+	cWin.Platform = &ocispecs.Platform{OS: "windows", Architecture: "amd64"}
+	mvWin, err := sw.Marshal(ctx, cWin)
+	if err != nil {
+		t.Fatalf("Marshal windows: %v", err)
+	}
+
+	// Darwin → darwin image
+	cDarwin := core.DefaultConstraints()
+	cDarwin.Platform = &ocispecs.Platform{OS: "darwin", Architecture: "arm64"}
+	mvDarwin, err := sw.Marshal(ctx, cDarwin)
+	if err != nil {
+		t.Fatalf("Marshal darwin: %v", err)
+	}
+
+	// All three should be different.
+	if mvLinux.Digest == mvWin.Digest {
+		t.Error("linux and windows should differ")
+	}
+	if mvLinux.Digest == mvDarwin.Digest {
+		t.Error("linux and darwin should differ")
+	}
+}
+
+func TestConditional_Switch_Fallback(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	linuxImg, _ := image.New(image.WithRef("alpine:linux"))
+	fallbackImg, _ := image.New(image.WithRef("fallback:latest"))
+
+	sw, _ := conditional.NewSwitch(
+		conditional.SwitchCase(conditional.PlatformOS("linux"), linuxImg.Output(), "linux"),
+	).WithDefault(fallbackImg.Output()).Build()
+
+	// FreeBSD → should fall back.
+	cFreeBSD := core.DefaultConstraints()
+	cFreeBSD.Platform = &ocispecs.Platform{OS: "freebsd", Architecture: "amd64"}
+	mvFallback, err := sw.Marshal(ctx, cFreeBSD)
+	if err != nil {
+		t.Fatalf("Marshal freebsd: %v", err)
+	}
+
+	// Verify it matches the fallback image.
+	fallbackMV, _ := fallbackImg.Marshal(ctx, cFreeBSD)
+	if mvFallback.Digest != fallbackMV.Digest {
+		t.Error("switch with no matching case should return fallback digest")
+	}
+}
+
+func TestConditional_Switch_RequiresCases(t *testing.T) {
+	t.Parallel()
+	_, err := conditional.NewSwitch().Build()
+	if err == nil {
+		t.Fatal("expected error for empty switch")
+	}
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Matrix Vertex
+// ═══════════════════════════════════════════════════════════════════
+
+func TestMatrixVertex_Marshal(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	template, _ := image.New(image.WithRef("alpine:3.20"))
+	mv, err := matrix.NewVertex(
+		matrix.VertexWithTemplate(template),
+		matrix.VertexWithAxes(
+			matrix.NewAxis("GO_VERSION", "1.21", "1.22"),
+			matrix.NewAxis("GOOS", "linux", "darwin"),
+		),
+	)
+	if err != nil {
+		t.Fatalf("matrix.NewVertex: %v", err)
+	}
+	if mv.Type() != core.VertexTypeMatrix {
+		t.Errorf("Type = %v, want matrix", mv.Type())
+	}
+
+	// Should produce 2×2 = 4 configs.
+	configs := mv.ExpandedConfigs()
+	if len(configs) != 4 {
+		t.Errorf("expected 4 configs, got %d", len(configs))
+	}
+
+	result, err := mv.Marshal(ctx, c)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if result.Digest == "" {
+		t.Error("empty digest")
+	}
+}
+
+func TestMatrixVertex_RequiresTemplate(t *testing.T) {
+	t.Parallel()
+	_, err := matrix.NewVertex(
+		matrix.VertexWithAxes(matrix.NewAxis("K", "V")),
+	)
+	if err == nil {
+		t.Fatal("expected error for missing template")
+	}
+}
+
+func TestMatrixVertex_RequiresAxes(t *testing.T) {
+	t.Parallel()
+	template, _ := image.New(image.WithRef("alpine:3.20"))
+	_, err := matrix.NewVertex(matrix.VertexWithTemplate(template))
+	if err == nil {
+		t.Fatal("expected error for missing axes")
+	}
+}
+
+func TestMatrixVertex_SingleExpansion(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	c := core.DefaultConstraints()
+
+	template, _ := image.New(image.WithRef("alpine:3.20"))
+	mv, _ := matrix.NewVertex(
+		matrix.VertexWithTemplate(template),
+		matrix.VertexWithAxes(matrix.NewAxis("K", "V")),
+	)
+	result, err := mv.Marshal(ctx, c)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if result.Digest == "" {
+		t.Error("empty digest")
 	}
 }

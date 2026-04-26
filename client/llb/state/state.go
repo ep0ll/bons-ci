@@ -10,8 +10,10 @@ import (
 	"github.com/bons/bons-ci/client/llb/marshal"
 	"github.com/bons/bons-ci/client/llb/ops/diff"
 	execop "github.com/bons/bons-ci/client/llb/ops/exec"
+	"github.com/bons/bons-ci/client/llb/ops/export"
 	fileop "github.com/bons/bons-ci/client/llb/ops/file"
 	mergeop "github.com/bons/bons-ci/client/llb/ops/merge"
+	"github.com/bons/bons-ci/client/llb/ops/solve"
 	ocispecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -90,6 +92,38 @@ func (s State) Merge(others ...State) State {
 // Diff computes the filesystem delta between this state (lower) and upper.
 func (s State) Diff(upper State) State {
 	return From(diff.New(diff.WithLower(s.output), diff.WithUpper(upper.output)).Output())
+}
+
+// ─── Solve ───────────────────────────────────────────────────────────────────
+
+// Solve wraps this state's sub-graph as a SolveOp vertex, creating a nested
+// build definition that can be composed as an input to other operations.
+func (s State) Solve(opts ...solve.Option) State {
+	if s.output == nil {
+		return Scratch()
+	}
+	allOpts := append([]solve.Option{solve.WithInput(s.output)}, opts...)
+	v, err := solve.New(allOpts...)
+	if err != nil {
+		return Scratch()
+	}
+	return From(v.Output())
+}
+
+// ─── Export ──────────────────────────────────────────────────────────────────
+
+// Export declares an export target for this state's output, producing a new
+// State backed by an ExportOp vertex.
+func (s State) Export(opts ...export.Option) State {
+	if s.output == nil {
+		return Scratch()
+	}
+	allOpts := append([]export.Option{export.WithInput(s.output)}, opts...)
+	v, err := export.New(allOpts...)
+	if err != nil {
+		return Scratch()
+	}
+	return From(v.Output())
 }
 
 // ─── Marshal ─────────────────────────────────────────────────────────────────

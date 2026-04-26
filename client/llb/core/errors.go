@@ -17,8 +17,12 @@ var (
 	ErrEmptyGraph         = errors.New("graph has no reachable vertices")
 	ErrMarshalFailed      = errors.New("vertex marshal failed")
 	ErrValidationFailed   = errors.New("vertex validation failed")
-	ErrPolicyRejected     = errors.New("gate policy rejected the vertex")
-	ErrNoMatch            = errors.New("no candidate matched the selector criteria")
+	ErrPolicyRejected         = errors.New("gate policy rejected the vertex")
+	ErrNoMatch                = errors.New("no candidate matched the selector criteria")
+	ErrSolveFailed            = errors.New("solve operation failed")
+	ErrDynEvalFailed          = errors.New("dynamic policy evaluation failed")
+	ErrExportFailed           = errors.New("export operation failed")
+	ErrUnsupportedExportFormat = errors.New("unsupported export format")
 )
 
 // ─── Typed errors ─────────────────────────────────────────────────────────────
@@ -95,6 +99,32 @@ func (e *NoMatchError) Error() string {
 	return fmt.Sprintf("selector %q: no candidate matched %q", e.SelectorID, e.Criteria)
 }
 func (e *NoMatchError) Is(t error) bool { return t == ErrNoMatch }
+
+type SolveError struct {
+	Cause error
+}
+
+func (e *SolveError) Error() string   { return fmt.Sprintf("solve: %v", e.Cause) }
+func (e *SolveError) Unwrap() error   { return e.Cause }
+func (e *SolveError) Is(t error) bool { return t == ErrSolveFailed }
+
+type DynEvalError struct {
+	VertexID VertexID
+	Cause    error
+}
+
+func (e *DynEvalError) Error() string   { return fmt.Sprintf("dyn eval vertex %q: %v", e.VertexID, e.Cause) }
+func (e *DynEvalError) Unwrap() error   { return e.Cause }
+func (e *DynEvalError) Is(t error) bool { return t == ErrDynEvalFailed }
+
+type ExportError struct {
+	Format string
+	Cause  error
+}
+
+func (e *ExportError) Error() string   { return fmt.Sprintf("export %q: %v", e.Format, e.Cause) }
+func (e *ExportError) Unwrap() error   { return e.Cause }
+func (e *ExportError) Is(t error) bool { return t == ErrExportFailed }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

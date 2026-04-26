@@ -25,6 +25,9 @@ const (
 	VertexTypeMatrix      VertexType = "matrix"
 	VertexTypeGate        VertexType = "gate"
 	VertexTypeSelector    VertexType = "selector"
+	VertexTypeSolve       VertexType = "solve"
+	VertexTypeDyn         VertexType = "dyn"
+	VertexTypeExport      VertexType = "export"
 	VertexTypeCustom      VertexType = "custom"
 )
 

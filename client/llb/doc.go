@@ -15,14 +15,17 @@
 //	├── marshal/       – per-constraints cache and wire-format serialiser
 //	├── ops/
 //	│   ├── source/{git,http,image,local,oci}  – source operations
-//	│   ├── exec/      – container exec op
-//	│   ├── file/      – file op (mkdir/mkfile/rm/symlink/copy)
-//	│   ├── merge/     – overlay merge op
-//	│   ├── diff/      – filesystem diff op
-//	│   ├── conditional/ – compile-time if/else branching
-//	│   ├── matrix/    – fan-out across parameter configurations
-//	│   ├── gate/      – policy / OPA-style validation gate
-//	│   └── selector/  – label-based dynamic sub-graph selection
+//	│   ├── exec/        – container exec op
+//	│   ├── file/        – file op (mkdir/mkfile/rm/symlink/copy)
+//	│   ├── merge/       – overlay merge op
+//	│   ├── diff/        – filesystem diff op
+//	│   ├── conditional/ – compile-time if/else/switch branching
+//	│   ├── matrix/      – fan-out across parameter configurations (Vertex + helpers)
+//	│   ├── gate/        – policy / OPA-style validation gate
+//	│   ├── selector/    – label-based dynamic sub-graph selection
+//	│   ├── solve/       – wraps a sub-DAG as a nested BuildOp
+//	│   ├── dyn/         – exec with policy output (OPA/Rego)
+//	│   └── export/      – vertex-level export declaration (OCI, tar, registry)
 //	├── state/         – immutable, composable fluent State API
 //	└── builder/       – top-level reactive orchestrator
 //
@@ -42,12 +45,22 @@
 //
 // # Extended op types
 //
-//   - conditional.Vertex  – evaluates a predicate at definition time and
+//   - conditional.Vertex      – evaluates a predicate at definition time and
 //     resolves to one of two output branches.
-//   - matrix.Expand       – fans out over a list of parameter maps, producing
-//     one State per configuration.
-//   - gate.Vertex         – runs a policy function; fails the build if the
+//   - conditional.SwitchVertex – evaluates multiple cases in order, resolving
+//     to the first matching branch. More expressive than if/else.
+//   - matrix.Vertex           – stores axes and a template, expanding at marshal
+//     time into a merge of all configurations.
+//   - matrix.Expand           – fans out eagerly over parameter maps, producing
+//     one Result per configuration.
+//   - gate.Vertex             – runs a policy function; fails the build if the
 //     policy rejects the vertex.
-//   - selector.Vertex     – picks the best-matching candidate from a labelled
+//   - selector.Vertex         – picks the best-matching candidate from a labelled
 //     set based on runtime constraints (platform, build-args, etc.).
+//   - solve.Vertex            – wraps a sub-DAG as a nested BuildOp definition
+//     for composing independently-constructed graphs.
+//   - dyn.Vertex              – exec op that produces an OPA/Rego policy file,
+//     composable with gate/conditional for dynamic decisions.
+//   - export.Vertex           – declares an export target (OCI image, Docker tar,
+//     local directory, or registry push).
 package llb

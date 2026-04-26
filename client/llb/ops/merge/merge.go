@@ -129,7 +129,7 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	}
 	outputs := make([]core.Output, len(inputs))
 	for i, e := range inputs {
-		outputs[i] = &edgeOutput{edge: e}
+		outputs[i] = &core.EdgeOutput{E: e}
 	}
 	newCfg := v.config
 	newCfg.Inputs = outputs
@@ -138,29 +138,7 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	return nv, nil
 }
 
-func (v *Vertex) Output() core.Output { return &mergeOutput{v: v} }
-
-type mergeOutput struct{ v *Vertex }
-
-func (o *mergeOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return o.v }
-func (o *mergeOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := o.v.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: 0}, nil
-}
-
-type edgeOutput struct{ edge core.Edge }
-
-func (e *edgeOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return e.edge.Vertex }
-func (e *edgeOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := e.edge.Vertex.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: int64(e.edge.Index)}, nil
-}
+func (v *Vertex) Output() core.Output { return &core.SimpleOutput{V: v, Slot: 0} }
 
 var (
 	_ core.Vertex         = (*Vertex)(nil)

@@ -269,10 +269,10 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	switch len(inputs) {
 	case 0:
 	case 1:
-		newCfg.Then = &edgeOutput{edge: inputs[0]}
+		newCfg.Then = &core.EdgeOutput{E: inputs[0]}
 	case 2:
-		newCfg.Then = &edgeOutput{edge: inputs[0]}
-		newCfg.Else = &edgeOutput{edge: inputs[1]}
+		newCfg.Then = &core.EdgeOutput{E: inputs[0]}
+		newCfg.Else = &core.EdgeOutput{E: inputs[1]}
 	default:
 		return nil, &core.IncompatibleInputsError{
 			VertexType: v.Type(), Got: len(inputs), Want: "0, 1, or 2",
@@ -282,32 +282,7 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 }
 
 // Output returns a core.Output that resolves lazily at ToInput time.
-func (v *Vertex) Output() core.Output { return &conditionalOutput{v: v} }
-
-type conditionalOutput struct{ v *Vertex }
-
-func (o *conditionalOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex {
-	return o.v
-}
-
-func (o *conditionalOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := o.v.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: 0}, nil
-}
-
-type edgeOutput struct{ edge core.Edge }
-
-func (e *edgeOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return e.edge.Vertex }
-func (e *edgeOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := e.edge.Vertex.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: int64(e.edge.Index)}, nil
-}
+func (v *Vertex) Output() core.Output { return &core.SimpleOutput{V: v, Slot: 0} }
 
 var (
 	_ core.Vertex         = (*Vertex)(nil)

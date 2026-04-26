@@ -197,18 +197,7 @@ func (v *Vertex) WithOption(opt Option) (*Vertex, error) {
 }
 
 // Output returns a core.Output for output slot 0.
-func (v *Vertex) Output() core.Output { return &vertexOutput{v: v} }
-
-type vertexOutput struct{ v *Vertex }
-
-func (o *vertexOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return o.v }
-func (o *vertexOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := o.v.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: 0}, nil
-}
+func (v *Vertex) Output() core.Output { return &core.SimpleOutput{V: v, Slot: 0} }
 
 var (
 	_ core.Vertex         = (*Vertex)(nil)

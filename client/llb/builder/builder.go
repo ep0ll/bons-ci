@@ -9,8 +9,11 @@ import (
 	"github.com/bons/bons-ci/client/llb/graph"
 	"github.com/bons/bons-ci/client/llb/marshal"
 	"github.com/bons/bons-ci/client/llb/ops"
+	"github.com/bons/bons-ci/client/llb/ops/dyn"
 	execop "github.com/bons/bons-ci/client/llb/ops/exec"
+	"github.com/bons/bons-ci/client/llb/ops/export"
 	fileop "github.com/bons/bons-ci/client/llb/ops/file"
+	"github.com/bons/bons-ci/client/llb/ops/solve"
 	"github.com/bons/bons-ci/client/llb/ops/source/image"
 	"github.com/bons/bons-ci/client/llb/ops/source/local"
 	"github.com/bons/bons-ci/client/llb/reactive"
@@ -54,52 +57,85 @@ func New(opts ...Option) *Builder {
 	return b
 }
 
-// ─── Subscriptions ───────────────────────────────────────────────────────────
+// ─── Event bus ───────────────────────────────────────────────────────────────
 
-// Subscribe registers a handler for graph change events.
-func (b *Builder) Subscribe(handler func(reactive.GraphEvent)) reactive.Subscription {
-	return b.bus.Subscribe(handler)
+// Subscribe registers a handler for graph events.
+func (b *Builder) Subscribe(fn func(reactive.GraphEvent)) reactive.Subscription {
+	return b.bus.Subscribe(fn)
 }
 
 // ─── Source constructors ─────────────────────────────────────────────────────
 
-// Image returns a State backed by the given Docker/OCI image reference.
-func (b *Builder) Image(ref string, opts ...image.Option) state.State {
-	all := append([]image.Option{image.WithRef(ref)}, opts...)
-	v, err := image.New(all...)
-	if err != nil {
-		return state.Scratch()
-	}
-	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
-	return state.From(v.Output())
-}
-
-// Local returns a State backed by a client-local directory.
-func (b *Builder) Local(name string, opts ...local.Option) state.State {
-	all := append([]local.Option{local.WithName(name)}, opts...)
-	v, err := local.New(all...)
-	if err != nil {
-		return state.Scratch()
-	}
-	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
-	return state.From(v.Output())
-}
-
-// Scratch returns an empty filesystem state.
+// Scratch returns an empty-filesystem State.
 func (b *Builder) Scratch() state.State { return state.Scratch() }
 
-// ─── Composition helpers ──────────────────────────────────────────────────────
-
-// File applies a file op to a base state.
-func (b *Builder) File(base state.State, v *fileop.Vertex) state.State {
+// Image creates a State backed by a container image source.
+func (b *Builder) Image(ref string, opts ...image.Option) state.State {
+	allOpts := append([]image.Option{image.WithRef(ref)}, opts...)
+	v, err := image.New(allOpts...)
+	if err != nil {
+		return state.Scratch()
+	}
 	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
-	return base.File(v)
+	return state.From(v.Output())
 }
 
-// Run executes a command on a base state.
+// Local creates a State backed by a local filesystem source.
+func (b *Builder) Local(name string, opts ...local.Option) state.State {
+	allOpts := append([]local.Option{local.WithName(name)}, opts...)
+	v, err := local.New(allOpts...)
+	if err != nil {
+		return state.Scratch()
+	}
+	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
+	return state.From(v.Output())
+}
+
+// File creates a file op.
+func (b *Builder) File(opts ...fileop.Option) (state.State, error) {
+	v, err := fileop.New(opts...)
+	if err != nil {
+		return state.Scratch(), err
+	}
+	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
+	return state.From(v.Output()), nil
+}
+
+// Run starts an exec op on the given base state.
 func (b *Builder) Run(base state.State, v *execop.Vertex) state.ExecState {
 	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
 	return base.Run(v)
+}
+
+// ─── New op constructors ─────────────────────────────────────────────────────
+
+// Solve wraps a state's sub-graph as a SolveOp, creating a nested build
+// definition that can be composed as an input to other operations.
+func (b *Builder) Solve(root state.State, opts ...solve.Option) state.State {
+	s := root.Solve(opts...)
+	if !s.IsScratch() {
+		b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
+	}
+	return s
+}
+
+// Export declares an export target for the given state's output.
+func (b *Builder) Export(root state.State, opts ...export.Option) state.State {
+	s := root.Export(opts...)
+	if !s.IsScratch() {
+		b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
+	}
+	return s
+}
+
+// Dyn creates a dynamic policy op and returns the State backed by the DynOp.
+func (b *Builder) Dyn(opts ...dyn.Option) (state.State, error) {
+	v, err := dyn.New(opts...)
+	if err != nil {
+		return state.Scratch(), err
+	}
+	b.emit(reactive.GraphEvent{Kind: reactive.EventKindVertexAdded})
+	return state.From(v.Output()), nil
 }
 
 // ─── DAG operations ──────────────────────────────────────────────────────────

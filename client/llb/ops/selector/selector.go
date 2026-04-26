@@ -24,7 +24,6 @@ import (
 
 	"github.com/bons/bons-ci/client/llb/core"
 	"github.com/bons/bons-ci/client/llb/marshal"
-	"github.com/moby/buildkit/solver/pb"
 )
 
 // ─── Candidate ────────────────────────────────────────────────────────────────
@@ -288,38 +287,16 @@ func (v *Vertex) WithInputs(inputs []core.Edge) (core.Vertex, error) {
 	copy(newCands, v.config.Candidates)
 	for i, edge := range inputs {
 		if i < n {
-			newCands[i].Output = &edgeOutput{edge: edge}
+			newCands[i].Output = &core.EdgeOutput{E: edge}
 		} else {
-			newCfg.Fallback = &edgeOutput{edge: edge}
+			newCfg.Fallback = &core.EdgeOutput{E: edge}
 		}
 	}
 	newCfg.Candidates = newCands
 	return &Vertex{config: newCfg}, nil
 }
 
-func (v *Vertex) Output() core.Output { return &selectorOutput{v: v} }
-
-type selectorOutput struct{ v *Vertex }
-
-func (o *selectorOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return o.v }
-func (o *selectorOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := o.v.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: 0}, nil
-}
-
-type edgeOutput struct{ edge core.Edge }
-
-func (e *edgeOutput) Vertex(_ context.Context, _ *core.Constraints) core.Vertex { return e.edge.Vertex }
-func (e *edgeOutput) ToInput(ctx context.Context, c *core.Constraints) (*pb.Input, error) {
-	mv, err := e.edge.Vertex.Marshal(ctx, c)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Input{Digest: string(mv.Digest), Index: int64(e.edge.Index)}, nil
-}
+func (v *Vertex) Output() core.Output { return &core.SimpleOutput{V: v, Slot: 0} }
 
 var (
 	_ core.Vertex         = (*Vertex)(nil)
