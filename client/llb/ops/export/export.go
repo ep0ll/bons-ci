@@ -86,6 +86,14 @@ type Config struct {
 	// Description is a human-readable label.
 	Description string
 	Constraints core.Constraints
+	// Observer receives lifecycle notifications (optional).
+	Observer Observer
+	// Hooks are invoked at marshal boundaries (optional).
+	Hooks []Hook
+	// Attestations are in-toto attestation predicates to attach (optional).
+	Attestations []AttestationPredicate
+	// Platforms configures multi-platform export (manifest list) (optional).
+	Platforms []string
 }
 
 // Option is a functional option for Config.

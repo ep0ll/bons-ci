@@ -5,6 +5,7 @@ package marshal
 import (
 	"context"
 	"fmt"
+	"io"
 	"slices"
 	"sync"
 
@@ -107,6 +108,59 @@ func (d *Definition) ToPB() *pb.Definition {
 		Metadata: metas,
 	}
 }
+
+// FromPB populates the Definition from a protobuf Definition.
+func (d *Definition) FromPB(x *pb.Definition) {
+	d.Def = x.Def
+	d.Source = x.Source
+	d.Metadata = make(map[digest.Digest]core.OpMetadata, len(x.Metadata))
+	for k, v := range x.Metadata {
+		d.Metadata[digest.Digest(k)] = core.OpMetadataFromPB(v)
+	}
+}
+
+// Head returns the content digest of the terminal (head) vertex.
+// Returns empty digest for an empty definition.
+func (d *Definition) Head() (digest.Digest, error) {
+	if len(d.Def) == 0 {
+		return "", nil
+	}
+	last := d.Def[len(d.Def)-1]
+	var pop pb.Op
+	if err := proto.Unmarshal(last, &pop); err != nil {
+		return "", fmt.Errorf("definition.Head: unmarshal: %w", err)
+	}
+	if len(pop.Inputs) == 0 {
+		return "", nil
+	}
+	return digest.Digest(pop.Inputs[0].Digest), nil
+}
+
+// WriteTo serialises the Definition to a writer.
+func WriteTo(def *Definition, w io.Writer) error {
+	b, err := proto.Marshal(def.ToPB())
+	if err != nil {
+		return fmt.Errorf("definition.WriteTo: %w", err)
+	}
+	_, err = w.Write(b)
+	return err
+}
+
+// ReadFrom deserialises a Definition from a reader.
+func ReadFrom(r io.Reader) (*Definition, error) {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("definition.ReadFrom: read: %w", err)
+	}
+	var pbDef pb.Definition
+	if err := proto.Unmarshal(b, &pbDef); err != nil {
+		return nil, fmt.Errorf("definition.ReadFrom: unmarshal: %w", err)
+	}
+	var def Definition
+	def.FromPB(&pbDef)
+	return &def, nil
+}
+
 
 // ─── Serializer ───────────────────────────────────────────────────────────────
 

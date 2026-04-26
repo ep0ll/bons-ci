@@ -63,6 +63,12 @@ type Config struct {
 	// Description is a human-readable label.
 	Description string
 	Constraints core.Constraints
+	// Observer receives lifecycle notifications (optional).
+	Observer Observer
+	// Hooks are invoked at marshal boundaries (optional).
+	Hooks []Hook
+	// TimeoutSecs is the maximum evaluation time in seconds (0 = unlimited).
+	TimeoutSecs int
 }
 
 // Option is a functional option for Config.

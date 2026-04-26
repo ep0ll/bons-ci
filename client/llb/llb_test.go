@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/bons/bons-ci/client/llb/builder"
 	"github.com/bons/bons-ci/client/llb/core"
@@ -920,7 +921,7 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 	bus.Publish("hello")
 	bus.Publish("world")
 
-	// Give goroutine time to drain (100 iterations is fast enough in tests).
+	// Give goroutine time to drain.
 	for i := 0; i < 200; i++ {
 		mu.Lock()
 		n := len(received)
@@ -928,6 +929,7 @@ func TestEventBus_PublishSubscribe(t *testing.T) {
 		if n == 2 {
 			break
 		}
+		time.Sleep(time.Millisecond)
 	}
 	mu.Lock()
 	defer mu.Unlock()
@@ -974,8 +976,8 @@ func TestObservable_SetNotifies(t *testing.T) {
 		if e.Old != "initial" || e.New != "updated" {
 			t.Errorf("ChangeEvent = {%q, %q}", e.Old, e.New)
 		}
-	default:
-		t.Error("no change event received")
+	case <-time.After(500 * time.Millisecond):
+		t.Error("no change event received within timeout")
 	}
 }
 
@@ -1006,6 +1008,7 @@ func TestBuilder_EmitsEvents(t *testing.T) {
 		if count.Load() >= 2 {
 			break
 		}
+		time.Sleep(time.Millisecond)
 	}
 	if count.Load() < 2 {
 		t.Errorf("expected ≥2 events, got %d", count.Load())

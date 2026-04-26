@@ -31,6 +31,10 @@ type Config struct {
 	// Description is a human-readable label attached to the vertex.
 	Description string
 	Constraints core.Constraints
+	// Observer receives lifecycle notifications (optional).
+	Observer Observer
+	// Hooks are invoked at marshal boundaries (optional).
+	Hooks []Hook
 }
 
 // Option is a functional option for Config.
