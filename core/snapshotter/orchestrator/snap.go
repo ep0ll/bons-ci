@@ -1,21 +1,31 @@
-// Package pipeline provides a concurrent, ordered snapshot pipeline for
-// processing OCI image layers using the containerd snapshotter API.
+// Package pipeline implements a concurrent, ordered snapshot pipeline for
+// processing OCI image layers via the containerd snapshotter API.
 //
-// The pipeline is event-driven: [RunSnapshotPipeline] returns a send-only
-// channel to which the caller pushes [Event] values as layers become available,
-// closing it when no more layers are expected. Internally, N workers call
-// Prepare and the user-supplied Action in parallel; a committer goroutine
-// re-serialises the results in the original event order and calls Commit —
-// preserving the OCI parent-chain invariant while keeping CPU and I/O
-// utilisation high.
+// # Architecture
 //
-// Data scopes:
+// The pipeline has three cooperating stages:
+//
+//  1. Chain table — [buildChainTable] makes one O(n) pass over rootFS.DiffIDs
+//     and precomputes every layer's diffID, chainID, and parentChainID. All
+//     subsequent operations are O(1) lookups into this table.
+//
+//  2. Worker pool — N goroutines read [Event] values from the caller-owned
+//     channel and execute Prepare + Action concurrently. Workers never call
+//     Commit; they forward [workerResult] values to the committer.
+//
+//  3. Committer — a single goroutine accumulates out-of-order results in a
+//     min-heap and drains them strictly in sequence-number order, calling
+//     sn.Commit for each layer. This preserves the OCI parent-chain invariant
+//     (layer N's committed snapshot must exist before layer N+1 is committed)
+//     while keeping CPU and I/O utilisation high across the worker pool.
+//
+// # Data scopes
 //
 //	RootFS / chain IDs  →  image scope    →  pipeline (computed once)
 //	Prepare / Action    →  layer scope    →  [Event]
 //	Commit order        →  pipeline scope →  committer
 //
-// Typical usage:
+// # Typical usage
 //
 //	events, errCh := pipeline.RunSnapshotPipeline(ctx, sn, rootFS, 0)
 //
@@ -51,30 +61,31 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 // LabelSnapshotterEventIndex is the label key whose value holds the decimal
-// string representation of the event's 0-based position in the stream.
-// Required on every [Event]; workers parse it to tag results so the committer
-// can re-serialise out-of-order completions.
+// string of the event's 0-based position in the stream. Every [Event] must
+// carry this label; workers parse it so the committer can re-serialise
+// out-of-order completions.
 const LabelSnapshotterEventIndex = "containerd.io/snapshot/event-index"
 
 // LabelUncompressed is the conventional containerd label key for the
-// uncompressed layer digest (OCI DiffID). The pipeline itself no longer reads
-// it — chain IDs and snapshot keys are derived from the rootFS passed to
-// [RunSnapshotPipeline]. Callers may still set it on snapshotter options for
-// external tooling that inspects snapshot metadata.
+// uncompressed layer digest (OCI DiffID). The pipeline derives snapshot keys
+// from the rootFS passed to [RunSnapshotPipeline] and does not read this
+// label itself; callers may set it on snapshotter options for external tooling
+// that inspects snapshot metadata.
 const LabelUncompressed = "containerd.io/uncompressed"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public event types
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Event carries the per-layer snapshotter lifecycle options for one layer.
+// Event carries per-layer snapshotter lifecycle options for one layer.
 //
 // The image-scoped RootFS is intentionally absent: it is passed once to
 // [RunSnapshotPipeline], which precomputes a chain table shared across all
-// events. Per-event RootFS copies would waste memory, enlarge channel messages,
-// increase GC pressure, and risk inconsistent values.
+// events. Embedding per-event RootFS copies would waste memory, enlarge
+// channel messages, increase GC pressure, and risk inconsistent values across
+// concurrent workers.
 type Event struct {
-	// Active describes the Prepare/Commit lifecycle for the layer.
+	// Active describes the Prepare/Commit lifecycle for this layer.
 	Active EventSnapshotter
 }
 
@@ -106,33 +117,32 @@ type EventSnapshotter struct {
 // Internal types
 // ─────────────────────────────────────────────────────────────────────────────
 
-// chainInfo holds the precomputed OCI chain IDs for one layer, computed once
-// by [buildChainTable] and reused for every Commit — O(1) per Commit instead
-// of the O(n) DiffID scan the naïve design would perform.
+// chainInfo holds the precomputed OCI chain IDs for one layer. Built once by
+// [buildChainTable] and shared read-only across all workers and the committer.
 type chainInfo struct {
-	diffID        string // active-snapshot key passed to sn.Prepare / sn.Commit
+	diffID        string // OCI DiffID string; used as active-snapshot key
 	chainID       string // cumulative chain ID for DiffIDs[:i+1]; committed snapshot name
 	parentChainID string // cumulative chain ID for DiffIDs[:i]; empty for the root layer
 }
 
 // workerResult carries the outcome of one Prepare+Action execution.
-// Workers never call Commit; that is exclusively the committer's job.
+// Workers never call Commit; that is exclusively the committer's responsibility.
 type workerResult struct {
 	seq              int   // 0-based position parsed from LabelSnapshotterEventIndex
 	event            Event // originating event; committer forwards CommitOptions to sn.Commit
 	err              error
-	alreadyCommitted bool // true if chainID already exists as a committed snapshot
+	alreadyCommitted bool // true when chainID already exists as a committed snapshot
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // resultHeap — min-heap over workerResult ordered by seq
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Chosen over map[int]workerResult:
-//   - no map-bucket allocations or rehashing,
-//   - O(log n) drain with excellent cache locality (contiguous backing slice),
-//   - pre-allocated to numWorkers capacity → zero steady-state allocations in
-//     the committer goroutine.
+// A heap is preferred over map[int]workerResult because:
+//   - No map-bucket allocations or rehashing.
+//   - O(log n) drain with excellent cache locality (contiguous backing slice).
+//   - Pre-allocated to numWorkers capacity → zero steady-state allocations in
+//     the committer goroutine under normal load.
 
 type resultHeap []workerResult
 
@@ -144,7 +154,7 @@ func (h *resultHeap) Pop() any {
 	old := *h
 	n := len(old)
 	x := old[n-1]
-	old[n-1] = workerResult{} // release Action closure and Event refs to GC immediately
+	old[n-1] = workerResult{} // release Action closure and Event refs promptly
 	*h = old[:n-1]
 	return x
 }
@@ -154,16 +164,19 @@ func (h *resultHeap) Pop() any {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // buildChainTable precomputes [chainInfo] for every layer in rootFS.
+//
 // Called exactly once per [RunSnapshotPipeline] invocation. For a 100-layer
 // image this replaces 100 × O(n) per-Commit DiffID scans with one linear pass.
+//
+// Root-layer special case: identity.ChainID of an empty slice returns a
+// non-empty zero-digest string, so parentChainID is set only for i > 0.
+// Setting it for the root layer would incorrectly attach a WithParent option
+// to the very first sn.Commit call.
 func buildChainTable(rootFS ocispec.RootFS) []chainInfo {
 	chains := make([]chainInfo, len(rootFS.DiffIDs))
 	for i, diffID := range rootFS.DiffIDs {
 		chains[i].diffID = diffID.String()
 		chains[i].chainID = identity.ChainID(rootFS.DiffIDs[:i+1]).String()
-		// Skip parent for the root layer (i == 0). identity.ChainID([]) returns
-		// a non-empty zero-digest string, so a naive "" guard would incorrectly
-		// attach a WithParent option to the very first sn.Commit call.
 		if i > 0 {
 			chains[i].parentChainID = identity.ChainID(rootFS.DiffIDs[:i]).String()
 		}
@@ -178,35 +191,43 @@ func buildChainTable(rootFS ocispec.RootFS) []chainInfo {
 // RunSnapshotPipeline starts a concurrent, ordered snapshot pipeline and
 // returns immediately. All work runs in background goroutines.
 //
-// Return values:
-//   - events (chan<- [Event]): push layer events here in seq-number order,
-//     then close to signal end-of-stream.
+// # Parameters
+//
+//   - ctx: Parent context. Cancellation stops all goroutines cooperatively.
+//   - sn: Snapshotter implementation. Must be safe for concurrent use.
+//   - rootFS: OCI RootFS describing all layers. Must not change after the call.
+//   - numWorkers: Number of parallel Prepare+Action goroutines. ≤ 0 defaults
+//     to runtime.NumCPU.
+//
+// # Return values
+//
+//   - events (chan<- [Event]): push layer events in any order, then close to
+//     signal end-of-stream. The channel is buffered to numWorkers.
 //   - errc (<-chan error): receives exactly one value — nil on success or the
-//     first error. Buffered (capacity 1); the caller need not read immediately.
+//     first error encountered. Buffered (capacity 1); safe to read lazily.
 //
-// Pipeline stages:
+// # Preconditions
 //
-//  1. [buildChainTable] — O(n) upfront pass over rootFS.DiffIDs.
-//  2. numWorkers goroutines — read events concurrently; call sn.Prepare and
-//     the event's Action; forward [workerResult] to the committer.
-//  3. Committer — accumulates out-of-order results in a min-heap; drains
-//     strictly in seq order; calls sn.Commit via O(1) chain-table lookups.
-//
-// Idempotency: sn.Prepare and sn.Commit returning [errdefs.ErrAlreadyExists]
-// are treated as success, enabling safe pipeline restarts after partial runs.
-// For Prepare, the existing snapshot's mounts are retrieved via sn.Mounts and
-// forwarded to Action unchanged.
-//
-// Cancellation: cancelling ctx or any error cancels a shared pipelineCtx,
-// signalling all goroutines to stop. Workers keep draining events after
-// cancellation so the caller is never permanently blocked on a send. Close
-// events once you observe an error on errc.
-//
-// Preconditions:
 //   - Every event's Labels map must contain [LabelSnapshotterEventIndex].
-//   - Sequence numbers must be unique, contiguous from 0, and within
+//   - Sequence numbers must be unique, contiguous starting at 0, and within
 //     [0, len(rootFS.DiffIDs)).
-//   - numWorkers ≤ 0 defaults to runtime.NumCPU.
+//   - Close events only after all layers are delivered.
+//
+// # Idempotency
+//
+// sn.Prepare and sn.Commit returning [errdefs.ErrAlreadyExists] are treated
+// as success, enabling safe pipeline restarts after partial runs. For Prepare,
+// the existing snapshot's mounts are retrieved via sn.Mounts and forwarded to
+// Action unchanged. Layers whose committed snapshot already exists (detected
+// via sn.Stat) bypass Prepare and Action entirely.
+//
+// # Cancellation and error propagation
+//
+// The first error stores the real failure then cancels a shared pipelineCtx,
+// signalling all goroutines to unwind. Workers keep draining the event channel
+// after cancellation so the caller's send loop never blocks permanently. The
+// committer always surfaces the real error rather than the derived
+// context.Canceled from pipelineCtx.
 func RunSnapshotPipeline(
 	ctx context.Context,
 	sn snapshots.Snapshotter,
@@ -228,25 +249,20 @@ func RunSnapshotPipeline(
 		numWorkers = runtime.NumCPU()
 	}
 
-	// eventCh: internal channel; only the send-only end is exposed to the
-	// caller. Buffered to numWorkers so the caller can stay one batch ahead.
+	// eventCh is the internal channel; only the send-only end is returned.
+	// Buffered to numWorkers so the caller can stay one batch ahead.
 	eventCh := make(chan Event, numWorkers)
 
-	// pipelineCtx: cancelled by the first goroutine that encounters an error,
-	// causing all others to unwind cooperatively.
+	// pipelineCtx is cancelled by the first goroutine that encounters an
+	// error, causing all others to unwind cooperatively.
 	pipelineCtx, cancel := context.WithCancel(ctx)
 
-	// firstErr preserves the first real pipeline error (Prepare/Action/Commit
-	// failure) so the committer can surface it instead of context.Canceled.
+	// firstErr preserves the real pipeline error so the committer can surface
+	// it instead of the derived context.Canceled. CompareAndSwap ensures
+	// first-write-wins across racing goroutines.
 	//
-	// Race scenario: a worker errors → storeErr → cancel() → sends result.
-	// If the committer's select fires on pipelineCtx.Done() before reading
-	// from resultCh, it would return context.Canceled instead of the real
-	// error. CompareAndSwap (first-write-wins) guarantees the real error is
-	// always visible when resolveErr is called.
-	//
-	// Rule: storeErr MUST be called BEFORE cancel() so the stored value is
-	// visible to goroutines that observe the cancelled context.
+	// Ordering requirement: storeErr MUST be called before cancel() so the
+	// stored value is visible to goroutines that observe the cancelled context.
 	var firstErr atomic.Pointer[error]
 	storeErr := func(err error) { firstErr.CompareAndSwap(nil, &err) }
 	resolveErr := func() error {
@@ -256,23 +272,20 @@ func RunSnapshotPipeline(
 		return pipelineCtx.Err()
 	}
 
-	// resultCh: per-event outcomes from workers to the committer.
-	// Buffer = numWorkers: at most numWorkers goroutines write concurrently.
-	// A larger buffer (e.g. numWorkers*2) wastes memory with no benefit because
-	// a goroutine that fills its slot immediately blocks — or takes the
-	// pipelineCtx.Done() path — rather than queuing a second result.
+	// resultCh carries per-event outcomes from workers to the committer.
+	// Capacity numWorkers: at most numWorkers goroutines write concurrently,
+	// so this never causes unnecessary blocking under normal load.
 	resultCh := make(chan workerResult, numWorkers)
 
 	var wg sync.WaitGroup
 
 	// ── Worker pool ──────────────────────────────────────────────────────────
 	//
-	// Workers range over eventCh. When the caller closes the returned
-	// send-only channel, all range loops exit once the buffer is drained.
+	// Workers range over eventCh. When the caller closes the send-only
+	// channel, all range loops exit once the buffer is drained.
 	//
-	// Drain invariant: after cancellation workers keep consuming eventCh
-	// without processing — the caller can always make forward progress on its
-	// send loop even after the pipeline has been aborted.
+	// Drain invariant: after cancellation, workers keep consuming eventCh
+	// without processing so the caller's send loop always makes progress.
 	for range numWorkers {
 		wg.Add(1)
 		go func() {
@@ -283,21 +296,16 @@ func RunSnapshotPipeline(
 				}
 				res := processEvent(pipelineCtx, sn, chains, e)
 
-				// FIX (Bug 2): store the error BEFORE the select so it is
-				// always recorded regardless of which branch fires.  The
-				// original code placed storeErr/cancel AFTER the select, so
-				// when pipelineCtx was already cancelled (by a sibling worker)
-				// and the select non-deterministically took the Done() branch,
-				// this worker's error was silently dropped without ever being
-				// stored.  storeErr is a CAS (first-write-wins), so calling it
-				// here is safe even when another goroutine wins the race.
+				// Record the error before the select so it is always stored
+				// regardless of which branch fires. storeErr is a CAS
+				// (first-write-wins) and is safe to call from any goroutine.
 				if res.err != nil {
 					storeErr(res.err)
 					cancel()
 				}
 
 				// Forward result to committer. If the context was cancelled
-				// while processEvent ran, keep draining rather than blocking.
+				// while processEvent ran, drain rather than blocking.
 				select {
 				case resultCh <- res:
 				case <-pipelineCtx.Done():
@@ -308,8 +316,8 @@ func RunSnapshotPipeline(
 	}
 
 	// ── Cleanup goroutine ────────────────────────────────────────────────────
-	// Waits for all workers to finish, then closes resultCh to tell the
-	// committer no further results will ever arrive.
+	// Waits for all workers then closes resultCh, signalling the committer
+	// that no further results will ever arrive.
 	go func() {
 		wg.Wait()
 		close(resultCh)
@@ -317,16 +325,16 @@ func RunSnapshotPipeline(
 
 	// ── Committer ────────────────────────────────────────────────────────────
 	//
-	// Re-serialises out-of-order results into the correct commit order.
-	// sn.Commit for layer N requires layer N-1's snapshot to be committed
-	// first (OCI parent-chain invariant), so commits are issued strictly in
-	// seq order even though Prepare+Action run in arbitrary order.
+	// Re-serialises out-of-order results into commit order. sn.Commit for
+	// layer N requires layer N-1's snapshot to be committed first (OCI
+	// parent-chain invariant), so commits are issued strictly in seq order
+	// even though Prepare+Action run in arbitrary order.
 	go func() {
 		defer cancel() // always release the derived context on exit
 
 		// Pre-allocated to numWorkers: under normal load at most numWorkers
-		// results are in-flight simultaneously, so the heap never needs to
-		// grow and this goroutine runs with zero steady-state allocations.
+		// results are in-flight simultaneously, so the heap never grows and
+		// this goroutine runs with zero steady-state allocations.
 		h := make(resultHeap, 0, numWorkers)
 		heap.Init(&h)
 
@@ -335,7 +343,6 @@ func RunSnapshotPipeline(
 		for {
 			select {
 			case <-pipelineCtx.Done():
-				// resolveErr surfaces the real error over context.Canceled.
 				select {
 				case errCh <- resolveErr():
 				default:
@@ -345,22 +352,14 @@ func RunSnapshotPipeline(
 			case res, ok := <-resultCh:
 				if !ok {
 					// resultCh closed — all workers have exited.
-					//
-					// FIX (Bug 1): the original code returned nil whenever
-					// h.Len()==0, but that is only correct when next==total.
-					// If the caller closed the event channel early (sent fewer
-					// events than there are layers in rootFS), next < total and
-					// we must return an error instead of silently reporting
-					// success with a partially-committed image.
 					if h.Len() == 0 {
 						if next == total {
 							errCh <- nil // every layer committed successfully
 							return
 						}
-						// If workers failed before producing a result (e.g.
-						// they observed cancellation on send), surface that
-						// real failure instead of reporting a misleading
-						// producer-side "early close".
+						// Workers may have failed before producing a result
+						// (e.g. observed cancellation on send). Surface the
+						// real failure rather than a misleading "early close".
 						if p := firstErr.Load(); p != nil {
 							errCh <- *p
 							return
@@ -379,9 +378,10 @@ func RunSnapshotPipeline(
 						return
 					}
 
-					// Non-empty heap: seq gap detected. If a real pipeline
-					// error caused the gap, surface that instead of a
-					// confusing "seq gap" message.
+					// Non-empty heap with a closed resultCh means a sequence
+					// gap: the expected next seq never arrived. If a real
+					// pipeline error caused the gap, surface that instead of a
+					// confusing gap message.
 					if p := firstErr.Load(); p != nil {
 						select {
 						case errCh <- *p:
@@ -413,19 +413,15 @@ func RunSnapshotPipeline(
 
 				heap.Push(&h, res)
 
-				// Drain all consecutive ready seqs in one tight inner loop.
+				// Drain all consecutive ready seqs in one inner loop.
 				// h[0] is always the minimum (heap invariant), so a single
-				// peek tells us if the next commit is ready. Batching here
-				// avoids returning to the outer select for rapid completions
-				// (e.g. workers that finished seqs 3,4,5 while we committed
-				// seq 2 are all committed in this pass, not across three
-				// separate outer iterations).
+				// peek tells us whether the next commit is ready. Batching
+				// avoids returning to the outer select for rapid completions.
 				for h.Len() > 0 && h[0].seq == next {
 					ready := heap.Pop(&h).(workerResult)
-					ci := chains[next] // O(1) — no DiffID scan
+					ci := chains[next] // O(1) chain-table lookup
 
 					if ready.alreadyCommitted {
-						// Skip Commit entirely; it's already committed in the store.
 						next++
 						if next == total {
 							errCh <- nil
@@ -446,15 +442,13 @@ func RunSnapshotPipeline(
 					if err != nil && !errdefs.IsAlreadyExists(err) {
 						// If cancellation was triggered by an earlier worker
 						// error, prefer that original failure over a derived
-						// context cancellation from this commit call.
+						// context error from this Commit call.
 						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 							if p := firstErr.Load(); p != nil {
 								errCh <- *p
 								return
 							}
 						}
-						// ErrAlreadyExists: this snapshot was committed in a
-						// previous (partial) run — treat it as success.
 						commitErr := fmt.Errorf("commit seq %d (chainID %s): %w", next, ci.chainID, err)
 						storeErr(commitErr)
 						cancel()
@@ -476,32 +470,37 @@ func RunSnapshotPipeline(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Worker: Prepare + Action (with idempotency and cleanup)
+// Worker: Prepare + Action
 // ─────────────────────────────────────────────────────────────────────────────
 
 // processEvent executes the Prepare + Action lifecycle for one event.
-// It never calls Commit; that is exclusively the committer's job.
+// It never calls Commit; that is exclusively the committer's responsibility.
 //
-// Idempotency: if sn.Prepare returns ErrAlreadyExists, the active snapshot
-// already exists (pipeline restarted after a partial run). sn.Mounts is called
-// to retrieve the existing mounts, and Action runs against them unchanged.
+// # Idempotency
 //
-// Cleanup: if Action fails after a successful Prepare, the active snapshot is
-// removed via sn.Remove to prevent resource leaks. Removal errors are ignored
-// (the snapshot will be GC'd eventually); they do not replace the Action error.
+// If sn.Stat reveals that chainID already exists as a committed snapshot, the
+// function returns immediately with alreadyCommitted=true and skips both
+// Prepare and Action. If sn.Prepare returns ErrAlreadyExists (the active
+// snapshot exists from a partial prior run), sn.Mounts retrieves the existing
+// mount points and Action proceeds against them unchanged.
 //
-// seq=-1 sentinel: parse/range errors return seq=-1 with a non-nil err.
-// The committer MUST check res.err before heap.Push — seq=-1 in the heap
-// would corrupt ordering because -1 < 0 would always sort to the front,
-// permanently blocking the committer on next==0.
+// # Cleanup
+//
+// If Action fails after a successful Prepare, the active snapshot is removed
+// via sn.Remove to prevent resource leaks. Removal errors are ignored and do
+// not replace the Action error; the snapshot will be collected by the
+// snapshotter GC.
+//
+// # Error sentinel
+//
+// Parse and range errors return seq=-1 with a non-nil err. The committer
+// checks res.err before heap.Push, so seq=-1 never enters the heap. Returning
+// seq=0 on parse failure would silently collide with the legitimate seq-0
+// result, either displacing it in the heap or being committed in its place.
 func processEvent(ctx context.Context, sn snapshots.Snapshotter, chains []chainInfo, e Event) workerResult {
 	rawSeq := e.Active.Labels[LabelSnapshotterEventIndex]
 	seq, err := strconv.Atoi(rawSeq)
 	if err != nil {
-		// seq -1 is a deliberate out-of-band sentinel. Returning 0 on parse
-		// failure would silently collide with the legitimate seq-0 result,
-		// either displacing it in the heap or being committed in its place —
-		// producing a silently corrupted snapshot chain.
 		return workerResult{seq: -1, err: fmt.Errorf(
 			"event label %q: invalid sequence number: %w", rawSeq, err,
 		)}
@@ -516,21 +515,21 @@ func processEvent(ctx context.Context, sn snapshots.Snapshotter, chains []chainI
 	diffID := chains[seq].diffID
 	chainID := chains[seq].chainID
 
-	// Fast-path idempotency check: if the snapshot is already fully committed
-	// from a previous pipeline execution, bypass Prepare and Action entirely.
+	// Fast-path: if the committed snapshot already exists from a previous
+	// completed pipeline run, bypass Prepare and Action entirely.
 	if info, err := sn.Stat(ctx, chainID); err == nil && info.Kind == snapshots.KindCommitted {
 		return workerResult{seq: seq, event: e, alreadyCommitted: true}
 	}
 
 	// sn.Prepare: parent is always "" here. The parent relationship is
 	// established at Commit time by the committer via snapshots.WithParent,
-	// after it verifies the parent snapshot is already committed.
+	// after verifying the parent snapshot is already committed.
 	mounts, err := sn.Prepare(ctx, diffID, "", e.Active.PrepareOptions...)
 	switch {
 	case err == nil:
-		// Normal path.
+		// Normal path — active snapshot created.
 	case errdefs.IsAlreadyExists(err):
-		// The active snapshot already exists from a previous partial run.
+		// Active snapshot exists from a previous partial run.
 		// Retrieve its mounts so Action can proceed without re-preparation.
 		mounts, err = sn.Mounts(ctx, diffID)
 		if err != nil {
@@ -543,11 +542,9 @@ func processEvent(ctx context.Context, sn snapshots.Snapshotter, chains []chainI
 	}
 
 	if err = e.Active.Action(ctx, mounts); err != nil {
-		// Remove the active snapshot to avoid leaking it. An orphaned active
-		// snapshot is harmless (the GC will reclaim it) but wastes resources
-		// and can cause key-collision errors on the next pipeline run if the
-		// caller does not handle ErrAlreadyExists in its own Prepare paths.
-		// Ignore removal errors — do not replace the Action error.
+		// Best-effort cleanup: remove the active snapshot to avoid leaking
+		// resources and to prevent key-collision errors on the next pipeline
+		// run. Removal errors are ignored.
 		_ = sn.Remove(ctx, diffID)
 		return workerResult{seq: seq, event: e, err: fmt.Errorf("action seq %d: %w", seq, err)}
 	}
@@ -561,10 +558,9 @@ func processEvent(ctx context.Context, sn snapshots.Snapshotter, chains []chainI
 
 // cloneOpts returns a shallow copy of opts with capacity len(opts)+1.
 //
-// The +1 pre-allocates the slot for snapshots.WithParent that the committer
-// appends for every non-root layer. Without it, the append inside the
-// committer's hot loop would trigger a realloc+copy on 99 of 100 layers for
-// a typical image. With it, append writes into the pre-reserved slot for free.
+// The extra capacity pre-allocates the slot for the snapshots.WithParent
+// option that the committer appends for every non-root layer. Without it,
+// the append would trigger a realloc+copy on almost every Commit call.
 //
 // Returns nil for empty input to avoid a zero-length heap allocation.
 func cloneOpts(opts []snapshots.Opt) []snapshots.Opt {

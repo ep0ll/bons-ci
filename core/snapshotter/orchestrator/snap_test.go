@@ -1,15 +1,18 @@
-package pipeline
-
-// White-box tests: same package, full access to unexported symbols
-// (buildChainTable, cloneOpts, chainInfo, workerResult, resultHeap).
+// White-box tests for the snapshot pipeline.
 //
-// Run with the race detector:
+// Being in the same package grants access to unexported symbols —
+// buildChainTable, cloneOpts, chainInfo, workerResult, resultHeap — which
+// allows direct unit tests of internal helpers alongside full integration
+// tests of RunSnapshotPipeline.
+//
+// Run with the race detector (strongly recommended):
 //
 //	go test -race -count=1 ./...
 //
 // Run benchmarks:
 //
 //	go test -bench=. -benchmem ./...
+package pipeline
 
 import (
 	"context"
@@ -42,27 +45,32 @@ type commitRec struct {
 	parent string // extracted by applying opts to a blank Info
 }
 
-// mockSnapshotter is a thread-safe, injectable fake that implements
-// snapshots.Snapshotter. Only the five methods used by the pipeline are
-// meaningfully implemented; all others return errors.
+// mockSnapshotter is a thread-safe injectable fake that implements
+// snapshots.Snapshotter.
 //
-// Hooks (onPrepare, onCommit, onRemove, onMounts) are read-only once set —
-// they must be configured before any pipeline goroutine touches the mock.
-// State mutations (committed/active maps, call logs) are protected by mu.
-// Hooks are called WITHOUT mu held to avoid deadlocks; if a hook itself
-// needs to observe the mock's state it must acquire mu itself.
+// Only the five methods used by the pipeline (Stat, Prepare, Mounts, Commit,
+// Remove) are meaningfully implemented; all others return sentinel errors so
+// callers notice immediately.
+//
+// # Concurrency model
+//
+// Hooks (onPrepare, onCommit, onRemove, onMounts) are read-only once set and
+// must be configured before any pipeline goroutine touches the mock. State
+// mutations (committed/active maps, call logs) are protected by mu. Hooks are
+// called without mu held to avoid deadlocks; if a hook needs to observe mock
+// state it must acquire mu itself.
 type mockSnapshotter struct {
 	mu        sync.Mutex
 	committed map[string]snapshots.Info // committed-name → Info{Kind=Committed}
 	active    map[string]struct{}       // active-key → present
 
-	// Error-injection hooks — called outside mu; nil == success.
+	// Error-injection hooks — nil means success.
 	onPrepare func(key string) error
 	onCommit  func(name, key string) error
 	onRemove  func(key string) error
 	onMounts  func(key string) error
 
-	// Call logs — appended under mu; read via accessor methods after pipeline.
+	// Call logs — appended under mu; read via accessor methods after pipeline exits.
 	prepareLog []string
 	commitLog  []commitRec
 	removeLog  []string
@@ -76,7 +84,8 @@ func newMock() *mockSnapshotter {
 	}
 }
 
-// preCommit pre-populates a committed snapshot, simulating a previous run.
+// preCommit pre-populates a committed snapshot, simulating a previously
+// completed pipeline run.
 func (m *mockSnapshotter) preCommit(name, parent string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -87,8 +96,8 @@ func (m *mockSnapshotter) preCommit(name, parent string) {
 	}
 }
 
-// preActive pre-populates an active snapshot, simulating a partial run
-// (Prepare succeeded but Commit never happened).
+// preActive pre-populates an active snapshot, simulating a partial run where
+// Prepare succeeded but Commit never happened.
 func (m *mockSnapshotter) preActive(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -128,7 +137,7 @@ func (m *mockSnapshotter) Prepare(ctx context.Context, key, parent string, opts 
 		return nil, errdefs.ErrAlreadyExists
 	}
 	// A key may collide with a committed name only for the root layer where
-	// diffID == chainID; in that case Prepare must also return AlreadyExists.
+	// diffID == chainID. In that case Prepare must also return AlreadyExists.
 	if _, ok := m.committed[key]; ok {
 		return nil, errdefs.ErrAlreadyExists
 	}
@@ -188,7 +197,7 @@ func (m *mockSnapshotter) Remove(ctx context.Context, key string) error {
 	return nil
 }
 
-// Unused by the pipeline — return sentinel errors so callers notice immediately.
+// Unused by the pipeline — return sentinel errors so misuse is immediately visible.
 func (m *mockSnapshotter) Update(_ context.Context, _ snapshots.Info, _ ...string) (snapshots.Info, error) {
 	return snapshots.Info{}, errors.New("mockSnapshotter: Update not implemented")
 }
@@ -203,7 +212,7 @@ func (m *mockSnapshotter) Walk(_ context.Context, _ snapshots.WalkFunc, _ ...str
 }
 func (m *mockSnapshotter) Close() error { return nil }
 
-// ── Thread-safe accessors ─────────────────────────────────────────────────────
+// ── Thread-safe log accessors ─────────────────────────────────────────────────
 
 func (m *mockSnapshotter) Commits() []commitRec {
 	m.mu.Lock()
@@ -241,8 +250,8 @@ func (m *mockSnapshotter) MountsCalled() []string {
 // Test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-// newRootFS builds a synthetic RootFS with n layers.
-// DiffIDs use digest.FromString("layer-<i>") which is deterministic.
+// newRootFS builds a synthetic RootFS with n layers using deterministic
+// digests: digest.FromString("layer-<i>") for each index i.
 func newRootFS(n int) ocispec.RootFS {
 	dids := make([]digest.Digest, n)
 	for i := range dids {
@@ -256,7 +265,7 @@ func seqLabel(seq int) map[string]string {
 	return map[string]string{LabelSnapshotterEventIndex: strconv.Itoa(seq)}
 }
 
-// noopAction always succeeds.
+// noopAction is an Action that always succeeds without doing any work.
 var noopAction = func(_ context.Context, _ []mount.Mount) error { return nil }
 
 // failAction returns an Action that always returns err.
@@ -264,7 +273,7 @@ func failAction(err error) func(context.Context, []mount.Mount) error {
 	return func(_ context.Context, _ []mount.Mount) error { return err }
 }
 
-// mountCapturingAction stores the mounts it receives into *got.
+// mountCapturingAction appends received mounts to *got under mu.
 func mountCapturingAction(got *[]mount.Mount, mu *sync.Mutex) func(context.Context, []mount.Mount) error {
 	return func(_ context.Context, mounts []mount.Mount) error {
 		mu.Lock()
@@ -274,7 +283,7 @@ func mountCapturingAction(got *[]mount.Mount, mu *sync.Mutex) func(context.Conte
 	}
 }
 
-// makeEvent builds an Event for seq with the given Action.
+// makeEvent builds an Event for the given seq with the provided Action.
 func makeEvent(seq int, action func(context.Context, []mount.Mount) error) Event {
 	return Event{Active: EventSnapshotter{
 		Labels: seqLabel(seq),
@@ -282,7 +291,7 @@ func makeEvent(seq int, action func(context.Context, []mount.Mount) error) Event
 	}}
 }
 
-// buildEvents creates n events (seqs 0..n-1) each with noopAction.
+// buildEvents creates n events (seqs 0..n-1) each using noopAction.
 func buildEvents(n int) []Event {
 	evs := make([]Event, n)
 	for i := range evs {
@@ -291,8 +300,8 @@ func buildEvents(n int) []Event {
 	return evs
 }
 
-// sendAll sends all events in order and closes the channel.
-// Must be called in a goroutine when the pipeline buffer could be smaller
+// sendAll sends all events in order then closes the channel.
+// Must be called in a separate goroutine when the pipeline buffer is smaller
 // than len(events).
 func sendAll(ch chan<- Event, events []Event) {
 	for _, e := range events {
@@ -301,7 +310,7 @@ func sendAll(ch chan<- Event, events []Event) {
 	close(ch)
 }
 
-// requireClosedSendOnly verifies that sends panic, which is the only
+// requireClosedSendOnly verifies that sending panics, which is the only
 // observable closed-state check available for a send-only channel.
 func requireClosedSendOnly(t *testing.T, ch chan<- Event) {
 	t.Helper()
@@ -313,8 +322,8 @@ func requireClosedSendOnly(t *testing.T, ch chan<- Event) {
 	ch <- Event{}
 }
 
-// waitResult reads from errCh with a generous timeout.
-// Returns the error value (may be nil) or fails t on timeout.
+// waitResult reads from errCh with a 10-second timeout.
+// Returns the error value (may be nil) or fails the test on timeout.
 func waitResult(t *testing.T, errCh <-chan error) error {
 	t.Helper()
 	select {
@@ -326,7 +335,7 @@ func waitResult(t *testing.T, errCh <-chan error) error {
 	}
 }
 
-// requireNoErr calls waitResult and fails if non-nil.
+// requireNoErr calls waitResult and fails if the result is non-nil.
 func requireNoErr(t *testing.T, errCh <-chan error) {
 	t.Helper()
 	if err := waitResult(t, errCh); err != nil {
@@ -334,7 +343,7 @@ func requireNoErr(t *testing.T, errCh <-chan error) {
 	}
 }
 
-// requireErr calls waitResult and fails if nil; returns the error.
+// requireErr calls waitResult and fails if the result is nil.
 func requireErr(t *testing.T, errCh <-chan error) error {
 	t.Helper()
 	err := waitResult(t, errCh)
@@ -344,8 +353,8 @@ func requireErr(t *testing.T, errCh <-chan error) error {
 	return err
 }
 
-// applyOptsParent applies opts to a blank Info and returns the Parent field.
-// This mirrors containerd's snapshots.WithParent implementation.
+// applyOptsParent applies opts to a blank Info and returns the Parent field,
+// mirroring containerd's snapshots.WithParent implementation.
 func applyOptsParent(opts []snapshots.Opt) string {
 	var info snapshots.Info
 	for _, o := range opts {
@@ -385,7 +394,7 @@ func TestBuildChainTable_SingleLayer(t *testing.T) {
 	if chains[0].parentChainID != "" {
 		t.Errorf("root layer must have empty parentChainID, got %q", chains[0].parentChainID)
 	}
-	// For single-element slice, ChainID == DiffID (OCI spec invariant).
+	// OCI spec invariant: for a single-element DiffID slice, ChainID == DiffID.
 	if chains[0].diffID != chains[0].chainID {
 		t.Errorf("for single layer, diffID must equal chainID; diffID=%q chainID=%q",
 			chains[0].diffID, chains[0].chainID)
@@ -401,7 +410,7 @@ func TestBuildChainTable_ThreeLayers_ChainIDs(t *testing.T) {
 		t.Fatalf("expected 3 entries, got %d", len(chains))
 	}
 
-	// Root layer.
+	// Root layer: no parent, chainID == ChainID([d0]).
 	if chains[0].parentChainID != "" {
 		t.Errorf("layer 0: parentChainID must be empty, got %q", chains[0].parentChainID)
 	}
@@ -409,7 +418,7 @@ func TestBuildChainTable_ThreeLayers_ChainIDs(t *testing.T) {
 		t.Errorf("layer 0: chainID mismatch")
 	}
 
-	// Layer 1: parent == ChainID([d0]).
+	// Layer 1: parent == ChainID([d0]), chainID == ChainID([d0,d1]).
 	wantParent1 := identity.ChainID(dids[:1]).String()
 	if chains[1].parentChainID != wantParent1 {
 		t.Errorf("layer 1: parentChainID got %q, want %q", chains[1].parentChainID, wantParent1)
@@ -418,7 +427,7 @@ func TestBuildChainTable_ThreeLayers_ChainIDs(t *testing.T) {
 		t.Errorf("layer 1: chainID mismatch")
 	}
 
-	// Layer 2: parent == ChainID([d0,d1]).
+	// Layer 2: parent == ChainID([d0,d1]), chainID == ChainID([d0,d1,d2]).
 	wantParent2 := identity.ChainID(dids[:2]).String()
 	if chains[2].parentChainID != wantParent2 {
 		t.Errorf("layer 2: parentChainID got %q, want %q", chains[2].parentChainID, wantParent2)
@@ -457,8 +466,7 @@ func TestCloneOpts_Empty(t *testing.T) {
 }
 
 func TestCloneOpts_NonEmpty_Independence(t *testing.T) {
-	sentinel := errors.New("sentinel")
-	opt := func(i *snapshots.Info) error { i.Parent = "x"; return sentinel }
+	opt := func(i *snapshots.Info) error { i.Parent = "x"; return nil }
 	original := []snapshots.Opt{opt}
 
 	clone := cloneOpts(original)
@@ -485,17 +493,15 @@ func TestCloneOpts_Capacity(t *testing.T) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Pipeline tests
+// Pipeline — happy-path tests
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestRunSnapshotPipeline_ZeroLayers(t *testing.T) {
 	sn := newMock()
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, ocispec.RootFS{}, 1)
 
-	// API returns send-only chan; verify fast path by asserting sends panic
-	// immediately ("send on closed channel").
+	// The fast path closes the channel before returning, so any send panics.
 	requireClosedSendOnly(t, eventCh)
-
 	requireNoErr(t, errCh)
 }
 
@@ -538,6 +544,7 @@ func TestRunSnapshotPipeline_MultiLayer_InOrder(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_MultiLayer_ReverseOrder(t *testing.T) {
+	// Events sent in reverse order; the committer must still commit in seq order.
 	t.Parallel()
 	const n = 6
 	sn := newMock()
@@ -546,7 +553,6 @@ func TestRunSnapshotPipeline_MultiLayer_ReverseOrder(t *testing.T) {
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, rootFS, 4)
 	go func() {
 		evs := buildEvents(n)
-		// Send in reverse order: the committer must still commit in seq order.
 		for i := n - 1; i >= 0; i-- {
 			eventCh <- evs[i]
 		}
@@ -558,8 +564,8 @@ func TestRunSnapshotPipeline_MultiLayer_ReverseOrder(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_DefaultWorkers(t *testing.T) {
-	t.Parallel()
 	// numWorkers == 0 must default to runtime.NumCPU without panicking.
+	t.Parallel()
 	const n = 4
 	sn := newMock()
 	rootFS := newRootFS(n)
@@ -571,22 +577,20 @@ func TestRunSnapshotPipeline_DefaultWorkers(t *testing.T) {
 	if len(sn.Commits()) != n {
 		t.Errorf("commits: got %d, want %d", len(sn.Commits()), n)
 	}
-	// Can't assert exact worker count, but we can confirm it was non-zero.
-	if runtime.NumCPU() == 0 {
-		t.Error("runtime.NumCPU() must be > 0")
-	}
 }
 
-// ── Idempotency tests ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline — idempotency tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 func TestRunSnapshotPipeline_AllAlreadyCommitted(t *testing.T) {
+	// A fully pre-committed image must bypass Prepare and Action entirely.
 	t.Parallel()
 	const n = 3
 	sn := newMock()
 	rootFS := newRootFS(n)
 	chains := buildChainTable(rootFS)
 
-	// Pre-commit all layers as if a previous run completed fully.
 	for i, ci := range chains {
 		parent := ""
 		if i > 0 {
@@ -599,24 +603,23 @@ func TestRunSnapshotPipeline_AllAlreadyCommitted(t *testing.T) {
 	go sendAll(eventCh, buildEvents(n))
 	requireNoErr(t, errCh)
 
-	// Prepare must never be called — all layers were skipped via Stat fast-path.
 	if got := sn.Prepares(); len(got) != 0 {
 		t.Errorf("expected 0 Prepare calls, got %d: %v", len(got), got)
 	}
-	// Commit must never be called either.
 	if got := sn.Commits(); len(got) != 0 {
 		t.Errorf("expected 0 Commit calls, got %d", len(got))
 	}
 }
 
 func TestRunSnapshotPipeline_PartiallyAlreadyCommitted(t *testing.T) {
+	// Only layers beyond the pre-committed range should be processed.
 	t.Parallel()
 	const n = 4
 	sn := newMock()
 	rootFS := newRootFS(n)
 	chains := buildChainTable(rootFS)
 
-	// Pre-commit only the first two layers.
+	// Pre-commit the first two layers.
 	for i := 0; i < 2; i++ {
 		parent := ""
 		if i > 0 {
@@ -638,25 +641,23 @@ func TestRunSnapshotPipeline_PartiallyAlreadyCommitted(t *testing.T) {
 	go sendAll(eventCh, evs)
 	requireNoErr(t, errCh)
 
-	// Action must only run for layers 2 and 3 (0 and 1 are already committed).
 	if got := actionCalls.Load(); got != 2 {
 		t.Errorf("expected 2 Action calls (layers 2,3), got %d", got)
 	}
-	// Commit must only happen for layers 2 and 3.
 	if got := sn.Commits(); len(got) != 2 {
 		t.Errorf("expected 2 Commit calls, got %d", len(got))
 	}
 }
 
 func TestRunSnapshotPipeline_PrepareAlreadyExists(t *testing.T) {
-	// Simulate a partial run: Prepare succeeded but Commit never ran.
+	// Prepare returning ErrAlreadyExists (partial run) must fall back to
+	// Mounts and forward those mounts to Action.
 	t.Parallel()
 	const n = 2
 	sn := newMock()
 	rootFS := newRootFS(n)
 	chains := buildChainTable(rootFS)
 
-	// Pre-populate the active snapshot for layer 1 only.
 	sn.preActive(chains[1].diffID)
 
 	var mountsReceived int
@@ -678,11 +679,9 @@ func TestRunSnapshotPipeline_PrepareAlreadyExists(t *testing.T) {
 	go sendAll(eventCh, evs)
 	requireNoErr(t, errCh)
 
-	// Mounts must have been called for layer 1 (active snapshot existed).
 	if mc := sn.MountsCalled(); len(mc) == 0 {
 		t.Error("expected Mounts to be called for the pre-existing active snapshot")
 	}
-	// Both layers must ultimately be committed.
 	if got := sn.Commits(); len(got) != n {
 		t.Errorf("expected %d commits, got %d", n, len(got))
 	}
@@ -695,11 +694,6 @@ func TestRunSnapshotPipeline_CommitAlreadyExists(t *testing.T) {
 	rootFS := newRootFS(1)
 	chains := buildChainTable(rootFS)
 
-	// Pre-commit the layer so sn.Commit returns ErrAlreadyExists.
-	// But do NOT pre-commit via Stat path — leave Stat returning not-found
-	// so the fast-path is NOT triggered (simulates the race where Commit
-	// is called but Stat still misses it).
-	// We inject the error only at the Commit level.
 	sn.onCommit = func(name, _ string) error {
 		if name == chains[0].chainID {
 			return errdefs.ErrAlreadyExists
@@ -712,7 +706,9 @@ func TestRunSnapshotPipeline_CommitAlreadyExists(t *testing.T) {
 	requireNoErr(t, errCh)
 }
 
-// ── Error propagation tests ───────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline — error propagation tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 func TestRunSnapshotPipeline_PrepareError(t *testing.T) {
 	t.Parallel()
@@ -721,7 +717,6 @@ func TestRunSnapshotPipeline_PrepareError(t *testing.T) {
 	chains := buildChainTable(rootFS)
 	wantErr := errors.New("disk full")
 
-	// Fail Prepare for layer 1.
 	sn.onPrepare = func(key string) error {
 		if key == chains[1].diffID {
 			return wantErr
@@ -739,13 +734,13 @@ func TestRunSnapshotPipeline_PrepareError(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_ActionError_RemoveCalled(t *testing.T) {
+	// A failed Action must trigger Remove on the active snapshot.
 	t.Parallel()
 	sn := newMock()
 	rootFS := newRootFS(3)
 	chains := buildChainTable(rootFS)
 	wantErr := errors.New("unpack failed")
 
-	// Fail Action for layer 2.
 	evs := make([]Event, 3)
 	for i := range evs {
 		i := i
@@ -765,7 +760,6 @@ func TestRunSnapshotPipeline_ActionError_RemoveCalled(t *testing.T) {
 		t.Errorf("error chain: got %v, want wrapped %v", err, wantErr)
 	}
 
-	// processEvent must have called Remove for layer 2's active snapshot.
 	removed := sn.Removes()
 	found := false
 	for _, r := range removed {
@@ -827,7 +821,7 @@ func TestRunSnapshotPipeline_CommitError(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_MountsError(t *testing.T) {
-	// Mounts called after Prepare ErrAlreadyExists — if Mounts fails, the
+	// Mounts called after Prepare ErrAlreadyExists: if Mounts fails, the
 	// worker must return the Mounts error, not the Prepare error.
 	t.Parallel()
 	sn := newMock()
@@ -835,7 +829,7 @@ func TestRunSnapshotPipeline_MountsError(t *testing.T) {
 	chains := buildChainTable(rootFS)
 	mountsErr := errors.New("mounts unavailable")
 
-	sn.preActive(chains[0].diffID) // triggers AlreadyExists from Prepare
+	sn.preActive(chains[0].diffID)
 	sn.onMounts = func(_ string) error { return mountsErr }
 
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, rootFS, 1)
@@ -847,12 +841,14 @@ func TestRunSnapshotPipeline_MountsError(t *testing.T) {
 	}
 }
 
-// ── Context cancellation tests ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline — context cancellation tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 func TestRunSnapshotPipeline_ContextAlreadyCancelled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // pre-cancel
+	cancel() // pre-cancel before the pipeline starts
 
 	sn := newMock()
 	rootFS := newRootFS(3)
@@ -873,15 +869,9 @@ func TestRunSnapshotPipeline_ContextCancelledMidPipeline(t *testing.T) {
 	sn := newMock()
 	rootFS := newRootFS(10)
 
-	// Cancel after the first commit.
+	// Cancel after the first successful Commit.
 	var commitCount atomic.Int32
-	origOnCommit := sn.onCommit
 	sn.onCommit = func(name, key string) error {
-		if origOnCommit != nil {
-			if err := origOnCommit(name, key); err != nil {
-				return err
-			}
-		}
 		if commitCount.Add(1) == 1 {
 			cancel()
 		}
@@ -892,28 +882,28 @@ func TestRunSnapshotPipeline_ContextCancelledMidPipeline(t *testing.T) {
 	go sendAll(eventCh, buildEvents(10))
 
 	err := waitResult(t, errCh)
-	// Either nil (race: all completed before cancel) or a context error.
+	// Either nil (race: all layers committed before cancel) or a context error.
 	if err != nil && !errors.Is(err, context.Canceled) {
 		t.Errorf("expected nil or context.Canceled, got: %v", err)
 	}
 }
 
 func TestRunSnapshotPipeline_CancelNoDeadlock(t *testing.T) {
-	// This test verifies the drain invariant: after cancellation, workers
-	// keep consuming eventCh so the caller's send loop never blocks forever.
+	// After cancellation, workers must keep draining eventCh so the caller's
+	// send loop never blocks permanently (drain invariant).
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	sn := newMock()
 	const n = 20
 	rootFS := newRootFS(n)
 
-	// Fail the very first Action to trigger cancellation.
+	// Fail the very first Action to trigger cancellation immediately.
 	evs := make([]Event, n)
 	for i := range evs {
 		i := i
 		evs[i] = makeEvent(i, func(_ context.Context, _ []mount.Mount) error {
 			if i == 0 {
-				return errors.New("injected")
+				return errors.New("injected failure")
 			}
 			return nil
 		})
@@ -922,8 +912,8 @@ func TestRunSnapshotPipeline_CancelNoDeadlock(t *testing.T) {
 	eventCh, errCh := RunSnapshotPipeline(ctx, sn, rootFS, 2)
 	defer cancel()
 
-	// Send all events from this goroutine — if drain invariant is broken,
-	// this would block forever and the test would timeout.
+	// If the drain invariant is violated, this goroutine blocks and the
+	// select below times out.
 	done := make(chan struct{})
 	go func() {
 		sendAll(eventCh, evs)
@@ -939,18 +929,16 @@ func TestRunSnapshotPipeline_CancelNoDeadlock(t *testing.T) {
 	requireErr(t, errCh)
 }
 
-// ── Label / seq validation tests ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline — label and sequence validation tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 func TestRunSnapshotPipeline_MissingSeqLabel(t *testing.T) {
 	t.Parallel()
 	sn := newMock()
 	rootFS := newRootFS(1)
 
-	// Event with no labels at all.
-	bad := Event{Active: EventSnapshotter{
-		Labels: nil,
-		Action: noopAction,
-	}}
+	bad := Event{Active: EventSnapshotter{Labels: nil, Action: noopAction}}
 
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, rootFS, 1)
 	go func() { eventCh <- bad; close(eventCh) }()
@@ -1019,7 +1007,7 @@ func TestRunSnapshotPipeline_SeqTooLarge(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_SeqGap(t *testing.T) {
-	// Send seqs 0 and 2, omit seq 1 — the committer must detect the gap.
+	// Sending seqs 0 and 2 but omitting seq 1 must produce a seq-gap error.
 	t.Parallel()
 	sn := newMock()
 	rootFS := newRootFS(3)
@@ -1027,7 +1015,7 @@ func TestRunSnapshotPipeline_SeqGap(t *testing.T) {
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, rootFS, 3)
 	go func() {
 		eventCh <- makeEvent(0, noopAction)
-		eventCh <- makeEvent(2, noopAction) // gap: seq 1 never sent
+		eventCh <- makeEvent(2, noopAction) // seq 1 deliberately omitted
 		close(eventCh)
 	}()
 
@@ -1037,19 +1025,18 @@ func TestRunSnapshotPipeline_SeqGap(t *testing.T) {
 	}
 }
 
-func TestRunSnapshotPipeline_EarlyClose_BugFix(t *testing.T) {
-	// Regression test for the Bug 1 fix: closing the event channel after
-	// sending fewer events than there are layers must return an error, not nil.
+func TestRunSnapshotPipeline_EarlyClose(t *testing.T) {
+	// Closing the event channel before all layers are delivered must return
+	// an error, not nil.
 	t.Parallel()
 	sn := newMock()
 	rootFS := newRootFS(3)
 
-	// Send only seqs 0 and 1, then close. Layer 2 never arrives.
 	eventCh, errCh := RunSnapshotPipeline(context.Background(), sn, rootFS, 2)
 	go func() {
 		eventCh <- makeEvent(0, noopAction)
 		eventCh <- makeEvent(1, noopAction)
-		close(eventCh)
+		close(eventCh) // layer 2 never delivered
 	}()
 
 	err := requireErr(t, errCh)
@@ -1058,10 +1045,12 @@ func TestRunSnapshotPipeline_EarlyClose_BugFix(t *testing.T) {
 	}
 }
 
-// ── Correctness tests ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline — correctness tests
+// ─────────────────────────────────────────────────────────────────────────────
 
 func TestRunSnapshotPipeline_ParentChainCorrect(t *testing.T) {
-	// The committer must set WithParent(chainID[i-1]) for every non-root layer.
+	// The committer must attach WithParent(chainID[i-1]) to every non-root layer.
 	t.Parallel()
 	const n = 4
 	sn := newMock()
@@ -1075,7 +1064,7 @@ func TestRunSnapshotPipeline_ParentChainCorrect(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_ActionReceivesMounts(t *testing.T) {
-	// Each Action must receive a non-empty mount slice produced by Prepare.
+	// Each Action must receive a non-empty mount slice from Prepare.
 	t.Parallel()
 	const n = 3
 	sn := newMock()
@@ -1109,8 +1098,8 @@ func TestRunSnapshotPipeline_ActionReceivesMounts(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_ConcurrentCorrectness(t *testing.T) {
-	// Run with numWorkers > number of layers to stress concurrent code paths.
-	// The race detector will catch any data races.
+	// numWorkers > len(layers) stresses concurrent code paths; the race
+	// detector will catch any data races.
 	t.Parallel()
 	const n = 8
 	sn := newMock()
@@ -1124,7 +1113,7 @@ func TestRunSnapshotPipeline_ConcurrentCorrectness(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_LargePipeline(t *testing.T) {
-	// 100 layers with many workers — exercises the heap drain loop.
+	// 100 layers exercising the heap drain loop.
 	t.Parallel()
 	const n = 100
 	sn := newMock()
@@ -1145,14 +1134,13 @@ func TestRunSnapshotPipeline_LargePipeline(t *testing.T) {
 }
 
 func TestRunSnapshotPipeline_ErrorPropagatesOverContextCanceled(t *testing.T) {
-	// When a real error and context.Canceled both occur, resolveErr must
-	// surface the real error, not context.Canceled.
+	// When a real error and context.Canceled both occur, the real error must
+	// be surfaced rather than the derived context.Canceled.
 	t.Parallel()
 	sn := newMock()
 	rootFS := newRootFS(5)
 	realErr := errors.New("real error")
 
-	// Fail Action on seq 0; the cancel will propagate to other workers too.
 	evs := make([]Event, 5)
 	for i := range evs {
 		i := i
@@ -1171,20 +1159,11 @@ func TestRunSnapshotPipeline_ErrorPropagatesOverContextCanceled(t *testing.T) {
 	if !errors.Is(err, realErr) && !errors.Is(err, context.Canceled) {
 		t.Errorf("expected realErr or context.Canceled, got: %v", err)
 	}
-	// The real error must win when it was the cause.
-	if errors.Is(err, context.Canceled) && !errors.Is(err, realErr) {
-		t.Logf("note: context.Canceled surfaced (race); real error: %v", realErr)
-		// This is a known non-deterministic race in the original select logic
-		// when the committer fires on Done() before the error result arrives.
-		// The fix (Bug 2) ensures storeErr is always called before select,
-		// so resolveErr should consistently return realErr. If this fails,
-		// the fix is incomplete.
-	}
 }
 
 func TestRunSnapshotPipeline_CommitOptionsNotMutated(t *testing.T) {
 	// cloneOpts must prevent the committer from mutating the caller's
-	// CommitOptions slice via aliasing.
+	// CommitOptions slice through aliasing.
 	t.Parallel()
 	sn := newMock()
 	rootFS := newRootFS(2)
@@ -1198,7 +1177,7 @@ func TestRunSnapshotPipeline_CommitOptionsNotMutated(t *testing.T) {
 		evs[i] = Event{Active: EventSnapshotter{
 			Labels:        seqLabel(i),
 			Action:        noopAction,
-			CommitOptions: sharedOpts, // same slice reused for both events
+			CommitOptions: sharedOpts, // same slice shared across events
 		}}
 	}
 
@@ -1206,10 +1185,8 @@ func TestRunSnapshotPipeline_CommitOptionsNotMutated(t *testing.T) {
 	go sendAll(eventCh, evs)
 	requireNoErr(t, errCh)
 
-	// Original slice must still have the same capacity — no append into it.
 	if cap(sharedOpts) != origCap {
-		t.Errorf("CommitOptions capacity was mutated: before=%d after=%d",
-			origCap, cap(sharedOpts))
+		t.Errorf("CommitOptions capacity mutated: before=%d after=%d", origCap, cap(sharedOpts))
 	}
 }
 
@@ -1220,7 +1197,7 @@ func TestRunSnapshotPipeline_CommitOptionsNotMutated(t *testing.T) {
 // assertCommitOrder verifies that:
 //  1. The number of commits equals the number of layers.
 //  2. Each commit name matches the expected chainID.
-//  3. Each commit's parent is the chain ID of the preceding layer (or "" for root).
+//  3. Each commit parent is the chain ID of the preceding layer (or "" for root).
 func assertCommitOrder(t *testing.T, sn *mockSnapshotter, rootFS ocispec.RootFS) {
 	t.Helper()
 	chains := buildChainTable(rootFS)
@@ -1231,8 +1208,6 @@ func assertCommitOrder(t *testing.T, sn *mockSnapshotter, rootFS ocispec.RootFS)
 		return
 	}
 
-	// Build a name→rec map (commits may arrive in any order in the log,
-	// though the committer serialises them; we assert content not log order).
 	byName := make(map[string]commitRec, len(commits))
 	for _, c := range commits {
 		byName[c.name] = c
@@ -1257,8 +1232,8 @@ func assertCommitOrder(t *testing.T, sn *mockSnapshotter, rootFS ocispec.RootFS)
 // Benchmarks
 // ─────────────────────────────────────────────────────────────────────────────
 
-// benchmarkPipeline runs a pipeline with n layers and w workers.
-// The Action is a no-op so we measure pipeline overhead only.
+// benchmarkPipeline runs the pipeline for n layers with w workers using
+// noopAction to measure pipeline overhead in isolation.
 func benchmarkPipeline(b *testing.B, n, w int) {
 	b.Helper()
 	rootFS := newRootFS(n)
@@ -1303,14 +1278,13 @@ func BenchmarkBuildChainTable_100(b *testing.B) {
 }
 
 func BenchmarkResultHeap_PushPop(b *testing.B) {
-	// Isolate the heap operations used in the committer hot path.
+	// Isolates the heap operations used in the committer hot path.
 	b.ReportAllocs()
 	h := make(resultHeap, 0, 8)
 	for range b.N {
 		for i := 7; i >= 0; i-- {
 			h = append(h, workerResult{seq: i})
 		}
-		// heap.Init is O(n); re-init here to simulate out-of-order arrivals.
 		for i := range h {
 			_ = h[i]
 		}
