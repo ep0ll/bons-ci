@@ -14,9 +14,14 @@ This package implements a **layer-scoped file access deduplication engine** for 
 
 ## Architecture Principles
 
-1. **Copy-on-Write Ownership**: Each file is "owned" by the highest layer that modified it. If no layer modifies a file, the base layer owns it. Cached hashes from owner layers are reusable.
+1. **Copy-on-Write Ownership**: Each file is "owned" by the highest layer that modified it. If no layer modifies a file, the base layer owns it. Cached hashes from owner layers are reusable. Whiteouts and opaque markers hide files in lower layers.
 
-2. **4-Step Hot Path**: Bloom filter (session dedup) → Cache lookup (any ancestor) → Ownership resolution (NeedsRehash) → Compute/Reuse decision.
+2. **Overlay-Aware Hot Path**: 
+   - Visibility pre-filter (exclude deleted/opaque paths)
+   - Bloom filter (session dedup)
+   - Cache lookup (any ancestor)
+   - Ownership resolution (NeedsRehash/IsFileVisible)
+   - Compute/Reuse decision.
 
 3. **Import Cycle Prevention**: Shared types live in `internal/core`. Sub-packages import `internal/core`. Root package re-exports via type aliases.
 

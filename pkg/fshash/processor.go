@@ -13,6 +13,7 @@ import (
 	"github.com/bons/bons-ci/pkg/fshash/internal/core"
 	"github.com/bons/bons-ci/pkg/fshash/layer"
 	"github.com/bons/bons-ci/pkg/fshash/merkle"
+	"github.com/bons/bons-ci/pkg/fshash/overlay"
 )
 
 // Processor is the public-facing orchestrator for the Merkle tree
@@ -23,10 +24,11 @@ type Processor struct {
 	hasher chunk.Hasher
 	pool   *chunk.Pool
 
-	layers   layer.Store
-	cache    cache.Store
-	resolver *layer.Resolver
-	dedup    *access.Deduplicator
+	layers      layer.Store
+	cache       cache.Store
+	resolver    *layer.Resolver
+	dedup       *access.Deduplicator
+	interpreter *overlay.Interpreter
 
 	chainMu sync.RWMutex
 	chains  map[string]*layer.Chain
@@ -55,18 +57,20 @@ func NewProcessor(opts ...Option) *Processor {
 	hashCache := cache.NewShardedStore(cfg.cacheShards, cfg.cacheMaxEntries)
 	resolver := layer.NewResolver(layers)
 	dedup := access.NewDeduplicator(layers, hashCache, resolver, cfg.bloomExpectedItems, cfg.bloomFPRate)
+	interpreter := overlay.NewInterpreter()
 
 	p := &Processor{
-		cfg:      cfg,
-		hasher:   chunk.NewHasher(cfg.hashAlgorithm),
-		pool:     chunk.NewPool(),
-		layers:   layers,
-		cache:    hashCache,
-		resolver: resolver,
-		dedup:    dedup,
-		chains:   make(map[string]*layer.Chain),
-		eventCh:  make(chan submitRequest, cfg.channelBuffer),
-		hooks:    cfg.hooks,
+		cfg:         cfg,
+		hasher:      chunk.NewHasher(cfg.hashAlgorithm),
+		pool:        chunk.NewPool(),
+		layers:      layers,
+		cache:       hashCache,
+		resolver:    resolver,
+		dedup:       dedup,
+		interpreter: interpreter,
+		chains:      make(map[string]*layer.Chain),
+		eventCh:     make(chan submitRequest, cfg.channelBuffer),
+		hooks:       cfg.hooks,
 	}
 
 	for i := 0; i < cfg.workerCount; i++ {
@@ -111,6 +115,22 @@ func (p *Processor) MarkModified(layerID core.LayerID, path string) error {
 		return core.ErrClosed
 	}
 	return p.layers.MarkModified(layerID, path)
+}
+
+// MarkDeleted records that a file was deleted in the given layer.
+func (p *Processor) MarkDeleted(layerID core.LayerID, path string) error {
+	if p.closed.Load() {
+		return core.ErrClosed
+	}
+	return p.layers.MarkDeleted(layerID, path)
+}
+
+// MarkOpaque records that a directory was made opaque in the given layer.
+func (p *Processor) MarkOpaque(layerID core.LayerID, path string) error {
+	if p.closed.Load() {
+		return core.ErrClosed
+	}
+	return p.layers.MarkOpaque(layerID, path)
 }
 
 // Submit enqueues an access event (blocking).
@@ -225,36 +245,55 @@ func (p *Processor) processEvent(ctx context.Context, event core.AccessEvent) er
 		return fmt.Errorf("%w: %s", core.ErrLayerNotFound, event.LayerID)
 	}
 
-	result := p.dedup.Process(ctx, event, chain)
+	mutations := p.interpreter.Interpret(ctx, event)
 
-	switch result.Action {
-	case core.ActionCompute:
-		var hash []byte
-		if event.Data != nil {
-			hash = p.hasher.Hash(event.Data)
-		} else {
-			hash = p.hasher.Hash([]byte(event.Path))
+	for _, m := range mutations {
+		switch m.Kind {
+		case overlay.MutationDeleted:
+			p.MarkDeleted(m.LayerID, m.Path)
+			// Trigger exclusion hook specifically for the whiteout itself
+			p.hooks.fireFileExcluded(ctx, m.LayerID, event.Path)
+		case overlay.MutationOpaqued:
+			p.MarkOpaque(m.LayerID, m.Path)
+		case overlay.MutationModified:
+			// Process via Deduplicator
+			event.Path = m.Path
+			result := p.dedup.Process(ctx, event, chain)
+
+			switch result.Action {
+			case core.ActionCompute:
+				var hash []byte
+				if event.Data != nil {
+					hash = p.hasher.Hash(event.Data)
+				} else {
+					hash = p.hasher.Hash([]byte(event.Path))
+				}
+
+				fileHash := core.FileHash{
+					Path:      event.Path,
+					Hash:      hash,
+					Algorithm: string(p.hasher.Algorithm()),
+					LayerID:   event.LayerID,
+					Size:      int64(len(event.Data)),
+				}
+
+				p.dedup.RecordComputed(fileHash)
+				p.hooks.fireHashComputed(ctx, fileHash)
+				p.hooks.fireCacheMiss(ctx, event.LayerID, event.Path)
+
+			case core.ActionReuse:
+				p.hooks.fireCacheHit(ctx, event.LayerID, event.Path)
+
+			case core.ActionSkip:
+				// Duplicate event in session.
+
+			case core.ActionExclude:
+				p.hooks.fireFileExcluded(ctx, event.LayerID, event.Path)
+			}
+
+			p.hooks.fireAccessDeduped(ctx, result)
 		}
-
-		fileHash := core.FileHash{
-			Path:      event.Path,
-			Hash:      hash,
-			Algorithm: string(p.hasher.Algorithm()),
-			LayerID:   event.LayerID,
-			Size:      int64(len(event.Data)),
-		}
-
-		p.dedup.RecordComputed(fileHash)
-		p.hooks.fireHashComputed(ctx, fileHash)
-		p.hooks.fireCacheMiss(ctx, event.LayerID, event.Path)
-
-	case core.ActionReuse:
-		p.hooks.fireCacheHit(ctx, event.LayerID, event.Path)
-
-	case core.ActionSkip:
-		// Duplicate event in session.
 	}
 
-	p.hooks.fireAccessDeduped(ctx, result)
 	return nil
 }

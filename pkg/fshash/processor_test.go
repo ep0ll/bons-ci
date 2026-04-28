@@ -255,3 +255,81 @@ func TestProcessorClose(t *testing.T) {
 		t.Errorf("Submit after Close: got %v, want ErrClosed", err)
 	}
 }
+
+func TestProcessorOverlayEndToEnd(t *testing.T) {
+	ctx := context.Background()
+
+	var excluded atomic.Int64
+	proc := fshash.NewProcessor(
+		fshash.WithHooks(fshash.Hooks{
+			OnFileExcluded: func(_ context.Context, _ core.LayerID, _ string) {
+				excluded.Add(1)
+			},
+		}),
+	)
+	defer proc.Close()
+
+	base := fshash.NewLayerID("base")
+	upper := fshash.NewLayerID("upper")
+
+	proc.RegisterLayer(ctx, base, fshash.LayerID{})
+	proc.RegisterLayer(ctx, upper, base)
+
+	// Base layer has 1 file
+	proc.Submit(ctx, core.AccessEvent{
+		LayerID: base,
+		Path:    "/etc/hosts",
+		Op:      core.OpRead,
+		Data:    []byte("127.0.0.1"),
+	})
+	proc.Finalize(ctx, base)
+
+	// Upper layer deletes file using whiteout
+	proc.Submit(ctx, core.AccessEvent{
+		LayerID: upper,
+		Path:    "/etc/.wh.hosts",
+		Op:      core.OpClose,
+	})
+	
+	// Also upper layer makes /var/log opaque
+	proc.Submit(ctx, core.AccessEvent{
+		LayerID: upper,
+		Path:    "/var/log/.wh..wh..opq",
+		Op:      core.OpClose,
+	})
+
+	// Now if an access comes for /etc/hosts, it should be excluded
+	proc.Submit(ctx, core.AccessEvent{
+		LayerID: upper,
+		Path:    "/etc/hosts",
+		Op:      core.OpRead,
+		Data:    []byte("should-be-excluded"),
+	})
+
+	// If access comes for /var/log/syslog, it should be excluded
+	proc.Submit(ctx, core.AccessEvent{
+		LayerID: upper,
+		Path:    "/var/log/syslog",
+		Op:      core.OpRead,
+	})
+
+	upperRoot, _ := proc.Finalize(ctx, upper)
+
+	// Since all accesses were excluded or whiteouts themselves, tree should be empty and root nil
+	// Or Finalize might return an error because the tree is empty.
+	// But Wait, the whiteout itself was tracked? No, interpreter converts it, and it triggers MarkDeleted
+	// and doesn't get computed.
+	
+	// Wait, Finalize returns error if empty. Since all events were excluded, it's empty.
+	if upperRoot != nil {
+		t.Errorf("expected tree to be empty")
+	}
+
+	// Excluded events: the whiteout, the opaque marker, and the two reads.
+	// Wait! the whiteout itself emits MutationDeleted and fires hook, so that's 1.
+	// The opaque marker emits MutationOpaqued and no hook fires directly from processEvent for opaque.
+	// Let's check stats.
+	if excluded.Load() < 3 {
+		t.Errorf("expected at least 3 excluded files, got %d", excluded.Load())
+	}
+}

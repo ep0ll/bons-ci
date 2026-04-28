@@ -34,3 +34,59 @@ func (r *Resolver) NeedsRehash(chain *Chain, path string, cachedLayerID core.Lay
 func (r *Resolver) ResolveOwner(chain *Chain, path string) (core.LayerID, bool) {
 	return r.store.OwnerOf(chain.Layers(), path)
 }
+
+// IsFileVisible determines whether a file at the given path is visible
+// in the merged view from the perspective of the topmost layer.
+// Returns false if any upper layer has whiteout'd the file or made
+// an ancestor directory opaque above the layer that owns the file.
+func (r *Resolver) IsFileVisible(chain *Chain, path string) bool {
+	layers := chain.Layers()
+	if len(layers) == 0 {
+		return false
+	}
+
+	owner, _ := r.store.OwnerOf(layers, path)
+	ownerPos := chain.Position(owner)
+	if ownerPos < 0 {
+		ownerPos = 0
+	}
+
+	for i := len(layers) - 1; i > ownerPos; i-- {
+		lid := layers[i]
+
+		// 1. Whiteout mask
+		if r.store.IsDeleted(lid, path) {
+			return false
+		}
+
+		// 2. Opaque directory mask
+		ancestor := path
+		for {
+			slash := -1
+			for k := len(ancestor) - 1; k >= 0; k-- {
+				if ancestor[k] == '/' {
+					slash = k
+					break
+				}
+			}
+			if slash == -1 {
+				break
+			}
+			dir := "/"
+			if slash > 0 {
+				dir = ancestor[:slash]
+			}
+
+			if r.store.IsOpaque(lid, dir) {
+				return false
+			}
+
+			if dir == "/" {
+				break
+			}
+			ancestor = dir
+		}
+	}
+
+	return true
+}

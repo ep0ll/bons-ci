@@ -181,3 +181,82 @@ func TestChainBuilder(t *testing.T) {
 		t.Errorf("built chain Depth = %d, want 2", chain.Depth())
 	}
 }
+
+func TestStoreDeletions(t *testing.T) {
+	ctx := context.Background()
+	store := layer.NewMemoryStore()
+	l := core.NewLayerID("sha256:del")
+	store.Register(ctx, l, core.LayerID{})
+
+	store.MarkDeleted(l, "/etc/hosts")
+	if !store.IsDeleted(l, "/etc/hosts") {
+		t.Error("expected /etc/hosts to be deleted")
+	}
+
+	deleted := store.DeletedPaths(l)
+	if len(deleted) != 1 || deleted[0] != "/etc/hosts" {
+		t.Error("expected /etc/hosts in deleted paths")
+	}
+}
+
+func TestStoreOpacities(t *testing.T) {
+	ctx := context.Background()
+	store := layer.NewMemoryStore()
+	l := core.NewLayerID("sha256:opa")
+	store.Register(ctx, l, core.LayerID{})
+
+	store.MarkOpaque(l, "/var/log")
+	if !store.IsOpaque(l, "/var/log") {
+		t.Error("expected /var/log to be opaque")
+	}
+
+	opaque := store.OpaqueDirs(l)
+	if len(opaque) != 1 || opaque[0] != "/var/log" {
+		t.Error("expected /var/log in opaque dirs")
+	}
+}
+
+func TestIsFileVisible(t *testing.T) {
+	ctx := context.Background()
+	store := layer.NewMemoryStore()
+	resolver := layer.NewResolver(store)
+
+	l1 := core.NewLayerID("l1")
+	l2 := core.NewLayerID("l2")
+	l3 := core.NewLayerID("l3")
+
+	store.Register(ctx, l1, core.LayerID{})
+	store.Register(ctx, l2, l1)
+	store.Register(ctx, l3, l2)
+
+	builder := layer.NewChainBuilder()
+	builder.Push(l1)
+	builder.Push(l2)
+	builder.Push(l3)
+	chain := builder.Build()
+
+	// 1. File modified in l1, visible
+	store.MarkModified(l1, "/etc/hosts")
+	if !resolver.IsFileVisible(chain, "/etc/hosts") {
+		t.Error("expected /etc/hosts to be visible")
+	}
+
+	// 2. Whiteout in l3 masks l1
+	store.MarkDeleted(l3, "/etc/hosts")
+	if resolver.IsFileVisible(chain, "/etc/hosts") {
+		t.Error("expected /etc/hosts to be invisible due to whiteout")
+	}
+
+	// 3. File in l1, masked by opaque dir in l2
+	store.MarkModified(l1, "/var/log/syslog")
+	store.MarkOpaque(l2, "/var/log")
+	if resolver.IsFileVisible(chain, "/var/log/syslog") {
+		t.Error("expected syslog to be invisible due to opaque dir in l2")
+	}
+
+	// 4. File created in l3 (above opaque dir in l2) IS visible
+	store.MarkModified(l3, "/var/log/nginx.log")
+	if !resolver.IsFileVisible(chain, "/var/log/nginx.log") {
+		t.Error("expected nginx.log to be visible, it was created above the opaque mask")
+	}
+}

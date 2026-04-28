@@ -213,3 +213,30 @@ func BenchmarkDedupProcess(b *testing.B) {
 		}, chain)
 	}
 }
+
+func TestDedupExclude(t *testing.T) {
+	dedup, layers, _, chain := setupDedup(t)
+	ctx := context.Background()
+
+	upper := core.NewLayerID("sha256:upper")
+
+	// Delete file in upper layer
+	layers.MarkDeleted(upper, "/deleted/file")
+
+	event := core.AccessEvent{
+		LayerID: upper,
+		Path:    "/deleted/file",
+		Op:      core.OpRead,
+	}
+
+	// Process should return ActionExclude
+	result := dedup.Process(ctx, event, chain)
+	if result.Action != core.ActionExclude {
+		t.Errorf("Action = %s, want exclude", result.Action)
+	}
+
+	stats := dedup.Stats()
+	if stats.EventsExcluded != 1 {
+		t.Errorf("EventsExcluded = %d, want 1", stats.EventsExcluded)
+	}
+}

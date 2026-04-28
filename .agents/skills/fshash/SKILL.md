@@ -54,12 +54,13 @@ root, err := proc.Finalize(ctx, upperID)
 
 ## Deduplication Algorithm
 
-The 4-step hot path in `access/dedup.go`:
+The 5-step hot path in `access/dedup.go`:
 
-1. **Bloom Filter**: O(1) rejection of duplicate events within same ExecOp session
-2. **Cache Lookup**: Search sharded LRU for cached hash from any ancestor layer
-3. **Ownership Resolution**: Check if any layer above cached layer modified the file
-4. **Decision**: `ActionReuse` (cache valid) or `ActionCompute` (unique work)
+1. **Overlay Filter**: Reject paths whiteout'd or opaqued in current or upper layers (`ActionExclude`)
+2. **Bloom Filter**: O(1) rejection of duplicate events within same ExecOp session
+3. **Cache Lookup**: Search sharded LRU for cached hash from any ancestor layer
+4. **Ownership Resolution**: Check if any layer above cached layer modified the file
+5. **Decision**: `ActionReuse` (cache valid) or `ActionCompute` (unique work)
 
 ## Testing
 
@@ -71,9 +72,10 @@ go test ./pkg/fshash/... -bench=. -benchmem
 ## Architecture
 
 ```
-Processor → Deduplicator → BloomFilter
-                         → Cache (ShardedLRU)
-                         → Resolver → LayerStore → Chain
-            Hasher → Pool
-            Tracker → MerkleTree → Proof
+Processor → Interpreter (Overlay)
+          → Deduplicator  → BloomFilter
+                          → Cache (ShardedLRU)
+                          → Resolver → LayerStore → Chain
+          → Hasher → Pool
+          → Tracker → MerkleTree → Proof
 ```

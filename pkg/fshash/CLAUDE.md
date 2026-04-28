@@ -14,6 +14,7 @@ pkg/fshash/
 ├── chunk/           # Pluggable hashers (SHA256, BLAKE3, XXH3) + buffer pool
 ├── layer/           # Layer store, chain, and ownership resolver
 ├── merkle/          # Merkle tree builder, node types, and proof generation
+├── overlay/         # OverlayFS metadata interpreter (whiteouts, opaques)
 ├── types.go         # Re-exports from internal/core (public API)
 ├── errors.go        # Package declaration
 ├── options.go       # Functional options for Processor
@@ -25,7 +26,8 @@ pkg/fshash/
 
 - **LayerID**: Opaque layer identifier wrapping a digest string
 - **AccessEvent**: Input from fanotify — contains layerID, path, op, optional data
-- **Deduplicator**: 4-step hot path: bloom filter → cache → ownership resolution → compute/reuse
+- **Overlay Interpreter**: Converts raw events into logically-aware mutations (e.g. `.wh.foo` → ActionExclude)
+- **Deduplicator**: 5-step hot path: overlay visibility → bloom filter → cache → ownership resolution → compute/reuse
 - **LayerChain**: Ordered sequence of stacked layers (bottom→top)
 - **Resolver.NeedsRehash**: Walks chain above cached layer checking for modifications
 

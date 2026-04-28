@@ -47,9 +47,10 @@ var (
 
 // Re-export operation constants.
 const (
-	OpRead  = core.OpRead
-	OpWrite = core.OpWrite
-	OpClose = core.OpClose
+	OpRead   = core.OpRead
+	OpWrite  = core.OpWrite
+	OpClose  = core.OpClose
+	OpDelete = core.OpDelete
 )
 
 // Re-export action constants.
@@ -57,6 +58,7 @@ const (
 	ActionCompute = core.ActionCompute
 	ActionReuse   = core.ActionReuse
 	ActionSkip    = core.ActionSkip
+	ActionExclude = core.ActionExclude
 )
 
 // Re-export sentinel errors.

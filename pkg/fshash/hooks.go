@@ -15,6 +15,7 @@ type Hooks struct {
 	OnLayerRegistered func(ctx context.Context, layerID core.LayerID)
 	OnCacheHit        func(ctx context.Context, layerID core.LayerID, path string)
 	OnCacheMiss       func(ctx context.Context, layerID core.LayerID, path string)
+	OnFileExcluded    func(ctx context.Context, layerID core.LayerID, path string)
 }
 
 func (h *Hooks) fireAccessDeduped(ctx context.Context, result core.DeduplicationResult) {
@@ -50,5 +51,11 @@ func (h *Hooks) fireCacheHit(ctx context.Context, layerID core.LayerID, path str
 func (h *Hooks) fireCacheMiss(ctx context.Context, layerID core.LayerID, path string) {
 	if h.OnCacheMiss != nil {
 		h.OnCacheMiss(ctx, layerID, path)
+	}
+}
+
+func (h *Hooks) fireFileExcluded(ctx context.Context, layerID core.LayerID, path string) {
+	if h.OnFileExcluded != nil {
+		h.OnFileExcluded(ctx, layerID, path)
 	}
 }

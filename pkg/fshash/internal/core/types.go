@@ -51,6 +51,7 @@ const (
 	OpRead  AccessOp = iota + 1 // File was read
 	OpWrite                     // File was written
 	OpClose                     // File descriptor closed after write
+	OpDelete                    // File was deleted (whiteout)
 )
 
 // String returns a human-readable representation.
@@ -62,6 +63,8 @@ func (op AccessOp) String() string {
 		return "write"
 	case OpClose:
 		return "close"
+	case OpDelete:
+		return "delete"
 	default:
 		return fmt.Sprintf("unknown(%d)", op)
 	}
@@ -118,6 +121,7 @@ const (
 	ActionCompute Action = iota + 1 // Unique work: compute hash
 	ActionReuse                     // Cached hash still valid
 	ActionSkip                      // Duplicate event in session
+	ActionExclude                   // File deleted/hidden — exclude from tree
 )
 
 // String returns a human-readable action name.
@@ -129,6 +133,8 @@ func (a Action) String() string {
 		return "reuse"
 	case ActionSkip:
 		return "skip"
+	case ActionExclude:
+		return "exclude"
 	default:
 		return fmt.Sprintf("unknown(%d)", a)
 	}
@@ -150,6 +156,7 @@ type ProcessorStats struct {
 	EventsComputed   uint64
 	EventsReused     uint64
 	EventsSkipped    uint64
+	EventsExcluded   uint64
 	CacheHits        uint64
 	CacheMisses      uint64
 	LayersRegistered uint64
@@ -161,7 +168,7 @@ func (s ProcessorStats) DeduplicationRate() float64 {
 	if s.EventsReceived == 0 {
 		return 0
 	}
-	return float64(s.EventsReused+s.EventsSkipped) / float64(s.EventsReceived)
+	return float64(s.EventsReused+s.EventsSkipped+s.EventsExcluded) / float64(s.EventsReceived)
 }
 
 // ---- Sentinel Errors ----

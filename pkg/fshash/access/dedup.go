@@ -22,6 +22,7 @@ type Deduplicator struct {
 	computed atomic.Uint64
 	reused   atomic.Uint64
 	skipped  atomic.Uint64
+	excluded atomic.Uint64
 }
 
 // NewDeduplicator creates a Deduplicator wired to the provided subsystems.
@@ -47,6 +48,13 @@ func (d *Deduplicator) Process(_ context.Context, event core.AccessEvent, chain 
 	d.received.Add(1)
 
 	result := core.DeduplicationResult{Event: event}
+
+	// Step 0: Overlay visibility check
+	if !d.resolver.IsFileVisible(chain, event.Path) {
+		result.Action = core.ActionExclude
+		d.excluded.Add(1)
+		return result
+	}
 
 	// Step 1: Bloom filter fast-path
 	if d.filter.TestAndAdd(event.LayerID, event.Path) {
@@ -108,5 +116,6 @@ func (d *Deduplicator) Stats() core.ProcessorStats {
 		EventsComputed: d.computed.Load(),
 		EventsReused:   d.reused.Load(),
 		EventsSkipped:  d.skipped.Load(),
+		EventsExcluded: d.excluded.Load(),
 	}
 }
