@@ -76,11 +76,3 @@ func WithOCISource(name, dir string) SolveOption {
 		si.OCISources[name] = dir
 	}
 }
-
-// WithConstraints applies build constraints to the solve operation.
-func WithConstraints(co llb.ConstraintsOpt) SolveOption {
-	return func(si *SolveInfo) {
-		// The SolveInfo doesn't directly embed Constraints.
-		// This is handled at the SolveOp level.
-	}
-}

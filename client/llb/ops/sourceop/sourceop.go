@@ -173,8 +173,8 @@ type GitOption func(*GitInfo)
 type GitInfo struct {
 	llb.Constraints
 	KeepGitDir     bool
-	AuthTokenKey   string
-	AuthHeaderKey  string
+	AuthTokenSecret  string
+	AuthHeaderSecret string
 	KnownSSHHosts  string
 	MountSSHSocket string
 }
@@ -186,12 +186,12 @@ func WithKeepGitDir() GitOption {
 
 // WithAuthToken sets the git auth token secret ID.
 func WithAuthToken(key string) GitOption {
-	return func(gi *GitInfo) { gi.AuthTokenKey = key }
+	return func(gi *GitInfo) { gi.AuthTokenSecret = key }
 }
 
 // WithAuthHeader sets the git auth header secret ID.
 func WithAuthHeader(key string) GitOption {
-	return func(gi *GitInfo) { gi.AuthHeaderKey = key }
+	return func(gi *GitInfo) { gi.AuthHeaderSecret = key }
 }
 
 // WithGitConstraints applies constraints to the git source.
@@ -215,11 +215,11 @@ func Git(url, fragment string, opts ...GitOption) llb.State {
 	if info.KeepGitDir {
 		attrs[pb.AttrKeepGitDir] = "true"
 	}
-	if info.AuthTokenKey != "" {
-		attrs[pb.AttrAuthTokenKey] = info.AuthTokenKey
+	if info.AuthTokenSecret != "" {
+		attrs[pb.AttrAuthTokenSecret] = info.AuthTokenSecret
 	}
-	if info.AuthHeaderKey != "" {
-		attrs[pb.AttrAuthHeaderKey] = info.AuthHeaderKey
+	if info.AuthHeaderSecret != "" {
+		attrs[pb.AttrAuthHeaderSecret] = info.AuthHeaderSecret
 	}
 
 	llb.AddCap(&info.Constraints, pb.CapSourceGit)

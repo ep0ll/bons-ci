@@ -186,9 +186,9 @@ func WithDescription(kvs map[string]string) ConstraintsOpt {
 }
 
 // WithExportCache configures the export-cache behaviour for the vertex.
-func WithExportCache(ec pb.ExportCache) ConstraintsOpt {
+func WithExportCache(ec *pb.ExportCache) ConstraintsOpt {
 	return constraintsOptFunc(func(c *Constraints) {
-		c.Metadata.ExportCache = &ec
+		c.Metadata.ExportCache = ec
 	})
 }
 

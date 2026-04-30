@@ -220,7 +220,6 @@ func (e *ExecOp) Marshal(ctx context.Context, constraints *llb.Constraints) (dig
 	}
 
 	network, _ := e.base.GetNetwork(ctx)
-	meta.NetMode = network
 
 	// Build proxy env.
 	if e.proxyEnv != nil {
@@ -234,7 +233,8 @@ func (e *ExecOp) Marshal(ctx context.Context, constraints *llb.Constraints) (dig
 	}
 
 	peo := &pb.ExecOp{
-		Meta: meta,
+		Meta:    meta,
+		Network: network,
 	}
 
 	// Sort mounts for deterministic output.
@@ -273,7 +273,7 @@ func (e *ExecOp) Marshal(ctx context.Context, constraints *llb.Constraints) (dig
 		if m.tmpfs {
 			pm.MountType = pb.MountType_TMPFS
 			if m.tmpfsSize > 0 {
-				pm.TmpfsOpt = &pb.TmpfsOpt{Size_: m.tmpfsSize}
+				pm.TmpfsOpt = &pb.TmpfsOpt{Size: m.tmpfsSize}
 			}
 		} else if m.cacheID != "" {
 			pm.MountType = pb.MountType_CACHE
