@@ -3,6 +3,7 @@ package fanwatch
 import (
 	"context"
 	"path/filepath"
+	"time"
 	"strings"
 )
 
@@ -219,5 +220,18 @@ func AttrFilter(key string) Filter {
 func AttrValueFilter(key string, value any) Filter {
 	return FilterFunc(func(_ context.Context, e *EnrichedEvent) bool {
 		return e.Attrs[key] == value
+	})
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FreshnessFilter — drop stale events
+// ─────────────────────────────────────────────────────────────────────────────
+
+// FreshnessFilter drops events older than maxAge relative to the current time.
+// Stale events accumulate when the pipeline falls behind under burst load.
+// Enable this filter to bound the age of events delivered to handlers.
+func FreshnessFilter(maxAge time.Duration) Filter {
+	return FilterFunc(func(_ context.Context, e *EnrichedEvent) bool {
+		return time.Since(e.Timestamp) <= maxAge
 	})
 }

@@ -5,6 +5,7 @@ package fanwatch
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -173,21 +174,14 @@ func (w *fanotifyWatcher) closeResources() {
 	}
 }
 
-// isPermissionErr checks whether an error indicates missing capability.
+// isPermissionErr reports whether err indicates a missing capability.
+// FIX Bug 3: replaced hand-rolled containsStr with strings.Contains.
 func isPermissionErr(err error) bool {
-	return err != nil && (err == syscall.EPERM ||
-		containsStr(err.Error(), "CAP_SYS_ADMIN") ||
-		containsStr(err.Error(), "permission denied"))
-}
-
-func containsStr(s, sub string) bool {
-	return len(s) >= len(sub) && (s == sub ||
-		func() bool {
-			for i := 0; i <= len(s)-len(sub); i++ {
-				if s[i:i+len(sub)] == sub {
-					return true
-				}
-			}
-			return false
-		}())
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return err == syscall.EPERM ||
+		strings.Contains(msg, "CAP_SYS_ADMIN") ||
+		strings.Contains(msg, "permission denied")
 }

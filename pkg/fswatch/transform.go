@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,8 +21,8 @@ import (
 //
 // Returning a non-nil error forwards the error to the pipeline's error channel
 // but does NOT drop the event — the event continues through the chain in a
-// partially-enriched state. Use a [Filter] downstream to drop partially enriched
-// events if needed.
+// partially-enriched state. Use a [Filter] downstream if partially enriched
+// events must be discarded.
 //
 // All implementations must be safe for concurrent use from multiple goroutines.
 type Transformer interface {
@@ -42,8 +43,8 @@ func (f TransformerFunc) Transform(ctx context.Context, e *EnrichedEvent) error 
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ChainTransformer applies transformers in sequence.
-// An error from any transformer is recorded but processing continues
-// so subsequent transformers still run.
+// An error from any transformer is recorded but processing continues so
+// subsequent transformers still run. All errors are joined and returned together.
 type ChainTransformer []Transformer
 
 // Transform implements [Transformer].
@@ -54,18 +55,8 @@ func (c ChainTransformer) Transform(ctx context.Context, e *EnrichedEvent) error
 			errs = append(errs, err)
 		}
 	}
-	if len(errs) == 0 {
-		return nil
-	}
-	return joinTransformErrors(errs)
-}
-
-func joinTransformErrors(errs []error) error {
-	msgs := make([]string, len(errs))
-	for i, e := range errs {
-		msgs[i] = e.Error()
-	}
-	return fmt.Errorf("transform: %s", strings.Join(msgs, "; "))
+	// FIX Bug 8: use errors.Join (preserves error chain for errors.Is/As).
+	return errors.Join(errs...)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,9 +64,9 @@ func joinTransformErrors(errs []error) error {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ConditionalTransformer wraps a [Transformer] behind a predicate.
-// The inner transformer runs only when the predicate returns true for the event.
+// The inner transformer runs only when Predicate returns true for the event.
 type ConditionalTransformer struct {
-	// Predicate decides whether Inner should run.
+	// Predicate decides whether Inner should run. Must not mutate the event.
 	Predicate func(*EnrichedEvent) bool
 	// Inner is the transformer to apply when Predicate returns true.
 	Inner Transformer
@@ -95,7 +86,12 @@ func (c ConditionalTransformer) Transform(ctx context.Context, e *EnrichedEvent)
 
 // OverlayEnricher is a [Transformer] that populates [EnrichedEvent.Overlay]
 // and [EnrichedEvent.SourceLayer] by resolving the event path against the
-// known layer stack.
+// overlay layer stack.
+//
+// FIX Bug 6: e.Overlay is set ONLY when the event path is inside the overlay's
+// merged directory. Previously it was set unconditionally, causing events for
+// paths outside the overlay (e.g. /proc, /sys) to appear as if they belonged
+// to the overlay — a false positive.
 //
 // Construct with [NewOverlayEnricher]. Thread-safe; the overlay info is
 // read-only after construction.
@@ -109,16 +105,19 @@ func NewOverlayEnricher(overlay *OverlayInfo) Transformer {
 }
 
 // Transform implements [Transformer].
-// Sets e.Overlay and resolves e.SourceLayer from the layer stack.
+//
+// Sets e.Overlay and resolves e.SourceLayer only when e.Path is inside the
+// overlay's merged directory. Events for unrelated paths are left unchanged.
 func (o *OverlayEnricher) Transform(_ context.Context, e *EnrichedEvent) error {
-	e.Overlay = o.overlay
-
 	relPath, err := o.overlay.RelPath(e.Path)
 	if err != nil {
-		// Path not under merged dir — this event is not for our overlay.
+		// Path is not inside this overlay's merged directory — skip silently.
+		// This is not an error; multiple overlays may be watched in parallel.
 		return nil
 	}
 
+	// Only attach overlay metadata once we have confirmed path membership.
+	e.Overlay = o.overlay
 	e.SourceLayer = o.overlay.ResolveLayer(relPath)
 	return nil
 }
@@ -130,31 +129,40 @@ func (o *OverlayEnricher) Transform(_ context.Context, e *EnrichedEvent) error {
 // ProcessEnricher is a [Transformer] that populates [EnrichedEvent.Process]
 // by reading /proc/{pid}/ entries.
 //
-// All reads are best-effort; the process may exit between event delivery and
-// the /proc read. Fields that cannot be populated are left empty.
+// FIX Bug 4: ProcessEnricher previously set e.Process to a non-nil struct even
+// when the process had already exited and no useful fields could be populated
+// (false positive). Now e.Process is set to nil when the process cannot be
+// identified, so callers can reliably use `e.Process != nil` as a guard.
 func ProcessEnricher() Transformer {
 	return TransformerFunc(func(_ context.Context, e *EnrichedEvent) error {
 		info := readProcessInfo(e.PID)
+		// info is nil when the process exited before any /proc fields could be read.
 		e.Process = info
 		return nil
 	})
 }
 
 // readProcessInfo reads process metadata from /proc/{pid}/.
+// Returns nil when the process cannot be identified (exited before any field
+// could be read successfully). A partial struct (e.g. only Comm populated) is
+// returned when at least one field was readable.
 func readProcessInfo(pid int32) *ProcessInfo {
 	info := &ProcessInfo{PID: pid}
+	enriched := false
 
-	// /proc/{pid}/comm — short name (max 15 chars + newline)
+	// /proc/{pid}/comm — short name (max 15 chars + newline).
 	if data, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", pid)); err == nil {
 		info.Comm = strings.TrimRight(string(data), "\n")
+		enriched = true
 	}
 
-	// /proc/{pid}/exe — symlink to executable
+	// /proc/{pid}/exe — symlink to executable.
 	if exe, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
 		info.Exe = exe
+		enriched = true
 	}
 
-	// /proc/{pid}/cmdline — NUL-separated arguments
+	// /proc/{pid}/cmdline — NUL-separated arguments.
 	if data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid)); err == nil {
 		parts := bytes.Split(bytes.TrimRight(data, "\x00"), []byte{0})
 		info.Cmdline = make([]string, 0, len(parts))
@@ -163,11 +171,19 @@ func readProcessInfo(pid int32) *ProcessInfo {
 				info.Cmdline = append(info.Cmdline, string(p))
 			}
 		}
+		enriched = true
 	}
 
-	// /proc/{pid}/cgroup — extract container ID
-	info.ContainerID = containerIDFromCgroup(pid)
+	// /proc/{pid}/cgroup — extract container ID.
+	if id := containerIDFromCgroup(pid); id != "" {
+		info.ContainerID = id
+		enriched = true
+	}
 
+	if !enriched {
+		// Process exited before we could read any field.
+		return nil
+	}
 	return info
 }
 
@@ -184,15 +200,12 @@ func containerIDFromCgroup(pid int32) string {
 	for scanner.Scan() {
 		line := scanner.Text()
 		// Format: hierarchy-id:controller-list:cgroup-path
-		// Container IDs appear as /docker/{64-hex-char-id} or similar.
 		parts := strings.SplitN(line, ":", 3)
 		if len(parts) != 3 {
 			continue
 		}
-		cgroupPath := parts[2]
-		// Look for a 64-character hex segment (Docker container ID).
-		segments := strings.Split(cgroupPath, "/")
-		for _, seg := range segments {
+		// Look for a 64-character hex segment (Docker/containerd container ID).
+		for _, seg := range strings.Split(parts[2], "/") {
 			if isContainerID(seg) {
 				return seg
 			}
@@ -201,7 +214,8 @@ func containerIDFromCgroup(pid int32) string {
 	return ""
 }
 
-// isContainerID heuristically identifies a 64-character lowercase hex string.
+// isContainerID heuristically identifies a 64-character lowercase hex string
+// as used by Docker and containerd for container IDs.
 func isContainerID(s string) bool {
 	if len(s) != 64 {
 		return false
@@ -215,12 +229,12 @@ func isContainerID(s string) bool {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PathTransformer — normalise and validate event paths
+// PathNormaliser — clean and validate event paths
 // ─────────────────────────────────────────────────────────────────────────────
 
 // PathNormaliser is a [Transformer] that cleans and validates event paths.
-// It sets e.Dir and e.Name (filepath.Dir/Base) and rejects paths that escape
-// the watched root by returning [ErrPathEscapes].
+// It sets e.Dir and e.Name (filepath.Dir/Base) and returns [ErrPathEscapes]
+// for paths that escape the watched root via ".." components.
 func PathNormaliser(watchRoot string) Transformer {
 	root := filepath.Clean(watchRoot)
 	return TransformerFunc(func(_ context.Context, e *EnrichedEvent) error {
@@ -238,14 +252,20 @@ func PathNormaliser(watchRoot string) Transformer {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AttrTransformer — attach custom attributes
+// Attribute transformers
 // ─────────────────────────────────────────────────────────────────────────────
 
 // StaticAttrTransformer attaches fixed key-value attributes to every event.
 // Useful for labelling events with deployment metadata (environment, region, etc.).
 func StaticAttrTransformer(attrs map[string]any) Transformer {
+	// Copy the map at construction time so later mutations by the caller
+	// do not affect events already in-flight.
+	frozen := make(map[string]any, len(attrs))
+	for k, v := range attrs {
+		frozen[k] = v
+	}
 	return TransformerFunc(func(_ context.Context, e *EnrichedEvent) error {
-		for k, v := range attrs {
+		for k, v := range frozen {
 			e.SetAttr(k, v)
 		}
 		return nil
@@ -268,7 +288,7 @@ func DynamicAttrTransformer(fn func(*EnrichedEvent) map[string]any) Transformer 
 // ─────────────────────────────────────────────────────────────────────────────
 
 // FileStatTransformer is a [Transformer] that populates e.FileInfo via os.Lstat.
-// The stat is best-effort; deleted files return nil FileInfo without error.
+// The stat is best-effort; deleted files leave FileInfo nil without error.
 func FileStatTransformer() Transformer {
 	return TransformerFunc(func(_ context.Context, e *EnrichedEvent) error {
 		info, err := os.Lstat(e.Path)

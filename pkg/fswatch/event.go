@@ -19,7 +19,7 @@ type EventMask uint64
 type Op EventMask
 
 const (
-	// Read-only operations — these are the events fanwatch observes by default.
+	// Read-only operations — the events fanwatch observes by default.
 
 	// OpAccess fires when a file is read (pread64, read, sendfile, etc.).
 	OpAccess Op = 0x00000001 // FAN_ACCESS
@@ -33,7 +33,7 @@ const (
 	// OpCloseNoWrite fires when a file opened without write intent is closed.
 	OpCloseNoWrite Op = 0x00000010 // FAN_CLOSE_NOWRITE
 
-	// Modification operations — filtered out by [MaskReadOnly].
+	// Modification operations — filtered out by MaskReadOnly.
 
 	// OpModify fires when a file is modified.
 	OpModify Op = 0x00000002 // FAN_MODIFY
@@ -72,28 +72,33 @@ const (
 	OpOverflow Op = 0x00004000 // FAN_Q_OVERFLOW
 )
 
+// FIX Bug 7: MaskReadOnly, MaskAll, and opModificationBits were mutable vars.
+// As named numeric-type constants they cannot be accidentally modified by a caller.
+
 // MaskReadOnly is the recommended event mask for a read-only observer.
 // It captures file accesses, opens, exec-opens, and non-write closes —
 // all operations that do not mutate filesystem state.
-var MaskReadOnly = EventMask(OpAccess | OpOpen | OpOpenExec | OpCloseNoWrite)
+const MaskReadOnly EventMask = EventMask(OpAccess) | EventMask(OpOpen) |
+	EventMask(OpOpenExec) | EventMask(OpCloseNoWrite)
 
 // MaskAll captures every event type including modifications.
 // Use MaskReadOnly unless you need to observe writes.
-var MaskAll = EventMask(
-	OpAccess | OpOpen | OpOpenExec | OpCloseNoWrite |
-		OpModify | OpCloseWrite | OpCreate | OpDelete | OpDeleteSelf |
-		OpMovedFrom | OpMovedTo | OpMoveSelf | OpAttrib,
-)
+const MaskAll EventMask = EventMask(OpAccess) | EventMask(OpOpen) |
+	EventMask(OpOpenExec) | EventMask(OpCloseNoWrite) |
+	EventMask(OpModify) | EventMask(OpCloseWrite) | EventMask(OpCreate) |
+	EventMask(OpDelete) | EventMask(OpDeleteSelf) | EventMask(OpMovedFrom) |
+	EventMask(OpMovedTo) | EventMask(OpMoveSelf) | EventMask(OpAttrib)
+
+// opModificationBits is the union of all modification-class op bits.
+// Constant so it cannot be mutated between package init and first use.
+const opModificationBits Op = OpModify | OpCloseWrite | OpCreate | OpDelete |
+	OpDeleteSelf | OpMovedFrom | OpMovedTo | OpMoveSelf | OpAttrib
 
 // Has reports whether m includes op.
 func (m EventMask) Has(op Op) bool { return m&EventMask(op) != 0 }
 
 // IsReadOnly reports true when the mask contains only non-mutating ops.
 func (m EventMask) IsReadOnly() bool { return m&EventMask(opModificationBits) == 0 }
-
-// opModificationBits is the union of all modification-class op bits.
-var opModificationBits = OpModify | OpCloseWrite | OpCreate | OpDelete |
-	OpDeleteSelf | OpMovedFrom | OpMovedTo | OpMoveSelf | OpAttrib
 
 // String returns a human-readable label for the mask.
 func (m EventMask) String() string {
@@ -211,15 +216,20 @@ type EnrichedEvent struct {
 	Event
 
 	// Overlay contains layer information for the overlay filesystem this event
-	// occurred on. Populated by [transform.OverlayEnricher].
+	// occurred on. Nil when the event path is outside all known overlay mounts,
+	// or when [NewOverlayEnricher] has not run. Populated only for paths
+	// that fall inside the overlay's merged directory.
 	Overlay *OverlayInfo
 
 	// SourceLayer identifies which layer within the overlay stack the accessed
-	// path originates from. Populated by [transform.OverlayEnricher].
+	// path originates from. Nil when the file does not exist in any known layer
+	// (e.g. the file was deleted) or when Overlay is nil.
+	// Populated by [NewOverlayEnricher].
 	SourceLayer *SnapshotLayer
 
 	// Process contains information about the process that triggered the event.
-	// Populated by [transform.ProcessEnricher].
+	// Nil when the process exited before /proc could be read.
+	// Populated by [ProcessEnricher].
 	Process *ProcessInfo
 
 	// Attrs is a free-form extension map for custom transformer outputs.
@@ -257,12 +267,8 @@ func (e *EnrichedEvent) IsReadOnly() bool { return e.Mask.IsReadOnly() }
 
 // String implements fmt.Stringer.
 func (e *EnrichedEvent) String() string {
-	pid := int32(0)
-	if e.Process != nil {
-		pid = e.Process.PID
-	}
-	return fmt.Sprintf("EnrichedEvent{mask=%s pid=%d path=%q}",
-		e.Mask, pid, e.Path)
+	pid := e.PID
+	return fmt.Sprintf("EnrichedEvent{mask=%s pid=%d path=%q}", e.Mask, pid, e.Path)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,8 +276,8 @@ func (e *EnrichedEvent) String() string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ProcessInfo holds metadata about the process that triggered a fanotify event.
-// All fields are populated from /proc/{pid}/ on a best-effort basis;
-// fields may be empty if the process exited before the read completed.
+// All fields are populated from /proc/{pid}/ on a best-effort basis.
+// A nil ProcessInfo indicates the process exited before any metadata could be read.
 type ProcessInfo struct {
 	// PID is the kernel process ID.
 	PID int32

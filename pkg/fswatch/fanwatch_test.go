@@ -2,6 +2,7 @@ package fanwatch_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -585,8 +586,11 @@ func TestOverlayEnricher_PathOutsideMerge_Ignored(t *testing.T) {
 	if err := enricher.Transform(context.Background(), e); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Overlay should still be set (the enricher attaches info regardless of path).
-	// SourceLayer should be nil since path is not inside mergedDir.
+	// FIX Bug 6: e.Overlay must be nil for paths outside the merged dir.
+	// Previously the enricher attached Overlay unconditionally (false positive).
+	if e.Overlay != nil {
+		t.Error("Overlay should be nil for paths outside merged dir")
+	}
 	if e.SourceLayer != nil {
 		t.Error("SourceLayer should be nil for paths outside merged dir")
 	}
@@ -954,5 +958,189 @@ func TestPipeline_OverlayEnrichment(t *testing.T) {
 	}
 	if events[0].Overlay == nil {
 		t.Error("event should have Overlay set after OverlayEnrichment")
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bug-fix regression tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestPipeline_Run_NonBlocking verifies the fixed Run() returns two proper
+// channels and delivers the correct final result (Bug 1).
+func TestPipeline_Run_NonBlocking(t *testing.T) {
+	counter := &fanwatch.CountingHandler{}
+	pipeline := fanwatch.NewPipeline(
+		fanwatch.WithReadOnlyPipeline(),
+		fanwatch.WithHandler(counter),
+		fanwatch.WithWorkers(1),
+	)
+
+	w := testutil.NewFakeWatcher(16)
+	w.SendMany(testutil.MakeReadOnlyEvents("/merged", 6))
+	w.Close()
+
+	ctx := context.Background()
+	ch, _ := w.Watch(ctx)
+
+	resultCh, errCh := pipeline.Run(ctx, ch)
+
+	// Drain errors.
+	for range errCh {
+	}
+
+	result := <-resultCh
+	if result.Received != 6 {
+		t.Errorf("Run: Received = %d, want 6", result.Received)
+	}
+	if result.Handled != 6 {
+		t.Errorf("Run: Handled = %d, want 6", result.Handled)
+	}
+}
+
+// TestPipeline_Run_ResultChannelClosedAfterDone verifies resultCh is closed
+// exactly once and receives exactly one value (Bug 1).
+func TestPipeline_Run_ResultChannelClosedAfterDone(t *testing.T) {
+	pipeline := fanwatch.NewPipeline(
+		fanwatch.WithHandler(fanwatch.NoopHandler{}),
+		fanwatch.WithWorkers(1),
+	)
+
+	w := testutil.NewFakeWatcher(4)
+	w.Close()
+
+	ctx := context.Background()
+	ch, _ := w.Watch(ctx)
+	resultCh, errCh := pipeline.Run(ctx, ch)
+
+	for range errCh {
+	}
+
+	count := 0
+	for range resultCh {
+		count++
+	}
+	if count != 1 {
+		t.Errorf("resultCh should deliver exactly one value, got %d", count)
+	}
+}
+
+// TestMaskReadOnly_IsImmutable verifies that MaskReadOnly is a constant and
+// cannot be accidentally overwritten (Bug 7 — mutable var to const).
+func TestMaskReadOnly_IsImmutable(t *testing.T) {
+	if !fanwatch.MaskReadOnly.IsReadOnly() {
+		t.Error("MaskReadOnly.IsReadOnly() should always be true")
+	}
+	// Verify it does not include any modification op.
+	for _, op := range []fanwatch.Op{
+		fanwatch.OpModify, fanwatch.OpCreate, fanwatch.OpDelete, fanwatch.OpCloseWrite,
+	} {
+		if fanwatch.MaskReadOnly.Has(op) {
+			t.Errorf("MaskReadOnly unexpectedly contains %v", op)
+		}
+	}
+}
+
+// TestMultiHandler_ErrorChainPreserved verifies that errors.Is works through
+// MultiHandler's joined error (Bug 9 — fmt.Errorf to errors.Join).
+func TestMultiHandler_ErrorChainPreserved(t *testing.T) {
+	sentinel := fmt.Errorf("sentinel")
+	h1 := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+		return sentinel
+	})
+	h2 := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+		return nil
+	})
+
+	multi := fanwatch.MultiHandler{h1, h2}
+	err := multi.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
+
+	if !errors.Is(err, sentinel) {
+		t.Errorf("MultiHandler error chain broken: errors.Is(err, sentinel) = false; got %v", err)
+	}
+}
+
+// TestOverlayEnricher_SetsOverlay_OnlyWhenPathInside verifies that Overlay is
+// nil for external paths — the core false-positive fix (Bug 6).
+func TestOverlayEnricher_SetsOverlay_OnlyWhenPathInside(t *testing.T) {
+	overlay := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
+	enricher := fanwatch.NewOverlayEnricher(overlay)
+	ctx := context.Background()
+
+	tests := []struct {
+		path        string
+		wantOverlay bool
+		label       string
+	}{
+		{"/merged/app/main.go", true, "inside merged"},
+		{"/merged", true, "merged dir itself"},
+		{"/proc/1/maps", false, "proc path"},
+		{"/var/log/syslog", false, "unrelated path"},
+		{"/mergedX/file", false, "path with merged as prefix but not under it"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.label, func(t *testing.T) {
+			e := testutil.NewEnrichedEvent().WithPath(tt.path).Build()
+			if err := enricher.Transform(ctx, e); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			gotOverlay := e.Overlay != nil
+			if gotOverlay != tt.wantOverlay {
+				t.Errorf("Overlay set=%v, want %v for path %q", gotOverlay, tt.wantOverlay, tt.path)
+			}
+		})
+	}
+}
+
+// TestStaticAttrTransformer_CallerMutationSafe verifies that mutating the
+// source map after construction does not affect in-flight events (bug in
+// original that didn't copy the map at construction time).
+func TestStaticAttrTransformer_CallerMutationSafe(t *testing.T) {
+	attrs := map[string]any{"key": "original"}
+	tr := fanwatch.StaticAttrTransformer(attrs)
+
+	// Mutate the source map after construction.
+	attrs["key"] = "mutated"
+	attrs["extra"] = "injected"
+
+	e := testutil.NewEnrichedEvent().Build()
+	if err := tr.Transform(context.Background(), e); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if e.Attr("key") != "original" {
+		t.Errorf("StaticAttrTransformer: caller mutation affected event; got %v", e.Attr("key"))
+	}
+	if e.Attr("extra") != nil {
+		t.Errorf("StaticAttrTransformer: injected key after construction appeared in event")
+	}
+}
+
+// TestChainTransformer_ErrorsJoined verifies that multiple transformer errors
+// are joined via errors.Join and individually unwrappable (Bug 8).
+func TestChainTransformer_ErrorsJoined(t *testing.T) {
+	e1 := fmt.Errorf("transformer error 1")
+	e2 := fmt.Errorf("transformer error 2")
+
+	t1 := fanwatch.TransformerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error { return e1 })
+	t2 := fanwatch.TransformerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error { return e2 })
+
+	chain := fanwatch.ChainTransformer{t1, t2}
+	err := chain.Transform(context.Background(), testutil.NewEnrichedEvent().Build())
+
+	if !errors.Is(err, e1) {
+		t.Error("ChainTransformer joined error should contain e1 (errors.Is)")
+	}
+	if !errors.Is(err, e2) {
+		t.Error("ChainTransformer joined error should contain e2 (errors.Is)")
+	}
+}
+
+// TestFreshnessFilter_InFilterFile tests that FreshnessFilter is callable from
+// the fanwatch package (Bug 5 — was in pipeline.go, now in filter.go).
+func TestFreshnessFilter_CorrectPackage(t *testing.T) {
+	f := fanwatch.FreshnessFilter(100 * time.Millisecond)
+	if f == nil {
+		t.Error("FreshnessFilter returned nil")
 	}
 }

@@ -2,6 +2,7 @@ package fanwatch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,14 +15,15 @@ import (
 // Handler interface
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Handler processes an [EnrichedEvent] that has passed all filters and transformers.
-// Handlers are the terminal stage of the pipeline; they perform side effects
-// (logging, alerting, metrics, storage) without returning modified events.
+// Handler processes an [EnrichedEvent] that has passed all filters and
+// transformers. Handlers are the terminal stage of the pipeline; they perform
+// side effects (logging, alerting, metrics, storage) without returning modified
+// events.
 //
 // All implementations must be safe for concurrent use from multiple goroutines.
 type Handler interface {
-	// Handle processes a single event. Returning a non-nil error is recorded
-	// in the pipeline's error channel; it does not affect other events.
+	// Handle processes a single event. A non-nil error is forwarded to the
+	// pipeline's error channel but does not affect other in-flight events.
 	Handle(ctx context.Context, e *EnrichedEvent) error
 }
 
@@ -36,7 +38,7 @@ func (f HandlerFunc) Handle(ctx context.Context, e *EnrichedEvent) error { retur
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ChainHandler invokes handlers in sequence, stopping at the first error.
-// Use [MultiHandler] when all handlers should run regardless of errors.
+// Use [MultiHandler] when all handlers must run regardless of errors.
 type ChainHandler []Handler
 
 // Handle implements [Handler].
@@ -50,7 +52,10 @@ func (c ChainHandler) Handle(ctx context.Context, e *EnrichedEvent) error {
 }
 
 // MultiHandler fans each event out to all handlers, collecting all errors.
-// Unlike [ChainHandler] every handler runs even when earlier ones fail.
+// Unlike [ChainHandler] every handler always runs even when earlier ones fail.
+//
+// FIX Bug 9: previously used fmt.Errorf which lost the error chain for
+// errors.Is/As. Now uses errors.Join so callers can unwrap individual errors.
 type MultiHandler []Handler
 
 // Handle implements [Handler].
@@ -61,14 +66,11 @@ func (m MultiHandler) Handle(ctx context.Context, e *EnrichedEvent) error {
 			errs = append(errs, err)
 		}
 	}
-	if len(errs) == 0 {
-		return nil
-	}
-	return fmt.Errorf("handler: %d error(s): %v", len(errs), errs)
+	return errors.Join(errs...)
 }
 
 // PredicateHandler wraps a [Handler] behind a predicate. The handler runs only
-// when the predicate returns true. Predicate must not mutate the event.
+// when Predicate returns true. Predicate must not mutate the event.
 type PredicateHandler struct {
 	Predicate func(*EnrichedEvent) bool
 	Handler   Handler
@@ -87,8 +89,8 @@ func (p PredicateHandler) Handle(ctx context.Context, e *EnrichedEvent) error {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // NoopHandler silently discards every event without error.
-// Useful as a placeholder in pipelines that care only about side effects of
-// filters or transformers.
+// Useful as a placeholder in pipelines where side effects live in filters or
+// transformers, or in benchmarks that measure pipeline throughput in isolation.
 type NoopHandler struct{}
 
 // Handle implements [Handler].
@@ -125,7 +127,7 @@ func LogHandler(logger *slog.Logger, level slog.Level) Handler {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CountingHandler — atomic counters (test and monitoring aid)
+// CountingHandler — atomic event counters
 // ─────────────────────────────────────────────────────────────────────────────
 
 // EventCounters is an immutable snapshot of [CountingHandler] state.
@@ -140,11 +142,11 @@ type EventCounters struct {
 // CountingHandler tallies events by operation type using atomic counters.
 // Safe for concurrent use; call Snapshot() for a consistent point-in-time view.
 type CountingHandler struct {
-	total   atomic.Int64
-	access  atomic.Int64
-	open    atomic.Int64
-	exec    atomic.Int64
-	other   atomic.Int64
+	total  atomic.Int64
+	access atomic.Int64
+	open   atomic.Int64
+	exec   atomic.Int64
+	other  atomic.Int64
 }
 
 // Handle implements [Handler].
@@ -184,7 +186,7 @@ func (c *CountingHandler) Reset() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CollectingHandler — in-memory accumulation (test doubles / audit)
+// CollectingHandler — in-memory accumulation
 // ─────────────────────────────────────────────────────────────────────────────
 
 // CollectingHandler accumulates all [EnrichedEvent] values in memory.
@@ -203,8 +205,8 @@ func (c *CollectingHandler) Handle(_ context.Context, e *EnrichedEvent) error {
 	return nil
 }
 
-// Events returns a snapshot of all collected events. Each returned event is a
-// clone — mutations do not affect the collector's internal state.
+// Events returns a snapshot of all collected events. Each element is a clone
+// so mutations by the caller do not affect the collector's internal state.
 func (c *CollectingHandler) Events() []*EnrichedEvent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -230,11 +232,12 @@ func (c *CollectingHandler) Reset() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WriterHandler — text output to any io.Writer
+// WriterHandler — plain-text output to any io.Writer
 // ─────────────────────────────────────────────────────────────────────────────
 
 // WriterHandler formats each event as a single line and writes it to w.
-// Format: "<timestamp> <mask> pid=<pid> <path>\n"
+// Output format: "<time> <mask> pid=<pid> <path>\n"
+// Defaults to os.Stdout when w is nil.
 func WriterHandler(w io.Writer) Handler {
 	if w == nil {
 		w = os.Stdout
@@ -254,15 +257,14 @@ func WriterHandler(w io.Writer) Handler {
 // ChannelHandler — forward events to an output channel
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ChannelHandler forwards each event to a buffered channel. Events are cloned
-// before sending. When the channel is full and ctx is not cancelled, the event
-// is dropped (non-blocking delivery). Use a sufficiently large channel buffer
-// for production workloads.
+// ChannelHandler forwards cloned events to a buffered channel.
+// When the channel is full the event is dropped without blocking — size the
+// channel buffer for your expected event rate.
 type ChannelHandler struct {
 	out chan<- *EnrichedEvent
 }
 
-// NewChannelHandler returns a ChannelHandler and the read-only channel.
+// NewChannelHandler returns a ChannelHandler and the read-only consumer channel.
 func NewChannelHandler(bufSize int) (*ChannelHandler, <-chan *EnrichedEvent) {
 	ch := make(chan *EnrichedEvent, bufSize)
 	return &ChannelHandler{out: ch}, ch
@@ -275,7 +277,7 @@ func (c *ChannelHandler) Handle(ctx context.Context, e *EnrichedEvent) error {
 	case c.out <- clone:
 	case <-ctx.Done():
 	default:
-		// Channel full: drop to avoid blocking the pipeline.
+		// Channel full — drop event to avoid blocking the pipeline.
 	}
 	return nil
 }

@@ -261,3 +261,57 @@ Test dependencies (`testutil/`, `*_test.go`):
 - Types in `testutil/` are stable for test code but must not be imported from
   non-test files.
 - `middleware/` is stable but optional (separate import path).
+
+---
+
+## snapshot/ sub-package — containerd overlay resolution
+
+### When to use
+
+Use `snapshot/` when you do not know the overlay structure ahead of time and
+need to discover it at runtime from a running containerd environment.
+
+### Two resolution strategies (in priority order)
+
+| Strategy | Function | When it works |
+|----------|----------|---------------|
+| Mount-based | `OverlayInfoFromContainerdMount(mergedDir)` | Container is running; mount visible in `/proc/self/mountinfo` |
+| Layout-based | `s.OverlayInfoFromContainerdSnapshot(id, mergedDir)` | Container stopped or merged dir not yet mounted |
+
+The unified entry point `s.ContainerdOverlayInfo(mergedDir)` tries both automatically.
+
+### Key types
+
+| Type | Role |
+|------|------|
+| `ContainerdSnapshotter` | Configuration (Root, Namespace) + resolution methods |
+| `SnapshotChain` | Resolved ancestor chain of snapshot IDs |
+| `MountEntry` | One live overlay mount (MergedDir + OverlayInfo) |
+| `ContainerdEnricher` | Transformer that auto-discovers overlay per event with caching |
+
+### Containerd filesystem layout assumed
+
+```
+<Root>/snapshots/
+  <id>/
+    fs/      ← layer diff (lowerdir for read-only; upperdir ancestor for writable)
+    work/    ← overlay work dir (writable snapshots only)
+    parent   ← text file containing parent snapshot ID (if any)
+```
+
+### Adding a new snapshot filter
+
+All snapshot-specific filters live in `snapshot/enricher.go` and must accept
+`*fanwatch.EnrichedEvent` — do not add containerd concepts to the core package.
+
+```go
+// ContainerNamespaceFilter passes events from a specific containerd namespace.
+func ContainerNamespaceFilter(ns string) fanwatch.Filter {
+    return fanwatch.FilterFunc(func(_ context.Context, e *fanwatch.EnrichedEvent) bool {
+        if e.Overlay == nil {
+            return false
+        }
+        return e.Overlay.Labels["containerd.namespace"] == ns
+    })
+}
+```

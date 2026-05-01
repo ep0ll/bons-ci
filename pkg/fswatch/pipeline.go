@@ -7,22 +7,21 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PipelineResult — summary of a completed pipeline run
 // ─────────────────────────────────────────────────────────────────────────────
 
-// PipelineResult summarises a completed [Pipeline.Run] call.
+// PipelineResult summarises a completed pipeline run.
 type PipelineResult struct {
-	// Received is the total number of raw events read from the watcher.
+	// Received is the total number of raw events read from the input channel.
 	Received int64
-	// Filtered is the count of events dropped by filters.
+	// Filtered is the count of events dropped by the filter stage.
 	Filtered int64
 	// Handled is the count of events successfully delivered to the handler.
 	Handled int64
-	// Errors is the count of transformer or handler errors encountered.
+	// Errors is the count of transform or handler errors encountered.
 	Errors int64
 }
 
@@ -38,22 +37,19 @@ type PipelineResult struct {
 //	RawEvent channel
 //	    │
 //	    ▼
-//	Convert to EnrichedEvent
+//	toEnriched (path split, WatcherID)
 //	    │
 //	    ▼
-//	Filter stage (all filters, short-circuit AND)
-//	    │  (drop on reject)
-//	    ▼
-//	Transform stage (chain of transformers)
+//	Filter stage (short-circuit AND — drop on first rejection)
 //	    │
 //	    ▼
-//	Worker pool → Handler
+//	Worker pool ──► Transform stage ──► Handler
 //	    │
 //	    ▼
-//	Error channel
+//	Error channel (non-fatal errors forwarded to caller)
 //
-// Each stage is driven by its own goroutine pool. The pipeline is started by
-// Run() and stops when ctx is cancelled or the input channel is closed.
+// Run or RunSync are the two entry points. Both stop when ctx is cancelled
+// or the input channel is closed.
 type Pipeline struct {
 	filters      AllFilters
 	transformers ChainTransformer
@@ -64,9 +60,8 @@ type Pipeline struct {
 
 // pipelineConfig holds tunable Pipeline parameters.
 type pipelineConfig struct {
-	workers      int
-	errBufSize   int
-	overlayInfo  *OverlayInfo
+	workers    int
+	errBufSize int
 }
 
 func defaultPipelineConfig() pipelineConfig {
@@ -77,6 +72,8 @@ func defaultPipelineConfig() pipelineConfig {
 }
 
 // NewPipeline constructs a [Pipeline] with the provided options.
+// Middlewares are applied after the handler is set; they wrap in registration
+// order so the last-registered middleware is the outermost wrapper.
 func NewPipeline(opts ...PipelineOption) *Pipeline {
 	cfg := defaultPipelineConfig()
 	p := &Pipeline{
@@ -86,140 +83,17 @@ func NewPipeline(opts ...PipelineOption) *Pipeline {
 	for _, o := range opts {
 		o(p)
 	}
-	// Wrap handler with middlewares in reverse order (last registered = outermost).
 	for i := len(p.middlewares) - 1; i >= 0; i-- {
 		p.handler = p.middlewares[i].Wrap(p.handler)
 	}
 	return p
 }
 
-// Run starts the pipeline. It reads [RawEvent]s from in, applies filters and
-// transformers, and delivers [EnrichedEvent]s to the configured handler.
+// RunSync runs the pipeline to completion, blocking until ctx is cancelled or
+// in is closed. Non-fatal errors are forwarded to onError (may be nil).
+// Returns a [PipelineResult] with final counters.
 //
-// Run blocks until ctx is cancelled or in is closed. It returns a
-// [PipelineResult] summarising what happened and a channel of non-fatal errors.
-//
-// Callers must drain the error channel — failing to do so will deadlock the
-// pipeline when errors occur.
-func (p *Pipeline) Run(ctx context.Context, in <-chan *RawEvent) (PipelineResult, <-chan error) {
-	errCh := make(chan error, p.cfg.errBufSize)
-
-	var (
-		received atomic.Int64
-		filtered atomic.Int64
-		handled  atomic.Int64
-		errCount atomic.Int64
-	)
-
-	addErr := func(err error) {
-		if err == nil {
-			return
-		}
-		errCount.Add(1)
-		select {
-		case errCh <- err:
-		default:
-			// Error channel full — drop to avoid blocking the pipeline.
-		}
-	}
-
-	sem := make(chan struct{}, p.workers())
-	var wg sync.WaitGroup
-
-	go func() {
-		defer close(errCh)
-		defer wg.Wait()
-
-		for {
-			select {
-			case raw, ok := <-in:
-				if !ok {
-					return
-				}
-				if ctx.Err() != nil {
-					continue // drain without dispatching
-				}
-
-				received.Add(1)
-
-				enriched := p.toEnriched(raw)
-
-				if !p.passesFilters(ctx, enriched) {
-					filtered.Add(1)
-					continue
-				}
-
-				select {
-				case sem <- struct{}{}:
-				case <-ctx.Done():
-					continue
-				}
-
-				wg.Add(1)
-				go func(e *EnrichedEvent) {
-					defer wg.Done()
-					defer func() { <-sem }()
-
-					if err := p.applyTransformers(ctx, e); err != nil {
-						addErr(fmt.Errorf("pipeline: transform %q: %w", e.Path, err))
-						// continue — event may be partially enriched but still valid
-					}
-
-					if err := p.handler.Handle(ctx, e); err != nil {
-						addErr(fmt.Errorf("pipeline: handle %q: %w", e.Path, err))
-						return
-					}
-					handled.Add(1)
-				}(enriched)
-
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	result := PipelineResult{} // populated after goroutine exits via pointer captures
-	_ = result                  // real values via atomic loads below
-
-	// Return a channel so callers can react to errors while Run blocks.
-	// We start a goroutine to wait and produce the final result separately.
-	resultCh := make(chan PipelineResult, 1)
-	go func() {
-		// Wait for the main goroutine to close errCh.
-		// errCh is closed only after wg.Wait() — so this is safe.
-		for range errCh {
-			// drain (caller already has the channel via the returned value)
-		}
-		resultCh <- PipelineResult{
-			Received: received.Load(),
-			Filtered: filtered.Load(),
-			Handled:  handled.Load(),
-			Errors:   errCount.Load(),
-		}
-	}()
-
-	// We need to return the errCh to the caller but also drain it above.
-	// Redesign: use a forwarding channel.
-	fwdCh := make(chan error, p.cfg.errBufSize)
-	go func() {
-		for e := range errCh {
-			fwdCh <- e
-		}
-		close(fwdCh)
-	}()
-
-	_ = resultCh // caller gets result via RunSync for blocking mode
-
-	return PipelineResult{
-		Received: received.Load(),
-		Filtered: filtered.Load(),
-		Handled:  handled.Load(),
-		Errors:   errCount.Load(),
-	}, fwdCh
-}
-
-// RunSync runs the pipeline to completion and returns after ctx is cancelled
-// or in is closed. Errors are forwarded to onError (may be nil).
+// This is the primary entry point for most use cases.
 func (p *Pipeline) RunSync(ctx context.Context, in <-chan *RawEvent, onError func(error)) PipelineResult {
 	errCh := make(chan error, p.cfg.errBufSize)
 
@@ -238,10 +112,12 @@ func (p *Pipeline) RunSync(ctx context.Context, in <-chan *RawEvent, onError fun
 		select {
 		case errCh <- err:
 		default:
+			// Buffer full — drop to avoid blocking worker goroutines.
+			// Increase WithErrorBufferSize if this occurs frequently.
 		}
 	}
 
-	// Start error consumer before the producer.
+	// Start error consumer before the event producer so no errors are missed.
 	var errWg sync.WaitGroup
 	errWg.Add(1)
 	go func() {
@@ -253,7 +129,7 @@ func (p *Pipeline) RunSync(ctx context.Context, in <-chan *RawEvent, onError fun
 		}
 	}()
 
-	sem := make(chan struct{}, p.workers())
+	sem := make(chan struct{}, p.numWorkers())
 	var wg sync.WaitGroup
 
 	for {
@@ -263,6 +139,7 @@ func (p *Pipeline) RunSync(ctx context.Context, in <-chan *RawEvent, onError fun
 				goto done
 			}
 			if ctx.Err() != nil {
+				// Context cancelled — drain the channel without processing.
 				continue
 			}
 
@@ -274,6 +151,7 @@ func (p *Pipeline) RunSync(ctx context.Context, in <-chan *RawEvent, onError fun
 				continue
 			}
 
+			// Acquire a worker slot; respect context cancellation.
 			select {
 			case sem <- struct{}{}:
 			case <-ctx.Done():
@@ -286,6 +164,8 @@ func (p *Pipeline) RunSync(ctx context.Context, in <-chan *RawEvent, onError fun
 				defer func() { <-sem }()
 
 				if err := p.applyTransformers(ctx, e); err != nil {
+					// Transform errors are non-fatal — the event may be partially
+					// enriched but we still attempt to deliver it.
 					addErr(fmt.Errorf("pipeline: transform %q: %w", e.Path, err))
 				}
 
@@ -314,6 +194,39 @@ done:
 	}
 }
 
+// Run starts the pipeline asynchronously and returns immediately.
+//
+// FIX Bug 1: the previous Run() returned a stale zero PipelineResult and
+// created a goroutine race where two goroutines competed to drain the same
+// internal error channel. It is now implemented as a thin goroutine wrapper
+// around RunSync with correct result delivery via a buffered channel.
+//
+// Returns:
+//   - resultCh: closed after the pipeline finishes; receives exactly one value.
+//   - errCh:    non-fatal errors as they occur; closed when the pipeline finishes.
+//
+// Callers must drain errCh to avoid blocking worker goroutines.
+func (p *Pipeline) Run(ctx context.Context, in <-chan *RawEvent) (<-chan PipelineResult, <-chan error) {
+	errCh := make(chan error, p.cfg.errBufSize)
+	resultCh := make(chan PipelineResult, 1)
+
+	go func() {
+		result := p.RunSync(ctx, in, func(err error) {
+			select {
+			case errCh <- err:
+			case <-ctx.Done():
+			default:
+				// Drop if errCh is full.
+			}
+		})
+		close(errCh)
+		resultCh <- result
+		close(resultCh)
+	}()
+
+	return resultCh, errCh
+}
+
 // toEnriched lifts a [RawEvent] into an [EnrichedEvent] with path components split.
 func (p *Pipeline) toEnriched(raw *RawEvent) *EnrichedEvent {
 	return &EnrichedEvent{
@@ -336,8 +249,8 @@ func (p *Pipeline) applyTransformers(ctx context.Context, e *EnrichedEvent) erro
 	return p.transformers.Transform(ctx, e)
 }
 
-// workers returns the configured worker count, defaulting to NumCPU.
-func (p *Pipeline) workers() int {
+// numWorkers returns the configured worker count, clamping to NumCPU minimum.
+func (p *Pipeline) numWorkers() int {
 	if p.cfg.workers > 0 {
 		return p.cfg.workers
 	}
@@ -345,12 +258,13 @@ func (p *Pipeline) workers() int {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Middleware — wraps Handler for cross-cutting concerns (OTEL, logging)
+// Middleware — wraps Handler for cross-cutting concerns
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Middleware wraps a [Handler] to add cross-cutting behaviour such as tracing,
-// metrics, or logging. Middlewares are applied in registration order; the last
-// registered middleware is the outermost wrapper.
+// metrics, or logging without modifying the handler implementation.
+// Middlewares are applied in registration order; the last registered is the
+// outermost wrapper and therefore runs first on every event.
 type Middleware interface {
 	// Wrap returns a new Handler that decorates next.
 	Wrap(next Handler) Handler
@@ -363,21 +277,9 @@ type MiddlewareFunc func(next Handler) Handler
 func (m MiddlewareFunc) Wrap(next Handler) Handler { return m(next) }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EventStream — typed channel alias for ergonomic pipeline construction
+// EventStream — channel type alias
 // ─────────────────────────────────────────────────────────────────────────────
 
 // EventStream is a receive-only channel of [RawEvent] pointers.
-// Produced by [Watcher.Watch] and consumed by [Pipeline.RunSync].
+// Produced by [Watcher.Watch] and consumed by [Pipeline.RunSync] or [Pipeline.Run].
 type EventStream = <-chan *RawEvent
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TimeoutFilter — drop events older than a threshold
-// ─────────────────────────────────────────────────────────────────────────────
-
-// FreshnessFilter drops events older than maxAge relative to now.
-// Stale events can occur when the pipeline falls behind under high load.
-func FreshnessFilter(maxAge time.Duration) Filter {
-	return FilterFunc(func(_ context.Context, e *EnrichedEvent) bool {
-		return time.Since(e.Timestamp) <= maxAge
-	})
-}
