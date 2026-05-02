@@ -44,9 +44,9 @@ func TestEventMask_Has(t *testing.T) {
 
 func TestEventMask_IsReadOnly(t *testing.T) {
 	tests := []struct {
-		name   string
-		mask   fanwatch.EventMask
-		wantRO bool
+		name     string
+		mask     fanwatch.EventMask
+		wantRO   bool
 	}{
 		{"read only mask", fanwatch.MaskReadOnly, true},
 		{"access only", fanwatch.EventMask(fanwatch.OpAccess), true},

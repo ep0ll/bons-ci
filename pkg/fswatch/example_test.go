@@ -25,7 +25,7 @@ func ExampleNewPipeline_readOnlyObserver() {
 	counter := &fanwatch.CountingHandler{}
 
 	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithReadOnlyPipeline(),         // filter: only ACCESS/OPEN/EXEC
+		fanwatch.WithReadOnlyPipeline(),       // filter: only ACCESS/OPEN/EXEC
 		fanwatch.WithOverlayEnrichment(overlay), // transform: add layer metadata
 		fanwatch.WithHandler(counter),
 		fanwatch.WithWorkers(1),

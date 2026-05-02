@@ -247,14 +247,26 @@ func parseKeyValueOptions(opts string) map[string]string {
 
 // NewOverlayInfo constructs an [OverlayInfo] from explicit directory paths.
 // Use when the overlay metadata is known without needing to parse /proc/mounts.
+// cleanPath applies filepath.Clean but returns "" for empty paths or ".".
+func cleanPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	c := filepath.Clean(p)
+	if c == "." {
+		return ""
+	}
+	return c
+}
+
 func NewOverlayInfo(mergedDir, upperDir, workDir string, lowerDirs []string) *OverlayInfo {
 	dirs := make([]string, len(lowerDirs))
 	copy(dirs, lowerDirs)
 
 	o := &OverlayInfo{
 		MergedDir: filepath.Clean(mergedDir),
-		UpperDir:  filepath.Clean(upperDir),
-		WorkDir:   filepath.Clean(workDir),
+		UpperDir:  cleanPath(upperDir),
+		WorkDir:   cleanPath(workDir),
 		LowerDirs: dirs,
 		Labels:    make(map[string]string),
 	}
