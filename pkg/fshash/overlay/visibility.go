@@ -37,28 +37,32 @@ func (c *ChainVisibilityChecker) IsVisible(chain *layer.Chain, layerID core.Laye
 	if pos < 0 {
 		return false
 	}
-	
+
 	// Get all layers from the given layer down to the base
 	layers := chain.Layers()
 	for i := pos; i >= 0; i-- {
 		lid := layers[i]
-		
+
 		// 1. Is the file whiteout'd in this layer?
 		// Note: The layer.Store needs IsDeleted and IsOpaque methods.
 		// Since store is passed by interface, we'll use type assertion for now,
 		// or rely on the updated layer.Store interface.
-		
+
 		// We'll implement this properly once layer.Store is updated.
 		// For now we'll do a simple check.
-		
-		if storeWithDeletes, ok := c.store.(interface{ IsDeleted(core.LayerID, string) bool }); ok {
+
+		if storeWithDeletes, ok := c.store.(interface {
+			IsDeleted(core.LayerID, string) bool
+		}); ok {
 			if storeWithDeletes.IsDeleted(lid, path) {
 				return false // It's deleted at or above its owner, so invisible
 			}
 		}
 
 		// 2. Is any ancestor directory opaque in this layer?
-		if storeWithOpaque, ok := c.store.(interface{ IsOpaque(core.LayerID, string) bool }); ok {
+		if storeWithOpaque, ok := c.store.(interface {
+			IsOpaque(core.LayerID, string) bool
+		}); ok {
 			parts := strings.Split(path, "/")
 			currentPath := ""
 			for j := 0; j < len(parts)-1; j++ {
@@ -78,7 +82,7 @@ func (c *ChainVisibilityChecker) IsVisible(chain *layer.Chain, layerID core.Laye
 						currentPath = currentPath + "/" + parts[j]
 					}
 				}
-				
+
 				if storeWithOpaque.IsOpaque(lid, currentPath) {
 					// An ancestor is opaque. If the file owner is below this layer, it's hidden.
 					// We need to check if the file is actually owned below `lid`.
@@ -89,7 +93,7 @@ func (c *ChainVisibilityChecker) IsVisible(chain *layer.Chain, layerID core.Laye
 			}
 		}
 	}
-	
+
 	return true
 }
 

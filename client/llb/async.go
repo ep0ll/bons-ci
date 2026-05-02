@@ -81,5 +81,5 @@ func (v *errVertex) Validate(context.Context, *Constraints) error { return v.err
 func (v *errVertex) Marshal(context.Context, *Constraints) (digest.Digest, []byte, *pb.OpMetadata, []*SourceLocation, error) {
 	return "", nil, nil, nil, v.err
 }
-func (v *errVertex) Output() Output  { return nil }
+func (v *errVertex) Output() Output   { return nil }
 func (v *errVertex) Inputs() []Output { return nil }

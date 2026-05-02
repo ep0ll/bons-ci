@@ -53,7 +53,7 @@ func TestVisibilityChecker_IsVisible(t *testing.T) {
 	chainBuilder.Push(l3)
 	chain := chainBuilder.Build()
 
-	_ = ctx 
+	_ = ctx
 
 	tests := []struct {
 		name    string

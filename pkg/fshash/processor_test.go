@@ -290,7 +290,7 @@ func TestProcessorOverlayEndToEnd(t *testing.T) {
 		Path:    "/etc/.wh.hosts",
 		Op:      core.OpClose,
 	})
-	
+
 	// Also upper layer makes /var/log opaque
 	proc.Submit(ctx, core.AccessEvent{
 		LayerID: upper,
@@ -319,7 +319,7 @@ func TestProcessorOverlayEndToEnd(t *testing.T) {
 	// Or Finalize might return an error because the tree is empty.
 	// But Wait, the whiteout itself was tracked? No, interpreter converts it, and it triggers MarkDeleted
 	// and doesn't get computed.
-	
+
 	// Wait, Finalize returns error if empty. Since all events were excluded, it's empty.
 	if upperRoot != nil {
 		t.Errorf("expected tree to be empty")

@@ -28,11 +28,11 @@ type StateOption func(State) State
 // Operations performed on a State are executed lazily: the entire graph is
 // marshalled into a Definition and then sent to a backend for execution.
 type State struct {
-	out     Output
-	prev    *State
-	key     any
-	value   func(context.Context, *Constraints) (any, error)
-	opts    []ConstraintsOpt
+	out   Output
+	prev  *State
+	key   any
+	value func(context.Context, *Constraints) (any, error)
+	opts  []ConstraintsOpt
 }
 
 // NewState constructs a State backed by the given Output.

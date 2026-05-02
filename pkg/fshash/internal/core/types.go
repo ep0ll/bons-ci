@@ -48,10 +48,10 @@ func (v VertexID) IsZero() bool { return v.digest == "" }
 type AccessOp uint8
 
 const (
-	OpRead  AccessOp = iota + 1 // File was read
-	OpWrite                     // File was written
-	OpClose                     // File descriptor closed after write
-	OpDelete                    // File was deleted (whiteout)
+	OpRead   AccessOp = iota + 1 // File was read
+	OpWrite                      // File was written
+	OpClose                      // File descriptor closed after write
+	OpDelete                     // File was deleted (whiteout)
 )
 
 // String returns a human-readable representation.

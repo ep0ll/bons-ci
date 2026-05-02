@@ -118,8 +118,8 @@ func TestShardedStoreStats(t *testing.T) {
 	l := core.NewLayerID("sha256:stats")
 
 	store.Put(l, "/hit", core.FileHash{Path: "/hit", LayerID: l})
-	store.Get(l, "/hit")   // hit
-	store.Get(l, "/miss")  // miss
+	store.Get(l, "/hit")  // hit
+	store.Get(l, "/miss") // miss
 
 	stats := store.Stats()
 	if stats.Hits != 1 {

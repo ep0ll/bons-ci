@@ -103,9 +103,9 @@ func (c *ChannelApprover) Name() string { return "channel" }
 // TimeoutApprover wraps another approver and auto-approves or auto-denies
 // after a timeout.
 type TimeoutApprover struct {
-	inner        Approver
-	timeout      time.Duration
-	autoApprove  bool // if true, auto-approve on timeout; else auto-deny
+	inner       Approver
+	timeout     time.Duration
+	autoApprove bool // if true, auto-approve on timeout; else auto-deny
 }
 
 var _ Approver = (*TimeoutApprover)(nil)

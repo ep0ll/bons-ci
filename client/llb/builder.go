@@ -17,10 +17,10 @@ import "context"
 //
 // GraphBuilder mirrors the [Engine] pattern in dirsync.
 type GraphBuilder struct {
-	resolver   Resolver
-	strategy   MarshalStrategy
-	visitor    VertexVisitor
-	preEmit    StateTransformer
+	resolver Resolver
+	strategy MarshalStrategy
+	visitor  VertexVisitor
+	preEmit  StateTransformer
 }
 
 // GraphBuilderResult summarizes a completed Build call.

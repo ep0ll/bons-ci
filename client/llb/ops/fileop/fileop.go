@@ -398,15 +398,15 @@ func WithAllowWildcard(b bool) RmOption {
 
 // CopyInfo holds options for copy.
 type CopyInfo struct {
-	Mode              *int
-	FollowSymlinks    bool
-	DirCopyContents   bool
-	AttemptUnpack     bool
-	CreateDestPath    bool
-	AllowWildcard     bool
+	Mode               *int
+	FollowSymlinks     bool
+	DirCopyContents    bool
+	AttemptUnpack      bool
+	CreateDestPath     bool
+	AllowWildcard      bool
 	AllowEmptyWildcard bool
-	IncludePatterns   []string
-	ExcludePatterns   []string
+	IncludePatterns    []string
+	ExcludePatterns    []string
 }
 
 // CopyOption configures a copy action.

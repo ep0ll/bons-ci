@@ -26,8 +26,8 @@ func (k NodeKind) String() string {
 type Node struct {
 	Kind     NodeKind
 	Hash     []byte
-	Path     string     // Non-empty for leaves
-	Children []*Node    // Non-nil for branches
+	Path     string       // Non-empty for leaves
+	Children []*Node      // Non-nil for branches
 	Layer    core.LayerID // Source layer for provenance
 	Depth    int
 }

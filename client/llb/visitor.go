@@ -197,5 +197,5 @@ type joinedError struct {
 	errs []error
 }
 
-func (e joinedError) Error() string { return e.msg }
+func (e joinedError) Error() string   { return e.msg }
 func (e joinedError) Unwrap() []error { return e.errs }

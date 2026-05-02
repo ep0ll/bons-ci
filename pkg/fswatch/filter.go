@@ -3,8 +3,8 @@ package fanwatch
 import (
 	"context"
 	"path/filepath"
-	"time"
 	"strings"
+	"time"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────

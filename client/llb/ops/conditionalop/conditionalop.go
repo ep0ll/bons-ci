@@ -164,10 +164,10 @@ func Switch(cond Condition, branches ...Branch) *ConditionalBuilder {
 
 // ConditionalBuilder provides a fluent API for building conditional states.
 type ConditionalBuilder struct {
-	condition  Condition
-	branches   []Branch
-	defaultBr  *llb.State
-	opts       []llb.ConstraintsOpt
+	condition Condition
+	branches  []Branch
+	defaultBr *llb.State
+	opts      []llb.ConstraintsOpt
 }
 
 // WithDefault sets the fallback state.

@@ -37,8 +37,8 @@ type CacheMountSharingMode int
 
 const (
 	CacheMountShared  CacheMountSharingMode = iota // Concurrent access allowed
-	CacheMountPrivate                               // Exclusive per-build access
-	CacheMountLocked                                // Exclusive with locking
+	CacheMountPrivate                              // Exclusive per-build access
+	CacheMountLocked                               // Exclusive with locking
 )
 
 // MountContentCache controls cache content semantics.

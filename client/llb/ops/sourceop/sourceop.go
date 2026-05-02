@@ -109,7 +109,7 @@ type ImageInfo struct {
 type ResolveMode int
 
 const (
-	ResolveModeDefault    ResolveMode = iota
+	ResolveModeDefault ResolveMode = iota
 	ResolveModeForcePull
 	ResolveModePreferLocal
 )
@@ -172,11 +172,11 @@ type GitOption func(*GitInfo)
 // GitInfo holds configuration for a git source.
 type GitInfo struct {
 	llb.Constraints
-	KeepGitDir     bool
+	KeepGitDir       bool
 	AuthTokenSecret  string
 	AuthHeaderSecret string
-	KnownSSHHosts  string
-	MountSSHSocket string
+	KnownSSHHosts    string
+	MountSSHSocket   string
 }
 
 // WithKeepGitDir preserves the .git directory.

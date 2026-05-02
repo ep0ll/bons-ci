@@ -5,9 +5,9 @@ package fanwatch
 import (
 	"context"
 	"fmt"
-	"syscall"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/bons/bons-ci/pkg/fswatch/internal/sys"
@@ -69,7 +69,7 @@ func newWatcher(opts ...WatcherOption) (Watcher, error) {
 // markMergedDir registers the merged directory with fanotify.
 // FAN_EVENT_ON_CHILD and FAN_ONDIR ensure subdirectory events are delivered.
 func (w *fanotifyWatcher) markMergedDir() error {
-	const fanOnDir        = uint64(0x40000000)
+	const fanOnDir = uint64(0x40000000)
 	const fanEventOnChild = uint64(0x08000000)
 
 	mask := uint64(w.cfg.mask) | fanOnDir | fanEventOnChild
