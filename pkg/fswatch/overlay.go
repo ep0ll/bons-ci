@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/moby/sys/mountinfo"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22,7 +20,7 @@ import (
 //   - One workdir used by the kernel for atomic operations.
 //   - One merged directory presenting the unified view.
 //
-// fanwatch watches only the merged directory via fanotify and enriches events
+// fswatch watches only the merged directory via fanotify and enriches events
 // with the layer information recorded in this struct.
 type OverlayInfo struct {
 	// MergedDir is the path watched by fanotify.
@@ -112,95 +110,8 @@ func (o *OverlayInfo) RelPath(absPath string) (string, error) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OverlayInfoFromMount — live-mount strategy via moby/sys/mountinfo
+// NewOverlayInfo — programmatic construction (all platforms)
 // ─────────────────────────────────────────────────────────────────────────────
-
-// OverlayInfoFromMount finds and parses the overlay mount whose merged
-// directory is mergedDir by querying the kernel via moby/sys/mountinfo.
-//
-// It uses mountinfo.GetMounts(FSTypeFilter("overlay")) to enumerate only
-// overlay-type mounts in a single /proc/self/mountinfo parse, then matches
-// on the Mountpoint field.
-//
-// Returns [ErrMountNotFound] when no overlay mount matches mergedDir.
-func OverlayInfoFromMount(mergedDir string) (*OverlayInfo, error) {
-	mergedDir = filepath.Clean(mergedDir)
-
-	mounts, err := mountinfo.GetMounts(mountinfo.FSTypeFilter("overlay"))
-	if err != nil {
-		return nil, fmt.Errorf("overlay: get mounts: %w", err)
-	}
-
-	for _, m := range mounts {
-		if filepath.Clean(m.Mountpoint) != mergedDir {
-			continue
-		}
-		return overlayInfoFromMountinfoEntry(m, mergedDir)
-	}
-	return nil, fmt.Errorf("overlay: %w: %q", ErrMountNotFound, mergedDir)
-}
-
-// overlayInfoFromMountinfoEntry converts a moby/sys/mountinfo.Info entry into
-// an OverlayInfo by parsing its VFSOptions field (column 11 of mountinfo).
-//
-// VFSOptions contains the overlay superblock options:
-//
-//	"lowerdir=/lower1:/lower2,upperdir=/upper,workdir=/work,..."
-func overlayInfoFromMountinfoEntry(m *mountinfo.Info, mergedDir string) (*OverlayInfo, error) {
-	opts := parseKVOptions(m.VFSOptions)
-
-	lower := opts["lowerdir"]
-	if lower == "" {
-		return nil, fmt.Errorf("overlay: mount at %q has no lowerdir in VFSOptions %q",
-			mergedDir, m.VFSOptions)
-	}
-
-	lowerDirs := strings.Split(lower, ":")
-	for i, d := range lowerDirs {
-		lowerDirs[i] = filepath.Clean(d)
-	}
-
-	return NewOverlayInfo(
-		mergedDir,
-		opts["upperdir"],
-		opts["workdir"],
-		lowerDirs,
-	), nil
-}
-
-// parseKVOptions parses a comma-separated "key=value" string into a map.
-// Handles key-only fields (empty string value) and trims surrounding spaces.
-func parseKVOptions(opts string) map[string]string {
-	m := make(map[string]string)
-	for _, field := range strings.Split(opts, ",") {
-		kv := strings.SplitN(field, "=", 2)
-		switch len(kv) {
-		case 2:
-			m[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
-		case 1:
-			if key := strings.TrimSpace(kv[0]); key != "" {
-				m[key] = ""
-			}
-		}
-	}
-	return m
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// NewOverlayInfo — programmatic construction
-// ─────────────────────────────────────────────────────────────────────────────
-
-// cleanPath applies filepath.Clean but preserves empty strings.
-// filepath.Clean("") returns "." which is wrong for absent upperdir/workdir.
-func cleanPath(p string) string {
-	if p == "" {
-		return ""
-	}
-	if c := filepath.Clean(p); c != "." {
-		return c
-	}
-	return ""
-}
 
 // NewOverlayInfo constructs an [OverlayInfo] from explicit directory paths.
 // Use when the overlay metadata is already known (e.g. from Snapshotter.Mounts).
@@ -243,31 +154,61 @@ func (o *OverlayInfo) buildLayers() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// overlayInfoFromMountFile — test-only helper using moby GetMountsFromReader
+// Shared helpers (all platforms)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// overlayInfoFromMountFile reads mountinfo from a file path (rather than
-// /proc/self/mountinfo) and returns the overlay info for mergedDir.
-// Exposed to tests via export_test.go; not part of the public API.
-func overlayInfoFromMountFile(mountinfoPath, mergedDir string) (*OverlayInfo, error) {
-	mergedDir = filepath.Clean(mergedDir)
-
-	f, err := os.Open(mountinfoPath)
-	if err != nil {
-		return nil, fmt.Errorf("overlay: open %s: %w", mountinfoPath, err)
+// cleanPath applies filepath.Clean but preserves empty strings.
+// filepath.Clean("") returns "." which is wrong for absent upperdir/workdir.
+func cleanPath(p string) string {
+	if p == "" {
+		return ""
 	}
-	defer f.Close()
-
-	mounts, err := mountinfo.GetMountsFromReader(f, mountinfo.FSTypeFilter("overlay"))
-	if err != nil {
-		return nil, fmt.Errorf("overlay: parse %s: %w", mountinfoPath, err)
+	if c := filepath.Clean(p); c != "." {
+		return c
 	}
+	return ""
+}
 
-	for _, m := range mounts {
-		if filepath.Clean(m.Mountpoint) != mergedDir {
-			continue
+// parseKVOptions parses a comma-separated "key=value" string into a map.
+// Handles key-only fields (empty string value) and trims surrounding spaces.
+// Used by overlay_linux.go and overlay_parser.go to decode VFSOptions.
+func parseKVOptions(opts string) map[string]string {
+	m := make(map[string]string)
+	for _, field := range strings.Split(opts, ",") {
+		kv := strings.SplitN(field, "=", 2)
+		switch len(kv) {
+		case 2:
+			m[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+		case 1:
+			if key := strings.TrimSpace(kv[0]); key != "" {
+				m[key] = ""
+			}
 		}
-		return overlayInfoFromMountinfoEntry(m, mergedDir)
 	}
-	return nil, fmt.Errorf("overlay: %w: %q", ErrMountNotFound, mergedDir)
+	return m
+}
+
+// overlayInfoFromVFSOptions builds an [OverlayInfo] from a VFSOptions string
+// and a mount point. This helper is shared between the Linux moby path and the
+// cross-platform pure-Go parser so the conversion logic is never duplicated.
+func overlayInfoFromVFSOptions(vfsOptions, mergedDir string) (*OverlayInfo, error) {
+	opts := parseKVOptions(vfsOptions)
+
+	lower := opts["lowerdir"]
+	if lower == "" {
+		return nil, fmt.Errorf("overlay: mount at %q has no lowerdir in options %q",
+			mergedDir, vfsOptions)
+	}
+
+	lowerDirs := strings.Split(lower, ":")
+	for i, d := range lowerDirs {
+		lowerDirs[i] = filepath.Clean(d)
+	}
+
+	return NewOverlayInfo(
+		mergedDir,
+		opts["upperdir"],
+		opts["workdir"],
+		lowerDirs,
+	), nil
 }
