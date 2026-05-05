@@ -12,34 +12,34 @@ import (
 	"sync"
 	"time"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FakeWatcher — in-memory Watcher for unit tests
 // ─────────────────────────────────────────────────────────────────────────────
 
-// FakeWatcher is a [fanwatch.Watcher] that emits events injected by the test.
+// FakeWatcher is a [fswatch.Watcher] that emits events injected by the test.
 // It never touches the filesystem or the fanotify subsystem.
 type FakeWatcher struct {
 	mu     sync.Mutex
-	out    chan *fanwatch.RawEvent
+	out    chan *fswatch.RawEvent
 	closed bool
 }
 
 // NewFakeWatcher returns a [FakeWatcher] with the given event channel buffer.
 func NewFakeWatcher(bufSize int) *FakeWatcher {
 	return &FakeWatcher{
-		out: make(chan *fanwatch.RawEvent, bufSize),
+		out: make(chan *fswatch.RawEvent, bufSize),
 	}
 }
 
-// Watch implements [fanwatch.Watcher].
-func (f *FakeWatcher) Watch(_ context.Context) (<-chan *fanwatch.RawEvent, error) {
+// Watch implements [fswatch.Watcher].
+func (f *FakeWatcher) Watch(_ context.Context) (<-chan *fswatch.RawEvent, error) {
 	return f.out, nil
 }
 
-// Close implements [fanwatch.Watcher]. Safe to call multiple times.
+// Close implements [fswatch.Watcher]. Safe to call multiple times.
 func (f *FakeWatcher) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -50,11 +50,11 @@ func (f *FakeWatcher) Close() error {
 	return nil
 }
 
-// Send injects a single [fanwatch.RawEvent]. Blocks when channel is full.
-func (f *FakeWatcher) Send(e *fanwatch.RawEvent) { f.out <- e }
+// Send injects a single [fswatch.RawEvent]. Blocks when channel is full.
+func (f *FakeWatcher) Send(e *fswatch.RawEvent) { f.out <- e }
 
 // SendMany injects multiple events in order.
-func (f *FakeWatcher) SendMany(events []*fanwatch.RawEvent) {
+func (f *FakeWatcher) SendMany(events []*fswatch.RawEvent) {
 	for _, e := range events {
 		f.out <- e
 	}
@@ -64,16 +64,16 @@ func (f *FakeWatcher) SendMany(events []*fanwatch.RawEvent) {
 // RawEventBuilder — fluent builder for RawEvent test fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-// RawEventBuilder constructs [fanwatch.RawEvent] values for tests.
+// RawEventBuilder constructs [fswatch.RawEvent] values for tests.
 type RawEventBuilder struct {
-	event fanwatch.RawEvent
+	event fswatch.RawEvent
 }
 
 // NewRawEvent returns a builder pre-populated with sensible defaults.
 func NewRawEvent() *RawEventBuilder {
 	return &RawEventBuilder{
-		event: fanwatch.RawEvent{
-			Mask:      fanwatch.MaskReadOnly,
+		event: fswatch.RawEvent{
+			Mask:      fswatch.MaskReadOnly,
 			PID:       1000,
 			Path:      "/merged/test/file.txt",
 			Timestamp: time.Now(),
@@ -82,14 +82,14 @@ func NewRawEvent() *RawEventBuilder {
 }
 
 // WithMask sets the event mask.
-func (b *RawEventBuilder) WithMask(m fanwatch.EventMask) *RawEventBuilder {
+func (b *RawEventBuilder) WithMask(m fswatch.EventMask) *RawEventBuilder {
 	b.event.Mask = m
 	return b
 }
 
 // WithOp sets the event mask to a single operation.
-func (b *RawEventBuilder) WithOp(op fanwatch.Op) *RawEventBuilder {
-	b.event.Mask = fanwatch.EventMask(op)
+func (b *RawEventBuilder) WithOp(op fswatch.Op) *RawEventBuilder {
+	b.event.Mask = fswatch.EventMask(op)
 	return b
 }
 
@@ -111,9 +111,9 @@ func (b *RawEventBuilder) WithTimestamp(t time.Time) *RawEventBuilder {
 	return b
 }
 
-// Build returns a pointer to the constructed [fanwatch.RawEvent].
+// Build returns a pointer to the constructed [fswatch.RawEvent].
 // Each call returns a fresh copy.
-func (b *RawEventBuilder) Build() *fanwatch.RawEvent {
+func (b *RawEventBuilder) Build() *fswatch.RawEvent {
 	e := b.event
 	return &e
 }
@@ -122,12 +122,12 @@ func (b *RawEventBuilder) Build() *fanwatch.RawEvent {
 // EnrichedEventBuilder — fluent builder for EnrichedEvent test fixtures
 // ─────────────────────────────────────────────────────────────────────────────
 
-// EnrichedEventBuilder constructs [fanwatch.EnrichedEvent] values for tests.
+// EnrichedEventBuilder constructs [fswatch.EnrichedEvent] values for tests.
 type EnrichedEventBuilder struct {
 	raw     *RawEventBuilder
-	overlay *fanwatch.OverlayInfo
-	layer   *fanwatch.SnapshotLayer
-	process *fanwatch.ProcessInfo
+	overlay *fswatch.OverlayInfo
+	layer   *fswatch.SnapshotLayer
+	process *fswatch.ProcessInfo
 	attrs   map[string]any
 }
 
@@ -140,13 +140,13 @@ func NewEnrichedEvent() *EnrichedEventBuilder {
 }
 
 // WithMask sets the event mask.
-func (b *EnrichedEventBuilder) WithMask(m fanwatch.EventMask) *EnrichedEventBuilder {
+func (b *EnrichedEventBuilder) WithMask(m fswatch.EventMask) *EnrichedEventBuilder {
 	b.raw.WithMask(m)
 	return b
 }
 
 // WithOp sets the mask to a single operation.
-func (b *EnrichedEventBuilder) WithOp(op fanwatch.Op) *EnrichedEventBuilder {
+func (b *EnrichedEventBuilder) WithOp(op fswatch.Op) *EnrichedEventBuilder {
 	b.raw.WithOp(op)
 	return b
 }
@@ -164,19 +164,19 @@ func (b *EnrichedEventBuilder) WithPath(path string) *EnrichedEventBuilder {
 }
 
 // WithOverlay attaches overlay info.
-func (b *EnrichedEventBuilder) WithOverlay(o *fanwatch.OverlayInfo) *EnrichedEventBuilder {
+func (b *EnrichedEventBuilder) WithOverlay(o *fswatch.OverlayInfo) *EnrichedEventBuilder {
 	b.overlay = o
 	return b
 }
 
 // WithSourceLayer attaches a layer.
-func (b *EnrichedEventBuilder) WithSourceLayer(l *fanwatch.SnapshotLayer) *EnrichedEventBuilder {
+func (b *EnrichedEventBuilder) WithSourceLayer(l *fswatch.SnapshotLayer) *EnrichedEventBuilder {
 	b.layer = l
 	return b
 }
 
 // WithProcess attaches process info.
-func (b *EnrichedEventBuilder) WithProcess(p *fanwatch.ProcessInfo) *EnrichedEventBuilder {
+func (b *EnrichedEventBuilder) WithProcess(p *fswatch.ProcessInfo) *EnrichedEventBuilder {
 	b.process = p
 	return b
 }
@@ -187,15 +187,15 @@ func (b *EnrichedEventBuilder) WithAttr(key string, value any) *EnrichedEventBui
 	return b
 }
 
-// Build returns the constructed [fanwatch.EnrichedEvent].
-func (b *EnrichedEventBuilder) Build() *fanwatch.EnrichedEvent {
+// Build returns the constructed [fswatch.EnrichedEvent].
+func (b *EnrichedEventBuilder) Build() *fswatch.EnrichedEvent {
 	raw := b.raw.Build()
-	e := &fanwatch.EnrichedEvent{
-		Event: fanwatch.Event{
-			RawEvent:  *raw,
-			Dir:       filepath.Dir(raw.Path),
-			Name:      filepath.Base(raw.Path),
-			WatcherID: "fake",
+	e := &fswatch.EnrichedEvent{
+		Event: fswatch.Event{
+			RawEvent: *raw,
+			Dir:      filepath.Dir(raw.Path),
+			Name:     filepath.Base(raw.Path),
+			// WatcherID promoted from embedded RawEvent.
 		},
 		Overlay:     b.overlay,
 		SourceLayer: b.layer,
@@ -223,8 +223,8 @@ type OverlayFixture struct {
 	WorkDir string
 	// LowerDirs are the simulated read-only layer paths, topmost first.
 	LowerDirs []string
-	// Overlay is the [fanwatch.OverlayInfo] built from these paths.
-	Overlay *fanwatch.OverlayInfo
+	// Overlay is the [fswatch.OverlayInfo] built from these paths.
+	Overlay *fswatch.OverlayInfo
 }
 
 // NewOverlayFixture creates a temporary overlay structure with n lower layers
@@ -253,7 +253,7 @@ func NewOverlayFixture(root string, lowerLayerCount int) (*OverlayFixture, error
 		lowerDirs[i] = d
 	}
 
-	overlay := fanwatch.NewOverlayInfo(merged, upper, work, lowerDirs)
+	overlay := fswatch.NewOverlayInfo(merged, upper, work, lowerDirs)
 
 	return &OverlayFixture{
 		Root:      root,
@@ -307,16 +307,16 @@ func (f *OverlayFixture) MergedPath(relPath string) string {
 // CapturingMiddleware — records events for test assertions
 // ─────────────────────────────────────────────────────────────────────────────
 
-// CapturingMiddleware records every [fanwatch.EnrichedEvent] that reaches the
+// CapturingMiddleware records every [fswatch.EnrichedEvent] that reaches the
 // wrapped handler. Use Events() or WaitForN() to assert pipeline output.
 type CapturingMiddleware struct {
 	mu     sync.Mutex
-	events []*fanwatch.EnrichedEvent
+	events []*fswatch.EnrichedEvent
 }
 
-// Wrap implements [fanwatch.Middleware].
-func (c *CapturingMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
-	return fanwatch.HandlerFunc(func(ctx context.Context, e *fanwatch.EnrichedEvent) error {
+// Wrap implements [fswatch.Middleware].
+func (c *CapturingMiddleware) Wrap(next fswatch.Handler) fswatch.Handler {
+	return fswatch.HandlerFunc(func(ctx context.Context, e *fswatch.EnrichedEvent) error {
 		clone := e.Clone()
 		c.mu.Lock()
 		c.events = append(c.events, clone)
@@ -326,10 +326,10 @@ func (c *CapturingMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
 }
 
 // Events returns a snapshot copy of all captured events.
-func (c *CapturingMiddleware) Events() []*fanwatch.EnrichedEvent {
+func (c *CapturingMiddleware) Events() []*fswatch.EnrichedEvent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]*fanwatch.EnrichedEvent, len(c.events))
+	out := make([]*fswatch.EnrichedEvent, len(c.events))
 	copy(out, c.events)
 	return out
 }
@@ -369,24 +369,24 @@ func (c *CapturingMiddleware) Reset() {
 // Specialised handler doubles
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ErroringHandler is a [fanwatch.Handler] that always returns the given error.
+// ErroringHandler is a [fswatch.Handler] that always returns the given error.
 type ErroringHandler struct {
 	Err error
 }
 
-// Handle implements [fanwatch.Handler].
-func (e *ErroringHandler) Handle(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+// Handle implements [fswatch.Handler].
+func (e *ErroringHandler) Handle(_ context.Context, _ *fswatch.EnrichedEvent) error {
 	return e.Err
 }
 
-// PanicHandler is a [fanwatch.Handler] that always panics.
+// PanicHandler is a [fswatch.Handler] that always panics.
 // Use to exercise [middleware.RecoveryMiddleware].
 type PanicHandler struct {
 	Value any
 }
 
-// Handle implements [fanwatch.Handler].
-func (p *PanicHandler) Handle(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+// Handle implements [fswatch.Handler].
+func (p *PanicHandler) Handle(_ context.Context, _ *fswatch.EnrichedEvent) error {
 	panic(p.Value)
 }
 
@@ -394,16 +394,16 @@ func (p *PanicHandler) Handle(_ context.Context, _ *fanwatch.EnrichedEvent) erro
 // Event batch helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-// MakeReadOnlyEvents produces n [fanwatch.RawEvent] values cycling through
+// MakeReadOnlyEvents produces n [fswatch.RawEvent] values cycling through
 // ACCESS, OPEN, OPEN_EXEC, and CLOSE_NOWRITE masks. All paths are under mergedDir.
-func MakeReadOnlyEvents(mergedDir string, n int) []*fanwatch.RawEvent {
-	ops := []fanwatch.Op{
-		fanwatch.OpAccess,
-		fanwatch.OpOpen,
-		fanwatch.OpOpenExec,
-		fanwatch.OpCloseNoWrite,
+func MakeReadOnlyEvents(mergedDir string, n int) []*fswatch.RawEvent {
+	ops := []fswatch.Op{
+		fswatch.OpAccess,
+		fswatch.OpOpen,
+		fswatch.OpOpenExec,
+		fswatch.OpCloseNoWrite,
 	}
-	events := make([]*fanwatch.RawEvent, n)
+	events := make([]*fswatch.RawEvent, n)
 	for i := range n {
 		events[i] = NewRawEvent().
 			WithOp(ops[i%len(ops)]).
@@ -415,19 +415,19 @@ func MakeReadOnlyEvents(mergedDir string, n int) []*fanwatch.RawEvent {
 }
 
 // MakeMixedEvents produces n events interleaving read-only and modification ops.
-// Useful for testing that [fanwatch.ReadOnlyFilter] correctly drops writes.
-func MakeMixedEvents(mergedDir string, n int) []*fanwatch.RawEvent {
-	ops := []fanwatch.Op{
-		fanwatch.OpAccess,
-		fanwatch.OpModify,
-		fanwatch.OpOpen,
-		fanwatch.OpCreate,
-		fanwatch.OpOpenExec,
-		fanwatch.OpDelete,
-		fanwatch.OpCloseNoWrite,
-		fanwatch.OpCloseWrite,
+// Useful for testing that [fswatch.ReadOnlyFilter] correctly drops writes.
+func MakeMixedEvents(mergedDir string, n int) []*fswatch.RawEvent {
+	ops := []fswatch.Op{
+		fswatch.OpAccess,
+		fswatch.OpModify,
+		fswatch.OpOpen,
+		fswatch.OpCreate,
+		fswatch.OpOpenExec,
+		fswatch.OpDelete,
+		fswatch.OpCloseNoWrite,
+		fswatch.OpCloseWrite,
 	}
-	events := make([]*fanwatch.RawEvent, n)
+	events := make([]*fswatch.RawEvent, n)
 	for i := range n {
 		events[i] = NewRawEvent().
 			WithOp(ops[i%len(ops)]).
@@ -438,9 +438,9 @@ func MakeMixedEvents(mergedDir string, n int) []*fanwatch.RawEvent {
 	return events
 }
 
-// ProcessInfoFixture builds a [fanwatch.ProcessInfo] without requiring /proc.
-func ProcessInfoFixture(pid int32, comm, exe string) *fanwatch.ProcessInfo {
-	return &fanwatch.ProcessInfo{
+// ProcessInfoFixture builds a [fswatch.ProcessInfo] without requiring /proc.
+func ProcessInfoFixture(pid int32, comm, exe string) *fswatch.ProcessInfo {
+	return &fswatch.ProcessInfo{
 		PID:     pid,
 		Comm:    comm,
 		Exe:     exe,
@@ -448,12 +448,12 @@ func ProcessInfoFixture(pid int32, comm, exe string) *fanwatch.ProcessInfo {
 	}
 }
 
-// UpperLayerFixture returns a [fanwatch.SnapshotLayer] representing an upperdir.
-func UpperLayerFixture(path string) *fanwatch.SnapshotLayer {
-	return &fanwatch.SnapshotLayer{Index: 0, Path: path, IsUpper: true}
+// UpperLayerFixture returns a [fswatch.SnapshotLayer] representing an upperdir.
+func UpperLayerFixture(path string) *fswatch.SnapshotLayer {
+	return &fswatch.SnapshotLayer{Index: 0, Path: path, IsUpper: true}
 }
 
-// LowerLayerFixture returns a [fanwatch.SnapshotLayer] representing a lower layer.
-func LowerLayerFixture(index int, path string) *fanwatch.SnapshotLayer {
-	return &fanwatch.SnapshotLayer{Index: index, Path: path, IsUpper: false}
+// LowerLayerFixture returns a [fswatch.SnapshotLayer] representing a lower layer.
+func LowerLayerFixture(index int, path string) *fswatch.SnapshotLayer {
+	return &fswatch.SnapshotLayer{Index: index, Path: path, IsUpper: false}
 }

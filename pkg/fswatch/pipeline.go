@@ -1,4 +1,4 @@
-package fanwatch
+package fswatch
 
 import (
 	"context"
@@ -144,6 +144,15 @@ func (p *Pipeline) RunSync(ctx context.Context, in <-chan *RawEvent, onError fun
 			}
 
 			received.Add(1)
+
+			// Notify callers of queue overflow via the error channel so they
+			// can react with errors.Is(err, ErrQueueOverflow).
+			if raw.IsOverflow() {
+				addErr(ErrQueueOverflow)
+				filtered.Add(1)
+				continue
+			}
+
 			enriched := p.toEnriched(raw)
 
 			if !p.passesFilters(ctx, enriched) {
@@ -231,10 +240,10 @@ func (p *Pipeline) Run(ctx context.Context, in <-chan *RawEvent) (<-chan Pipelin
 func (p *Pipeline) toEnriched(raw *RawEvent) *EnrichedEvent {
 	return &EnrichedEvent{
 		Event: Event{
-			RawEvent:  *raw,
-			Dir:       filepath.Dir(raw.Path),
-			Name:      filepath.Base(raw.Path),
-			WatcherID: raw.WatcherID,
+			RawEvent: *raw,
+			Dir:      filepath.Dir(raw.Path),
+			Name:     filepath.Base(raw.Path),
+			// WatcherID is promoted from the embedded RawEvent - no explicit copy needed.
 		},
 	}
 }

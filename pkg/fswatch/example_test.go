@@ -1,4 +1,4 @@
-package fanwatch_test
+package fswatch_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 	"github.com/bons/bons-ci/pkg/fswatch/testutil"
 )
 
@@ -14,27 +14,27 @@ import (
 // read-only filesystem events on a Docker overlay mount.
 func ExampleNewPipeline_readOnlyObserver() {
 	// In production, replace with:
-	//   overlay, err := fanwatch.OverlayInfoFromMount("/var/lib/docker/overlay2/abc/merged")
-	overlay := fanwatch.NewOverlayInfo(
+	//   overlay, err := fswatch.OverlayInfoFromMount("/var/lib/docker/overlay2/abc/merged")
+	overlay := fswatch.NewOverlayInfo(
 		"/merged", "/upper", "/work",
 		[]string{"/lower1", "/lower0"},
 	)
 	overlay.ID = "my-container-snapshot"
 
 	// Use a counting handler so the example output is deterministic.
-	counter := &fanwatch.CountingHandler{}
+	counter := &fswatch.CountingHandler{}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithReadOnlyPipeline(),         // filter: only ACCESS/OPEN/EXEC
-		fanwatch.WithOverlayEnrichment(overlay), // transform: add layer metadata
-		fanwatch.WithHandler(counter),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithReadOnlyPipeline(),       // filter: only ACCESS/OPEN/EXEC
+		fswatch.WithOverlayEnrichment(overlay), // transform: add layer metadata
+		fswatch.WithHandler(counter),
+		fswatch.WithWorkers(1),
 	)
 
-	// Use FakeWatcher in this example (real code uses fanwatch.NewWatcher).
+	// Use FakeWatcher in this example (real code uses fswatch.NewWatcher).
 	w := testutil.NewFakeWatcher(16)
 	w.Send(testutil.NewRawEvent().
-		WithOp(fanwatch.OpAccess).
+		WithOp(fswatch.OpAccess).
 		WithPath("/merged/usr/bin/python3").
 		WithPID(1234).
 		Build())
@@ -60,30 +60,30 @@ func ExampleNewPipeline_customFiltersAndTransformers() {
 		"/merged/usr/lib/libssl.so": true,
 		"/merged/app/main":          true,
 	}
-	externalAllow := fanwatch.ExternalFilter(func(path string) bool {
+	externalAllow := fswatch.ExternalFilter(func(path string) bool {
 		return allowedPaths[path]
 	})
 
 	// Add deployment metadata to every event.
-	deploymentAttrs := fanwatch.StaticAttrTransformer(map[string]any{
+	deploymentAttrs := fswatch.StaticAttrTransformer(map[string]any{
 		"datacenter": "us-east-1a",
 		"pod":        "worker-7",
 	})
 
-	collector := &fanwatch.CollectingHandler{}
+	collector := &fswatch.CollectingHandler{}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithFilter(fanwatch.ReadOnlyFilter()),
-		fanwatch.WithFilter(externalAllow),
-		fanwatch.WithTransformer(deploymentAttrs),
-		fanwatch.WithHandler(collector),
-		fanwatch.WithWorkers(2),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithFilter(fswatch.ReadOnlyFilter()),
+		fswatch.WithFilter(externalAllow),
+		fswatch.WithTransformer(deploymentAttrs),
+		fswatch.WithHandler(collector),
+		fswatch.WithWorkers(2),
 	)
 
 	w := testutil.NewFakeWatcher(16)
-	w.Send(testutil.NewRawEvent().WithPath("/merged/usr/lib/libssl.so").WithOp(fanwatch.OpOpen).Build())
-	w.Send(testutil.NewRawEvent().WithPath("/merged/proc/kcore").WithOp(fanwatch.OpOpen).Build()) // blocked
-	w.Send(testutil.NewRawEvent().WithPath("/merged/app/main").WithOp(fanwatch.OpOpenExec).Build())
+	w.Send(testutil.NewRawEvent().WithPath("/merged/usr/lib/libssl.so").WithOp(fswatch.OpOpen).Build())
+	w.Send(testutil.NewRawEvent().WithPath("/merged/proc/kcore").WithOp(fswatch.OpOpen).Build()) // blocked
+	w.Send(testutil.NewRawEvent().WithPath("/merged/app/main").WithOp(fswatch.OpOpenExec).Build())
 	w.Close()
 
 	ctx := context.Background()
@@ -99,13 +99,13 @@ func ExampleNewPipeline_customFiltersAndTransformers() {
 // ExampleNewPipeline_multipleHandlers shows fanning events out to both a
 // log handler and an audit channel simultaneously.
 func ExampleNewPipeline_multipleHandlers() {
-	channelH, auditCh := fanwatch.NewChannelHandler(64)
-	counter := &fanwatch.CountingHandler{}
+	channelH, auditCh := fswatch.NewChannelHandler(64)
+	counter := &fswatch.CountingHandler{}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithReadOnlyPipeline(),
-		fanwatch.WithHandler(fanwatch.MultiHandler{channelH, counter}),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithReadOnlyPipeline(),
+		fswatch.WithHandler(fswatch.MultiHandler{channelH, counter}),
+		fswatch.WithWorkers(1),
 	)
 
 	w := testutil.NewFakeWatcher(8)
@@ -127,21 +127,21 @@ func ExampleNewPipeline_multipleHandlers() {
 // ExampleConditionalTransformer demonstrates applying a transformer only
 // to events for files with a specific extension.
 func ExampleConditionalTransformer() {
-	isSharedLib := func(e *fanwatch.EnrichedEvent) bool {
+	isSharedLib := func(e *fswatch.EnrichedEvent) bool {
 		name := e.Name
 		return len(name) > 3 && name[len(name)-3:] == ".so"
 	}
 
-	markSharedLib := fanwatch.StaticAttrTransformer(map[string]any{
+	markSharedLib := fswatch.StaticAttrTransformer(map[string]any{
 		"file_type": "shared_library",
 	})
 
-	conditional := fanwatch.ConditionalTransformer{
+	conditional := fswatch.ConditionalTransformer{
 		Predicate: isSharedLib,
 		Inner:     markSharedLib,
 	}
 
-	events := []*fanwatch.EnrichedEvent{
+	events := []*fswatch.EnrichedEvent{
 		testutil.NewEnrichedEvent().WithPath("/merged/lib/libssl.so").Build(),
 		testutil.NewEnrichedEvent().WithPath("/merged/app/main").Build(),
 	}

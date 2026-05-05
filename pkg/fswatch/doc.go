@@ -18,53 +18,105 @@
 //   - It watches only the merged directory via fanotify.
 //   - Each event is enriched with the corresponding [OverlayInfo] that records
 //     the lowerdir stack, upperdir, workdir, and merged path.
-//   - A [PathResolver] can determine which layer a path originates from.
+//   - [OverlayInfo.ResolveLayer] determines which layer a path originates from.
 //
 // # Pipeline Model
 //
-//	Watcher ──► raw events ──► Filter ──► Transformer ──► Handler
-//	                                          │
-//	                                    (adds OverlayInfo,
-//	                                     ProcessInfo, attrs)
+//	Watcher ──► chan *RawEvent ──► Pipeline
+//	                                  │
+//	                   ┌──────────────┼───────────────┐
+//	                   ▼              ▼                ▼
+//	               Filter        Transformer        Handler
+//	           (drop/pass)      (enrich event)   (side effects)
+//	                   │              │                │
+//	             ReadOnly?      OverlayEnricher   LogHandler
+//	             PathPrefix?    ProcessEnricher   CountingHandler
+//	             PIDFilter?     FileStatTransform ChannelHandler
+//	             ExternalFn?    StaticAttrs       ...
+//	                   └──────────────┴───────────────┘
+//	                                  │
+//	                             Middleware
+//	                        (OTEL, Recovery, Logging)
 //
 // Each stage is independently replaceable and composable. Stages communicate
 // through typed Go channels; no stage holds a reference to another.
 //
 // # Quick Start
 //
-//	overlay, _ := fanwatch.OverlayInfoFromMount("/var/lib/docker/overlay2/abc/merged")
+//	overlay, err := fswatch.OverlayInfoFromMount("/var/lib/docker/overlay2/abc/merged")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
 //
-//	w, err := fanwatch.NewWatcher(
-//	    fanwatch.WithMergedDir("/var/lib/docker/overlay2/abc/merged"),
-//	    fanwatch.WithOverlay(overlay),
-//	    fanwatch.WithMask(fanwatch.MaskReadOnly),
+//	w, err := fswatch.NewWatcher(
+//	    fswatch.WithOverlay(overlay),
+//	    fswatch.WithMask(fswatch.MaskReadOnly),
 //	)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer w.Close()
 //
-//	pipeline := fanwatch.NewPipeline(
-//	    fanwatch.WithFilter(filter.ReadOnly()),
-//	    fanwatch.WithTransformer(transform.OverlayEnricher(overlay)),
-//	    fanwatch.WithTransformer(transform.ProcessEnricher()),
-//	    fanwatch.WithHandler(fanwatch.LogHandler(slog.Default())),
+//	pipeline := fswatch.NewPipeline(
+//	    fswatch.WithReadOnlyPipeline(),
+//	    fswatch.WithFullEnrichment(overlay),
+//	    fswatch.WithHandler(fswatch.LogHandler(slog.Default(), slog.LevelInfo)),
 //	)
 //
 //	ctx, cancel := context.WithCancel(context.Background())
 //	defer cancel()
 //
-//	rawCh := w.Watch(ctx)
-//	pipeline.Run(ctx, rawCh)
+//	rawCh, err := w.Watch(ctx)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	result := pipeline.RunSync(ctx, rawCh, func(err error) {
+//	    slog.Error("pipeline error", "err", err)
+//	})
+//	slog.Info("done", "received", result.Received, "handled", result.Handled)
+//
+// # Containerd Integration
+//
+// The [snapshot] sub-package provides overlay resolution via the official
+// containerd libraries:
+//
+//	import "github.com/bons/bons-ci/pkg/fswatch/snapshot"
+//
+//	// From a running mount (fastest):
+//	info, err := snapshot.OverlayInfoFromMergedDir("/run/containerd/io.containerd.runtime.v2.task/k8s.io/abc/rootfs")
+//
+//	// From a Snapshotter.Mounts() result:
+//	mounts, _ := snapshotter.Mounts(ctx, snapshotKey)
+//	info, err := snapshot.MountsToOverlayInfo(mounts, mergedDir)
+//
+//	// Enrich every event automatically with caching:
+//	enricher := snapshot.NewContainerdEnricher(nil) // nil = live-mount only
+//	pipeline := fswatch.NewPipeline(
+//	    fswatch.WithTransformer(enricher),
+//	    fswatch.WithHandler(myHandler),
+//	)
 //
 // # Build Requirements
 //
 // fanwatch requires Linux 5.1+ for fanotify filesystem-level marking, and
 // CAP_SYS_ADMIN capability (or equivalent in a privileged container). On
-// non-Linux platforms the Watcher compiles but Watch() returns an error.
+// non-Linux platforms the Watcher compiles but [Watcher.Watch] returns
+// [ErrNotSupported].
+//
+// Build with -mod=vendor (see Makefile):
+//
+//	make build
+//	make test
 //
 // # OTEL Integration
 //
-// Full OpenTelemetry tracing and metrics are available via [middleware.OTEL]:
+// Full OpenTelemetry tracing and metrics are available via [middleware.OTELMiddleware]:
 //
-//	pipeline := fanwatch.NewPipeline(
-//	    fanwatch.WithMiddleware(middleware.NewOTEL(tracer, meter)),
-//	    ...
+//	import "github.com/bons/bons-ci/pkg/fswatch/middleware"
+//
+//	otelMW, _ := middleware.NewOTEL(tracer, meter)
+//	pipeline := fswatch.NewPipeline(
+//	    fswatch.WithMiddleware(otelMW),
+//	    fswatch.WithHandler(myHandler),
 //	)
-package fanwatch
+package fswatch

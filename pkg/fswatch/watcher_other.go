@@ -1,6 +1,6 @@
 //go:build !linux
 
-package fanwatch
+package fswatch
 
 import "context"
 

@@ -1,17 +1,16 @@
 package snapshot_test
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"strings"
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	ctdmount "github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/snapshots"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 	"github.com/bons/bons-ci/pkg/fswatch/snapshot"
 	"github.com/bons/bons-ci/pkg/fswatch/testutil"
 )
@@ -333,7 +332,7 @@ func TestSnapshotAncestors_NotFound(t *testing.T) {
 func TestSnapshotInfoTransformer_AttachesLabels(t *testing.T) {
 	sn := buildFakeSnapshotter()
 
-	keyFn := func(e *fanwatch.EnrichedEvent) string {
+	keyFn := func(e *fswatch.EnrichedEvent) string {
 		// Return the active snapshot key for any event.
 		return "sha256:abc123"
 	}
@@ -366,7 +365,7 @@ func TestSnapshotInfoTransformer_AttachesLabels(t *testing.T) {
 
 func TestSnapshotInfoTransformer_SkipsEmptyKey(t *testing.T) {
 	sn := buildFakeSnapshotter()
-	tr := snapshot.SnapshotInfoTransformer(sn, func(_ *fanwatch.EnrichedEvent) string { return "" })
+	tr := snapshot.SnapshotInfoTransformer(sn, func(_ *fswatch.EnrichedEvent) string { return "" })
 	e := testutil.NewEnrichedEvent().Build()
 
 	if err := tr.Transform(context.Background(), e); err != nil {
@@ -443,7 +442,7 @@ func TestMountEnricher_SkipsPathOutsideMergedDir(t *testing.T) {
 func TestSnapshotterEnricher_ResolvesViaSnapshotter(t *testing.T) {
 	sn := buildFakeSnapshotter()
 
-	enricher := snapshot.NewSnapshotterEnricher(sn, "/merged", func(e *fanwatch.EnrichedEvent) string {
+	enricher := snapshot.NewSnapshotterEnricher(sn, "/merged", func(e *fswatch.EnrichedEvent) string {
 		return "sha256:abc123"
 	})
 
@@ -465,7 +464,7 @@ func TestSnapshotterEnricher_ResolvesViaSnapshotter(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestSnapshotKeyFilter_PassesMatchingLayer(t *testing.T) {
-	overlay := fanwatch.NewOverlayInfo(
+	overlay := fswatch.NewOverlayInfo(
 		"/merged",
 		"/snapshots/sha256-active/fs",
 		"/snapshots/sha256-active/work",
@@ -544,22 +543,22 @@ func TestPipeline_WithSnapshotEnricher_EndToEnd(t *testing.T) {
 		t.Fatalf("NewMountEnricher: %v", err)
 	}
 
-	collector := &fanwatch.CollectingHandler{}
+	collector := &fswatch.CollectingHandler{}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithFilter(fanwatch.ReadOnlyFilter()),
-		fanwatch.WithTransformer(enricher),
-		fanwatch.WithHandler(collector),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithFilter(fswatch.ReadOnlyFilter()),
+		fswatch.WithTransformer(enricher),
+		fswatch.WithHandler(collector),
+		fswatch.WithWorkers(1),
 	)
 
 	w := testutil.NewFakeWatcher(8)
 	w.Send(testutil.NewRawEvent().
-		WithOp(fanwatch.OpOpen).
+		WithOp(fswatch.OpOpen).
 		WithPath("/merged/usr/bin/python3").
 		Build())
 	w.Send(testutil.NewRawEvent().
-		WithOp(fanwatch.OpOpen).
+		WithOp(fswatch.OpOpen).
 		WithPath("/proc/1/maps"). // outside merged dir
 		Build())
 	w.Close()
@@ -602,18 +601,9 @@ func TestSnapshotAncestors_CycleDetected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for cyclic parent chain")
 	}
-	if !errors.Is(err, fmt.Errorf("")) && !containsStr(err.Error(), "cycle") {
+	if !strings.Contains(err.Error(), "cycle") {
 		t.Errorf("expected 'cycle' in error message, got: %v", err)
 	}
 }
 
-func containsStr(s, sub string) bool {
-	return len(s) >= len(sub) && func() bool {
-		for i := 0; i <= len(s)-len(sub); i++ {
-			if s[i:i+len(sub)] == sub {
-				return true
-			}
-		}
-		return false
-	}()
-}
+

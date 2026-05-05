@@ -1,11 +1,11 @@
-package fanwatch_test
+package fswatch_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,6 +107,6 @@ func TestOverlayInfoFromMount_EmptyFile(t *testing.T) {
 //
 // Since Go does not allow accessing unexported identifiers across package
 // boundaries, we use an export_test.go file pattern.
-func overlayInfoFromMountFileExported(mountFile, mergedDir string) (*fanwatch.OverlayInfo, error) {
-	return fanwatch.OverlayInfoFromMountFile(mountFile, mergedDir)
+func overlayInfoFromMountFileExported(mountFile, mergedDir string) (*fswatch.OverlayInfo, error) {
+	return fswatch.OverlayInfoFromMountFile(mountFile, mergedDir)
 }

@@ -9,15 +9,15 @@ import (
 	ctdmount "github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/snapshots"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ContainerdEnricher — transformer using live containerd mount resolution
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ContainerdEnricher is a [fanwatch.Transformer] that populates
-// [fanwatch.EnrichedEvent.Overlay] and [fanwatch.EnrichedEvent.SourceLayer]
+// ContainerdEnricher is a [fswatch.Transformer] that populates
+// [fswatch.EnrichedEvent.Overlay] and [fswatch.EnrichedEvent.SourceLayer]
 // by resolving each event's path against the live containerd overlay mounts.
 //
 // Resolution strategy:
@@ -34,7 +34,7 @@ type ContainerdEnricher struct {
 	snapshotter snapshots.Snapshotter
 
 	mu    sync.RWMutex
-	cache map[string]*fanwatch.OverlayInfo // mergedDir → OverlayInfo
+	cache map[string]*fswatch.OverlayInfo // mergedDir → OverlayInfo
 }
 
 // NewContainerdEnricher constructs a [ContainerdEnricher].
@@ -42,15 +42,15 @@ type ContainerdEnricher struct {
 // sn is optional: pass nil to use only live-mount resolution. When provided,
 // sn.Mounts() is used as a fallback when the path cannot be matched to any
 // known live overlay mount.
-func NewContainerdEnricher(sn snapshots.Snapshotter) fanwatch.Transformer {
+func NewContainerdEnricher(sn snapshots.Snapshotter) fswatch.Transformer {
 	return &ContainerdEnricher{
 		snapshotter: sn,
-		cache:       make(map[string]*fanwatch.OverlayInfo),
+		cache:       make(map[string]*fswatch.OverlayInfo),
 	}
 }
 
-// Transform implements [fanwatch.Transformer].
-func (c *ContainerdEnricher) Transform(ctx context.Context, e *fanwatch.EnrichedEvent) error {
+// Transform implements [fswatch.Transformer].
+func (c *ContainerdEnricher) Transform(ctx context.Context, e *fswatch.EnrichedEvent) error {
 	overlay, err := c.resolveForPath(ctx, e.Path)
 	if err != nil {
 		// Non-fatal: leave overlay fields nil so downstream filters can decide.
@@ -71,7 +71,7 @@ func (c *ContainerdEnricher) Transform(ctx context.Context, e *fanwatch.Enriched
 }
 
 // resolveForPath finds the OverlayInfo whose MergedDir contains path.
-func (c *ContainerdEnricher) resolveForPath(ctx context.Context, path string) (*fanwatch.OverlayInfo, error) {
+func (c *ContainerdEnricher) resolveForPath(ctx context.Context, path string) (*fswatch.OverlayInfo, error) {
 	// Fast path: check cache with read lock.
 	c.mu.RLock()
 	for _, info := range c.cache {
@@ -111,15 +111,15 @@ func (c *ContainerdEnricher) resolveForPath(ctx context.Context, path string) (*
 // containers are started or stopped so new mounts are discovered on next access.
 func (c *ContainerdEnricher) InvalidateCache() {
 	c.mu.Lock()
-	c.cache = make(map[string]*fanwatch.OverlayInfo)
+	c.cache = make(map[string]*fswatch.OverlayInfo)
 	c.mu.Unlock()
 }
 
 // CachedEntries returns a snapshot of the current cache contents.
-func (c *ContainerdEnricher) CachedEntries() map[string]*fanwatch.OverlayInfo {
+func (c *ContainerdEnricher) CachedEntries() map[string]*fswatch.OverlayInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	out := make(map[string]*fanwatch.OverlayInfo, len(c.cache))
+	out := make(map[string]*fswatch.OverlayInfo, len(c.cache))
 	for k, v := range c.cache {
 		out[k] = v
 	}
@@ -130,7 +130,7 @@ func (c *ContainerdEnricher) CachedEntries() map[string]*fanwatch.OverlayInfo {
 // SnapshotterEnricher — enricher backed by snapshots.Snapshotter.Mounts()
 // ─────────────────────────────────────────────────────────────────────────────
 
-// SnapshotterEnricher is a [fanwatch.Transformer] that calls
+// SnapshotterEnricher is a [fswatch.Transformer] that calls
 // snapshots.Snapshotter.Mounts() for each event to resolve overlay structure.
 //
 // Unlike [ContainerdEnricher], this enricher uses the containerd Snapshotter
@@ -143,10 +143,10 @@ func (c *ContainerdEnricher) CachedEntries() map[string]*fanwatch.OverlayInfo {
 type SnapshotterEnricher struct {
 	snapshotter snapshots.Snapshotter
 	mergedDir   string
-	keyFn       func(*fanwatch.EnrichedEvent) string
+	keyFn       func(*fswatch.EnrichedEvent) string
 
 	mu    sync.Mutex
-	cache map[string]*fanwatch.OverlayInfo // snapshotKey → OverlayInfo
+	cache map[string]*fswatch.OverlayInfo // snapshotKey → OverlayInfo
 }
 
 // NewSnapshotterEnricher constructs a [SnapshotterEnricher].
@@ -157,18 +157,18 @@ type SnapshotterEnricher struct {
 func NewSnapshotterEnricher(
 	sn snapshots.Snapshotter,
 	mergedDir string,
-	keyFn func(*fanwatch.EnrichedEvent) string,
-) fanwatch.Transformer {
+	keyFn func(*fswatch.EnrichedEvent) string,
+) fswatch.Transformer {
 	return &SnapshotterEnricher{
 		snapshotter: sn,
 		mergedDir:   mergedDir,
 		keyFn:       keyFn,
-		cache:       make(map[string]*fanwatch.OverlayInfo),
+		cache:       make(map[string]*fswatch.OverlayInfo),
 	}
 }
 
-// Transform implements [fanwatch.Transformer].
-func (s *SnapshotterEnricher) Transform(ctx context.Context, e *fanwatch.EnrichedEvent) error {
+// Transform implements [fswatch.Transformer].
+func (s *SnapshotterEnricher) Transform(ctx context.Context, e *fswatch.EnrichedEvent) error {
 	key := s.keyFn(e)
 	if key == "" {
 		return nil
@@ -192,7 +192,15 @@ func (s *SnapshotterEnricher) Transform(ctx context.Context, e *fanwatch.Enriche
 	return nil
 }
 
-func (s *SnapshotterEnricher) resolveForKey(ctx context.Context, key string) (*fanwatch.OverlayInfo, error) {
+// resolveForKey returns cached overlay info or fetches it from the snapshotter.
+//
+// Pattern: read-lock check → fetch without lock → write-lock check-then-store.
+// The fetch (a gRPC call) is performed WITHOUT holding the mutex so other
+// goroutines are never blocked during slow I/O. A second cache check under the
+// write lock prevents duplicate stores when concurrent goroutines race on the
+// same key.
+func (s *SnapshotterEnricher) resolveForKey(ctx context.Context, key string) (*fswatch.OverlayInfo, error) {
+	// Fast path: read lock — no blocking I/O.
 	s.mu.Lock()
 	if info, ok := s.cache[key]; ok {
 		s.mu.Unlock()
@@ -200,12 +208,19 @@ func (s *SnapshotterEnricher) resolveForKey(ctx context.Context, key string) (*f
 	}
 	s.mu.Unlock()
 
+	// Slow path: fetch from snapshotter WITHOUT holding the mutex.
+	// Multiple goroutines may race here; the write-lock below resolves conflicts.
 	info, err := OverlayInfoFromSnapshotter(ctx, s.snapshotter, key, s.mergedDir)
 	if err != nil {
 		return nil, err
 	}
 
+	// Write lock: store only if another goroutine did not already populate the entry.
 	s.mu.Lock()
+	if existing, ok := s.cache[key]; ok {
+		s.mu.Unlock()
+		return existing, nil // use the value stored by the racing goroutine
+	}
 	s.cache[key] = info
 	s.mu.Unlock()
 	return info, nil
@@ -215,20 +230,20 @@ func (s *SnapshotterEnricher) resolveForKey(ctx context.Context, key string) (*f
 // ContainerdMountEnricher — one-shot enricher for a known set of Mounts
 // ─────────────────────────────────────────────────────────────────────────────
 
-// MountEnricher is a [fanwatch.Transformer] that resolves overlay structure
+// MountEnricher is a [fswatch.Transformer] that resolves overlay structure
 // from a pre-computed []mount.Mount slice (as returned by Snapshotter.Mounts).
 //
 // This is the simplest enricher: construct it once for each container/snapshot,
 // register it in the pipeline, and it resolves every event path.
 type MountEnricher struct {
-	overlay *fanwatch.OverlayInfo
+	overlay *fswatch.OverlayInfo
 }
 
 // NewMountEnricher constructs a [MountEnricher] from a []mount.Mount slice
 // (as returned by snapshots.Snapshotter.Mounts or snapshots.Snapshotter.View).
 //
 // mergedDir is the mount point for the overlay.
-func NewMountEnricher(mounts []ctdmount.Mount, mergedDir string) (fanwatch.Transformer, error) {
+func NewMountEnricher(mounts []ctdmount.Mount, mergedDir string) (fswatch.Transformer, error) {
 	info, err := overlayInfoFromMounts(mounts, mergedDir)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot: build mount enricher: %w", err)
@@ -236,8 +251,8 @@ func NewMountEnricher(mounts []ctdmount.Mount, mergedDir string) (fanwatch.Trans
 	return &MountEnricher{overlay: info}, nil
 }
 
-// Transform implements [fanwatch.Transformer].
-func (m *MountEnricher) Transform(_ context.Context, e *fanwatch.EnrichedEvent) error {
+// Transform implements [fswatch.Transformer].
+func (m *MountEnricher) Transform(_ context.Context, e *fswatch.EnrichedEvent) error {
 	relPath, err := m.overlay.RelPath(e.Path)
 	if err != nil {
 		return nil // path not inside this overlay
@@ -248,19 +263,19 @@ func (m *MountEnricher) Transform(_ context.Context, e *fanwatch.EnrichedEvent) 
 }
 
 // Overlay returns the resolved OverlayInfo for inspection.
-func (m *MountEnricher) Overlay() *fanwatch.OverlayInfo { return m.overlay }
+func (m *MountEnricher) Overlay() *fswatch.OverlayInfo { return m.overlay }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Snapshot-aware filters
 // ─────────────────────────────────────────────────────────────────────────────
 
-// SnapshotKeyFilter returns a [fanwatch.Filter] that passes only events whose
+// SnapshotKeyFilter returns a [fswatch.Filter] that passes only events whose
 // overlay layer paths contain the given snapshot key segment. Useful to isolate
 // a single container's events in a multi-container watcher.
 //
 // Requires [ContainerdEnricher] or [MountEnricher] to have run (Overlay != nil).
-func SnapshotKeyFilter(snapshotKey string) fanwatch.Filter {
-	return fanwatch.FilterFunc(func(_ context.Context, e *fanwatch.EnrichedEvent) bool {
+func SnapshotKeyFilter(snapshotKey string) fswatch.Filter {
+	return fswatch.FilterFunc(func(_ context.Context, e *fswatch.EnrichedEvent) bool {
 		if e.Overlay == nil {
 			return false
 		}
@@ -273,40 +288,40 @@ func SnapshotKeyFilter(snapshotKey string) fanwatch.Filter {
 	})
 }
 
-// MergedDirFilter returns a [fanwatch.Filter] that passes only events whose
+// MergedDirFilter returns a [fswatch.Filter] that passes only events whose
 // path falls inside mergedDir. Use to target a specific container in a
 // multi-overlay watcher.
-func MergedDirFilter(mergedDir string) fanwatch.Filter {
-	return fanwatch.PathPrefixFilter(mergedDir)
+func MergedDirFilter(mergedDir string) fswatch.Filter {
+	return fswatch.PathPrefixFilter(mergedDir)
 }
 
 // UpperDirWritesFilter passes only events for files that exist in the overlay
 // upperdir — files created or modified by the container rather than inherited
 // from read-only image layers.
-func UpperDirWritesFilter() fanwatch.Filter {
-	return fanwatch.UpperDirOnlyFilter()
+func UpperDirWritesFilter() fswatch.Filter {
+	return fswatch.UpperDirOnlyFilter()
 }
 
 // ImageLayerFilter passes only events for files originating from read-only
 // lower layers — accesses to inherited image content.
-func ImageLayerFilter() fanwatch.Filter {
-	return fanwatch.LowerDirOnlyFilter()
+func ImageLayerFilter() fswatch.Filter {
+	return fswatch.LowerDirOnlyFilter()
 }
 
-// ContainerdKindFilter returns a [fanwatch.Filter] that passes events whose
+// ContainerdKindFilter returns a [fswatch.Filter] that passes events whose
 // overlay's label "containerd.io/snapshot/kind" matches kind
 // (e.g. "committed", "active", "view"). Requires OverlayInfo.Labels to be
 // populated — use alongside [SnapshotterEnricher] which copies Stat labels.
-func ContainerdKindFilter(kind string) fanwatch.Filter {
+func ContainerdKindFilter(kind string) fswatch.Filter {
 	const labelKey = "containerd.io/snapshot/kind"
-	return fanwatch.AttrValueFilter(labelKey, kind)
+	return fswatch.AttrValueFilter(labelKey, kind)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SnapshotInfoTransformer — attach containerd snapshot labels to event attrs
 // ─────────────────────────────────────────────────────────────────────────────
 
-// SnapshotInfoTransformer is a [fanwatch.Transformer] that calls
+// SnapshotInfoTransformer is a [fswatch.Transformer] that calls
 // snapshots.Snapshotter.Stat() and writes the snapshot Info fields into
 // e.Attrs under the "containerd.snapshot.*" namespace.
 //
@@ -319,9 +334,9 @@ func ContainerdKindFilter(kind string) fanwatch.Filter {
 // keyFn maps each event to a snapshot key; return "" to skip enrichment.
 func SnapshotInfoTransformer(
 	sn snapshots.Snapshotter,
-	keyFn func(*fanwatch.EnrichedEvent) string,
-) fanwatch.Transformer {
-	return fanwatch.TransformerFunc(func(ctx context.Context, e *fanwatch.EnrichedEvent) error {
+	keyFn func(*fswatch.EnrichedEvent) string,
+) fswatch.Transformer {
+	return fswatch.TransformerFunc(func(ctx context.Context, e *fswatch.EnrichedEvent) error {
 		key := keyFn(e)
 		if key == "" {
 			return nil
@@ -348,11 +363,11 @@ func SnapshotInfoTransformer(
 // ─────────────────────────────────────────────────────────────────────────────
 
 // MountsToOverlayInfo converts a []mount.Mount (as returned by
-// snapshots.Snapshotter.Mounts, Prepare, or View) into a [fanwatch.OverlayInfo].
+// snapshots.Snapshotter.Mounts, Prepare, or View) into a [fswatch.OverlayInfo].
 //
 // This is the canonical bridge between the containerd mount representation and
 // the fanwatch overlay representation.
-func MountsToOverlayInfo(mounts []ctdmount.Mount, mergedDir string) (*fanwatch.OverlayInfo, error) {
+func MountsToOverlayInfo(mounts []ctdmount.Mount, mergedDir string) (*fswatch.OverlayInfo, error) {
 	return overlayInfoFromMounts(mounts, mergedDir)
 }
 

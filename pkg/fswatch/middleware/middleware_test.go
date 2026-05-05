@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 	"github.com/bons/bons-ci/pkg/fswatch/middleware"
 	"github.com/bons/bons-ci/pkg/fswatch/testutil"
 )
@@ -17,7 +17,7 @@ import (
 func TestRecoveryMiddleware_CatchesPanic(t *testing.T) {
 	var recoveredValue any
 
-	recovery := middleware.NewRecovery(func(rec any, _ *fanwatch.EnrichedEvent) {
+	recovery := middleware.NewRecovery(func(rec any, _ *fswatch.EnrichedEvent) {
 		recoveredValue = rec
 	})
 
@@ -53,7 +53,7 @@ func TestRecoveryMiddleware_CatchesErrorPanic(t *testing.T) {
 
 func TestRecoveryMiddleware_PassesThrough(t *testing.T) {
 	recovery := middleware.NewRecovery(nil)
-	collector := &fanwatch.CollectingHandler{}
+	collector := &fswatch.CollectingHandler{}
 	wrapped := recovery.Wrap(collector)
 
 	err := wrapped.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
@@ -90,7 +90,7 @@ func TestLoggingMiddleware_SilentOnSuccess(t *testing.T) {
 	logFn := func(msg string, _ ...any) { logged = true }
 
 	lm := middleware.NewLogging(logFn)
-	wrapped := lm.Wrap(fanwatch.NoopHandler{})
+	wrapped := lm.Wrap(fswatch.NoopHandler{})
 
 	_ = wrapped.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
 	if logged {
@@ -104,7 +104,7 @@ func TestLoggingMiddleware_SilentOnSuccess(t *testing.T) {
 
 func TestMetricsMiddleware_CountsHandled(t *testing.T) {
 	m := &middleware.MetricsMiddleware{}
-	wrapped := m.Wrap(fanwatch.NoopHandler{})
+	wrapped := m.Wrap(fswatch.NoopHandler{})
 	ctx := context.Background()
 
 	for range 5 {
@@ -139,7 +139,7 @@ func TestMetricsMiddleware_CountsErrors(t *testing.T) {
 
 func TestMetricsMiddleware_Reset(t *testing.T) {
 	m := &middleware.MetricsMiddleware{}
-	wrapped := m.Wrap(fanwatch.NoopHandler{})
+	wrapped := m.Wrap(fswatch.NoopHandler{})
 	_ = wrapped.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
 
 	m.Reset()
@@ -155,7 +155,7 @@ func TestMetricsMiddleware_Reset(t *testing.T) {
 
 func TestCapturingMiddleware_CapturesEvents(t *testing.T) {
 	cap := &testutil.CapturingMiddleware{}
-	wrapped := cap.Wrap(fanwatch.NoopHandler{})
+	wrapped := cap.Wrap(fswatch.NoopHandler{})
 
 	ctx := context.Background()
 	for i := range 3 {
@@ -172,7 +172,7 @@ func TestCapturingMiddleware_CapturesEvents(t *testing.T) {
 
 func TestCapturingMiddleware_ClonesEvents(t *testing.T) {
 	cap := &testutil.CapturingMiddleware{}
-	wrapped := cap.Wrap(fanwatch.NoopHandler{})
+	wrapped := cap.Wrap(fswatch.NoopHandler{})
 
 	e := testutil.NewEnrichedEvent().WithAttr("shared", "original").Build()
 	_ = wrapped.Handle(context.Background(), e)
@@ -188,7 +188,7 @@ func TestCapturingMiddleware_ClonesEvents(t *testing.T) {
 
 func TestCapturingMiddleware_Reset(t *testing.T) {
 	cap := &testutil.CapturingMiddleware{}
-	wrapped := cap.Wrap(fanwatch.NoopHandler{})
+	wrapped := cap.Wrap(fswatch.NoopHandler{})
 
 	_ = wrapped.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
 	cap.Reset()

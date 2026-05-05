@@ -80,7 +80,7 @@ func MarkMount(fanotifyFD int, mask uint64, path string) error {
 		uintptr(fanotifyFD),
 		uintptr(flags),
 		uintptr(mask),
-		uintptr(^uintptr(99)), // AT_FDCWD = -100 as uintptr (two's complement)
+		uintptr(^uintptr(99)),  // AT_FDCWD = -100 as uintptr (two's complement)
 		uintptr(unsafe.Pointer(pathPtr)),
 		0,
 	)

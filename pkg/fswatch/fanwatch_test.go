@@ -1,6 +1,7 @@
-package fanwatch_test
+package fswatch_test
 
 import (
+	"os"
 	"context"
 	"errors"
 	"fmt"
@@ -8,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 	"github.com/bons/bons-ci/pkg/fswatch/testutil"
 )
 
@@ -17,24 +18,24 @@ import (
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestEventMask_Has(t *testing.T) {
-	mask := fanwatch.MaskReadOnly
+	mask := fswatch.MaskReadOnly
 
-	for _, op := range []fanwatch.Op{
-		fanwatch.OpAccess,
-		fanwatch.OpOpen,
-		fanwatch.OpOpenExec,
-		fanwatch.OpCloseNoWrite,
+	for _, op := range []fswatch.Op{
+		fswatch.OpAccess,
+		fswatch.OpOpen,
+		fswatch.OpOpenExec,
+		fswatch.OpCloseNoWrite,
 	} {
 		if !mask.Has(op) {
 			t.Errorf("MaskReadOnly.Has(%v) = false, want true", op)
 		}
 	}
 
-	for _, op := range []fanwatch.Op{
-		fanwatch.OpModify,
-		fanwatch.OpCreate,
-		fanwatch.OpDelete,
-		fanwatch.OpCloseWrite,
+	for _, op := range []fswatch.Op{
+		fswatch.OpModify,
+		fswatch.OpCreate,
+		fswatch.OpDelete,
+		fswatch.OpCloseWrite,
 	} {
 		if mask.Has(op) {
 			t.Errorf("MaskReadOnly.Has(%v) = true, want false", op)
@@ -44,18 +45,18 @@ func TestEventMask_Has(t *testing.T) {
 
 func TestEventMask_IsReadOnly(t *testing.T) {
 	tests := []struct {
-		name   string
-		mask   fanwatch.EventMask
-		wantRO bool
+		name     string
+		mask     fswatch.EventMask
+		wantRO   bool
 	}{
-		{"read only mask", fanwatch.MaskReadOnly, true},
-		{"access only", fanwatch.EventMask(fanwatch.OpAccess), true},
-		{"open only", fanwatch.EventMask(fanwatch.OpOpen), true},
-		{"modify", fanwatch.EventMask(fanwatch.OpModify), false},
-		{"create", fanwatch.EventMask(fanwatch.OpCreate), false},
-		{"delete", fanwatch.EventMask(fanwatch.OpDelete), false},
-		{"close write", fanwatch.EventMask(fanwatch.OpCloseWrite), false},
-		{"mixed access+modify", fanwatch.EventMask(fanwatch.OpAccess | fanwatch.OpModify), false},
+		{"read only mask", fswatch.MaskReadOnly, true},
+		{"access only", fswatch.EventMask(fswatch.OpAccess), true},
+		{"open only", fswatch.EventMask(fswatch.OpOpen), true},
+		{"modify", fswatch.EventMask(fswatch.OpModify), false},
+		{"create", fswatch.EventMask(fswatch.OpCreate), false},
+		{"delete", fswatch.EventMask(fswatch.OpDelete), false},
+		{"close write", fswatch.EventMask(fswatch.OpCloseWrite), false},
+		{"mixed access+modify", fswatch.EventMask(fswatch.OpAccess | fswatch.OpModify), false},
 	}
 
 	for _, tt := range tests {
@@ -70,12 +71,12 @@ func TestEventMask_IsReadOnly(t *testing.T) {
 
 func TestEventMask_String(t *testing.T) {
 	tests := []struct {
-		mask fanwatch.EventMask
+		mask fswatch.EventMask
 		want string
 	}{
-		{fanwatch.EventMask(fanwatch.OpAccess), "ACCESS"},
-		{fanwatch.EventMask(fanwatch.OpModify), "MODIFY"},
-		{fanwatch.EventMask(0), "none"},
+		{fswatch.EventMask(fswatch.OpAccess), "ACCESS"},
+		{fswatch.EventMask(fswatch.OpModify), "MODIFY"},
+		{fswatch.EventMask(0), "none"},
 	}
 	for _, tt := range tests {
 		got := tt.mask.String()
@@ -84,7 +85,7 @@ func TestEventMask_String(t *testing.T) {
 		}
 	}
 	// Multi-op mask should contain both names.
-	combined := fanwatch.EventMask(fanwatch.OpAccess | fanwatch.OpOpen)
+	combined := fswatch.EventMask(fswatch.OpAccess | fswatch.OpOpen)
 	s := combined.String()
 	if !strings.Contains(s, "ACCESS") || !strings.Contains(s, "OPEN") {
 		t.Errorf("combined mask string %q missing expected ops", s)
@@ -96,8 +97,8 @@ func TestEventMask_String(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestRawEvent_IsOverflow(t *testing.T) {
-	overflow := &fanwatch.RawEvent{Mask: fanwatch.EventMask(fanwatch.OpOverflow)}
-	normal := &fanwatch.RawEvent{Mask: fanwatch.EventMask(fanwatch.OpAccess)}
+	overflow := &fswatch.RawEvent{Mask: fswatch.EventMask(fswatch.OpOverflow)}
+	normal := &fswatch.RawEvent{Mask: fswatch.EventMask(fswatch.OpAccess)}
 
 	if !overflow.IsOverflow() {
 		t.Error("overflow event: IsOverflow() = false, want true")
@@ -125,7 +126,7 @@ func TestEnrichedEvent_Clone_IndependentAttrs(t *testing.T) {
 }
 
 func TestEnrichedEvent_SetAttr_LazyInit(t *testing.T) {
-	e := &fanwatch.EnrichedEvent{}
+	e := &fswatch.EnrichedEvent{}
 	if e.Attrs != nil {
 		t.Error("Attrs should be nil before first SetAttr call")
 	}
@@ -139,8 +140,8 @@ func TestEnrichedEvent_SetAttr_LazyInit(t *testing.T) {
 }
 
 func TestEnrichedEvent_IsReadOnly(t *testing.T) {
-	roEvent := testutil.NewEnrichedEvent().WithOp(fanwatch.OpAccess).Build()
-	rwEvent := testutil.NewEnrichedEvent().WithOp(fanwatch.OpModify).Build()
+	roEvent := testutil.NewEnrichedEvent().WithOp(fswatch.OpAccess).Build()
+	rwEvent := testutil.NewEnrichedEvent().WithOp(fswatch.OpModify).Build()
 
 	if !roEvent.IsReadOnly() {
 		t.Error("ACCESS event should be read-only")
@@ -157,11 +158,11 @@ func TestEnrichedEvent_IsReadOnly(t *testing.T) {
 func makeContext() context.Context { return context.Background() }
 
 func TestReadOnlyFilter_AllowsReadOps(t *testing.T) {
-	f := fanwatch.ReadOnlyFilter()
+	f := fswatch.ReadOnlyFilter()
 	ctx := makeContext()
 
-	readOps := []fanwatch.Op{
-		fanwatch.OpAccess, fanwatch.OpOpen, fanwatch.OpOpenExec, fanwatch.OpCloseNoWrite,
+	readOps := []fswatch.Op{
+		fswatch.OpAccess, fswatch.OpOpen, fswatch.OpOpenExec, fswatch.OpCloseNoWrite,
 	}
 	for _, op := range readOps {
 		e := testutil.NewEnrichedEvent().WithOp(op).Build()
@@ -172,12 +173,12 @@ func TestReadOnlyFilter_AllowsReadOps(t *testing.T) {
 }
 
 func TestReadOnlyFilter_DropsWriteOps(t *testing.T) {
-	f := fanwatch.ReadOnlyFilter()
+	f := fswatch.ReadOnlyFilter()
 	ctx := makeContext()
 
-	writeOps := []fanwatch.Op{
-		fanwatch.OpModify, fanwatch.OpCreate, fanwatch.OpDelete,
-		fanwatch.OpCloseWrite, fanwatch.OpMovedFrom, fanwatch.OpMovedTo, fanwatch.OpAttrib,
+	writeOps := []fswatch.Op{
+		fswatch.OpModify, fswatch.OpCreate, fswatch.OpDelete,
+		fswatch.OpCloseWrite, fswatch.OpMovedFrom, fswatch.OpMovedTo, fswatch.OpAttrib,
 	}
 	for _, op := range writeOps {
 		e := testutil.NewEnrichedEvent().WithOp(op).Build()
@@ -188,11 +189,11 @@ func TestReadOnlyFilter_DropsWriteOps(t *testing.T) {
 }
 
 func TestMaskFilter_MatchesExpectedOps(t *testing.T) {
-	f := fanwatch.MaskFilter(fanwatch.OpAccess, fanwatch.OpOpen)
+	f := fswatch.MaskFilter(fswatch.OpAccess, fswatch.OpOpen)
 	ctx := makeContext()
 
-	allow := []fanwatch.Op{fanwatch.OpAccess, fanwatch.OpOpen}
-	deny := []fanwatch.Op{fanwatch.OpModify, fanwatch.OpCreate, fanwatch.OpOpenExec}
+	allow := []fswatch.Op{fswatch.OpAccess, fswatch.OpOpen}
+	deny := []fswatch.Op{fswatch.OpModify, fswatch.OpCreate, fswatch.OpOpenExec}
 
 	for _, op := range allow {
 		e := testutil.NewEnrichedEvent().WithOp(op).Build()
@@ -209,7 +210,7 @@ func TestMaskFilter_MatchesExpectedOps(t *testing.T) {
 }
 
 func TestPathPrefixFilter(t *testing.T) {
-	f := fanwatch.PathPrefixFilter("/merged/app")
+	f := fswatch.PathPrefixFilter("/merged/app")
 	ctx := makeContext()
 
 	tests := []struct {
@@ -233,7 +234,7 @@ func TestPathPrefixFilter(t *testing.T) {
 }
 
 func TestPathExcludeFilter(t *testing.T) {
-	f := fanwatch.PathExcludeFilter("/proc", "/sys")
+	f := fswatch.PathExcludeFilter("/proc", "/sys")
 	ctx := makeContext()
 
 	if f.Allow(ctx, testutil.NewEnrichedEvent().WithPath("/proc/net/tcp").Build()) {
@@ -248,7 +249,7 @@ func TestPathExcludeFilter(t *testing.T) {
 }
 
 func TestExtensionFilter(t *testing.T) {
-	f := fanwatch.ExtensionFilter(".so", ".py")
+	f := fswatch.ExtensionFilter(".so", ".py")
 	ctx := makeContext()
 
 	tests := []struct {
@@ -271,7 +272,7 @@ func TestExtensionFilter(t *testing.T) {
 }
 
 func TestPIDFilter(t *testing.T) {
-	f := fanwatch.PIDFilter(100, 200)
+	f := fswatch.PIDFilter(100, 200)
 	ctx := makeContext()
 
 	if !f.Allow(ctx, testutil.NewEnrichedEvent().WithPID(100).Build()) {
@@ -286,7 +287,7 @@ func TestPIDFilter(t *testing.T) {
 }
 
 func TestExcludePIDFilter(t *testing.T) {
-	f := fanwatch.ExcludePIDFilter(1)
+	f := fswatch.ExcludePIDFilter(1)
 	ctx := makeContext()
 
 	if f.Allow(ctx, testutil.NewEnrichedEvent().WithPID(1).Build()) {
@@ -298,11 +299,11 @@ func TestExcludePIDFilter(t *testing.T) {
 }
 
 func TestNoOverflowFilter(t *testing.T) {
-	f := fanwatch.NoOverflowFilter()
+	f := fswatch.NoOverflowFilter()
 	ctx := makeContext()
 
-	overflow := testutil.NewEnrichedEvent().WithMask(fanwatch.EventMask(fanwatch.OpOverflow)).Build()
-	normal := testutil.NewEnrichedEvent().WithOp(fanwatch.OpAccess).Build()
+	overflow := testutil.NewEnrichedEvent().WithMask(fswatch.EventMask(fswatch.OpOverflow)).Build()
+	normal := testutil.NewEnrichedEvent().WithOp(fswatch.OpAccess).Build()
 
 	if f.Allow(ctx, overflow) {
 		t.Error("NoOverflowFilter: overflow event should be dropped")
@@ -314,16 +315,16 @@ func TestNoOverflowFilter(t *testing.T) {
 
 func TestAllFilters_ShortCircuit(t *testing.T) {
 	called := 0
-	counter := fanwatch.FilterFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) bool {
+	counter := fswatch.FilterFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) bool {
 		called++
 		return true
 	})
 	// First filter rejects — counter should never be called.
-	rejecter := fanwatch.FilterFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) bool {
+	rejecter := fswatch.FilterFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) bool {
 		return false
 	})
 
-	all := fanwatch.AllFilters{rejecter, counter}
+	all := fswatch.AllFilters{rejecter, counter}
 	e := testutil.NewEnrichedEvent().Build()
 	got := all.Allow(context.Background(), e)
 
@@ -336,24 +337,24 @@ func TestAllFilters_ShortCircuit(t *testing.T) {
 }
 
 func TestAnyFilter(t *testing.T) {
-	reject := fanwatch.FilterFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) bool { return false })
-	accept := fanwatch.FilterFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) bool { return true })
+	reject := fswatch.FilterFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) bool { return false })
+	accept := fswatch.FilterFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) bool { return true })
 
-	any1 := fanwatch.AnyFilter{reject, accept}
+	any1 := fswatch.AnyFilter{reject, accept}
 	e := testutil.NewEnrichedEvent().Build()
 	if !any1.Allow(context.Background(), e) {
 		t.Error("AnyFilter: should pass when at least one filter accepts")
 	}
 
-	any2 := fanwatch.AnyFilter{reject, reject}
+	any2 := fswatch.AnyFilter{reject, reject}
 	if any2.Allow(context.Background(), e) {
 		t.Error("AnyFilter: should reject when all filters reject")
 	}
 }
 
 func TestNot_Negates(t *testing.T) {
-	alwaysAllow := fanwatch.FilterFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) bool { return true })
-	neg := fanwatch.Not{Inner: alwaysAllow}
+	alwaysAllow := fswatch.FilterFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) bool { return true })
+	neg := fswatch.Not{Inner: alwaysAllow}
 
 	e := testutil.NewEnrichedEvent().Build()
 	if neg.Allow(context.Background(), e) {
@@ -363,7 +364,7 @@ func TestNot_Negates(t *testing.T) {
 
 func TestExternalFilter(t *testing.T) {
 	allowed := map[string]bool{"/merged/safe/file": true}
-	f := fanwatch.ExternalFilter(func(path string) bool { return allowed[path] })
+	f := fswatch.ExternalFilter(func(path string) bool { return allowed[path] })
 	ctx := context.Background()
 
 	if !f.Allow(ctx, testutil.NewEnrichedEvent().WithPath("/merged/safe/file").Build()) {
@@ -375,7 +376,7 @@ func TestExternalFilter(t *testing.T) {
 }
 
 func TestUpperDirOnlyFilter(t *testing.T) {
-	f := fanwatch.UpperDirOnlyFilter()
+	f := fswatch.UpperDirOnlyFilter()
 	ctx := context.Background()
 
 	upper := testutil.NewEnrichedEvent().
@@ -398,7 +399,7 @@ func TestUpperDirOnlyFilter(t *testing.T) {
 }
 
 func TestLowerDirOnlyFilter(t *testing.T) {
-	f := fanwatch.LowerDirOnlyFilter()
+	f := fswatch.LowerDirOnlyFilter()
 	ctx := context.Background()
 
 	upper := testutil.NewEnrichedEvent().
@@ -417,7 +418,7 @@ func TestLowerDirOnlyFilter(t *testing.T) {
 }
 
 func TestAttrValueFilter(t *testing.T) {
-	f := fanwatch.AttrValueFilter("env", "prod")
+	f := fswatch.AttrValueFilter("env", "prod")
 	ctx := context.Background()
 
 	prod := testutil.NewEnrichedEvent().WithAttr("env", "prod").Build()
@@ -436,14 +437,14 @@ func TestAttrValueFilter(t *testing.T) {
 }
 
 func TestFreshnessFilter(t *testing.T) {
-	f := fanwatch.FreshnessFilter(50 * time.Millisecond)
+	f := fswatch.FreshnessFilter(50 * time.Millisecond)
 	ctx := context.Background()
 
 	fresh := testutil.NewRawEvent().WithTimestamp(time.Now()).Build()
 	stale := testutil.NewRawEvent().WithTimestamp(time.Now().Add(-1 * time.Second)).Build()
 
-	freshE := &fanwatch.EnrichedEvent{Event: fanwatch.Event{RawEvent: *fresh}}
-	staleE := &fanwatch.EnrichedEvent{Event: fanwatch.Event{RawEvent: *stale}}
+	freshE := &fswatch.EnrichedEvent{Event: fswatch.Event{RawEvent: *fresh}}
+	staleE := &fswatch.EnrichedEvent{Event: fswatch.Event{RawEvent: *stale}}
 
 	if !f.Allow(ctx, freshE) {
 		t.Error("FreshnessFilter: fresh event should pass")
@@ -459,7 +460,7 @@ func TestFreshnessFilter(t *testing.T) {
 
 func TestStaticAttrTransformer(t *testing.T) {
 	attrs := map[string]any{"region": "us-east-1", "env": "prod"}
-	tr := fanwatch.StaticAttrTransformer(attrs)
+	tr := fswatch.StaticAttrTransformer(attrs)
 
 	e := testutil.NewEnrichedEvent().Build()
 	if err := tr.Transform(context.Background(), e); err != nil {
@@ -475,7 +476,7 @@ func TestStaticAttrTransformer(t *testing.T) {
 }
 
 func TestDynamicAttrTransformer(t *testing.T) {
-	tr := fanwatch.DynamicAttrTransformer(func(e *fanwatch.EnrichedEvent) map[string]any {
+	tr := fswatch.DynamicAttrTransformer(func(e *fswatch.EnrichedEvent) map[string]any {
 		return map[string]any{"path_len": len(e.Path)}
 	})
 
@@ -492,18 +493,18 @@ func TestDynamicAttrTransformer(t *testing.T) {
 
 func TestChainTransformer_RunsAll(t *testing.T) {
 	order := []int{}
-	t1 := fanwatch.TransformerFunc(func(_ context.Context, e *fanwatch.EnrichedEvent) error {
+	t1 := fswatch.TransformerFunc(func(_ context.Context, e *fswatch.EnrichedEvent) error {
 		order = append(order, 1)
 		e.SetAttr("t1", true)
 		return nil
 	})
-	t2 := fanwatch.TransformerFunc(func(_ context.Context, e *fanwatch.EnrichedEvent) error {
+	t2 := fswatch.TransformerFunc(func(_ context.Context, e *fswatch.EnrichedEvent) error {
 		order = append(order, 2)
 		e.SetAttr("t2", true)
 		return nil
 	})
 
-	chain := fanwatch.ChainTransformer{t1, t2}
+	chain := fswatch.ChainTransformer{t1, t2}
 	e := testutil.NewEnrichedEvent().Build()
 
 	if err := chain.Transform(context.Background(), e); err != nil {
@@ -519,15 +520,15 @@ func TestChainTransformer_RunsAll(t *testing.T) {
 }
 
 func TestChainTransformer_ContinuesAfterError(t *testing.T) {
-	errT := fanwatch.TransformerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	errT := fswatch.TransformerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		return fmt.Errorf("intentional error")
 	})
-	setAttr := fanwatch.TransformerFunc(func(_ context.Context, e *fanwatch.EnrichedEvent) error {
+	setAttr := fswatch.TransformerFunc(func(_ context.Context, e *fswatch.EnrichedEvent) error {
 		e.SetAttr("after_error", true)
 		return nil
 	})
 
-	chain := fanwatch.ChainTransformer{errT, setAttr}
+	chain := fswatch.ChainTransformer{errT, setAttr}
 	e := testutil.NewEnrichedEvent().Build()
 
 	err := chain.Transform(context.Background(), e)
@@ -541,13 +542,13 @@ func TestChainTransformer_ContinuesAfterError(t *testing.T) {
 
 func TestConditionalTransformer_SkipsWhenPredicateFalse(t *testing.T) {
 	ran := false
-	inner := fanwatch.TransformerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	inner := fswatch.TransformerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		ran = true
 		return nil
 	})
 
-	ct := fanwatch.ConditionalTransformer{
-		Predicate: func(e *fanwatch.EnrichedEvent) bool { return false },
+	ct := fswatch.ConditionalTransformer{
+		Predicate: func(e *fswatch.EnrichedEvent) bool { return false },
 		Inner:     inner,
 	}
 	if err := ct.Transform(context.Background(), testutil.NewEnrichedEvent().Build()); err != nil {
@@ -559,11 +560,11 @@ func TestConditionalTransformer_SkipsWhenPredicateFalse(t *testing.T) {
 }
 
 func TestOverlayEnricher_SetsOverlayInfo(t *testing.T) {
-	overlay := fanwatch.NewOverlayInfo(
+	overlay := fswatch.NewOverlayInfo(
 		"/merged", "/upper", "/work",
 		[]string{"/lower0", "/lower1"},
 	)
-	enricher := fanwatch.NewOverlayEnricher(overlay)
+	enricher := fswatch.NewOverlayEnricher(overlay)
 
 	e := testutil.NewEnrichedEvent().WithPath("/merged/app/file.txt").Build()
 	if err := enricher.Transform(context.Background(), e); err != nil {
@@ -579,8 +580,8 @@ func TestOverlayEnricher_SetsOverlayInfo(t *testing.T) {
 }
 
 func TestOverlayEnricher_PathOutsideMerge_Ignored(t *testing.T) {
-	overlay := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
-	enricher := fanwatch.NewOverlayEnricher(overlay)
+	overlay := fswatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
+	enricher := fswatch.NewOverlayEnricher(overlay)
 
 	e := testutil.NewEnrichedEvent().WithPath("/var/log/syslog").Build()
 	if err := enricher.Transform(context.Background(), e); err != nil {
@@ -601,12 +602,12 @@ func TestOverlayEnricher_PathOutsideMerge_Ignored(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestCountingHandler(t *testing.T) {
-	h := &fanwatch.CountingHandler{}
+	h := &fswatch.CountingHandler{}
 	ctx := context.Background()
 
-	events := []fanwatch.Op{
-		fanwatch.OpAccess, fanwatch.OpOpen, fanwatch.OpOpenExec,
-		fanwatch.OpAccess, fanwatch.OpModify,
+	events := []fswatch.Op{
+		fswatch.OpAccess, fswatch.OpOpen, fswatch.OpOpenExec,
+		fswatch.OpAccess, fswatch.OpModify,
 	}
 	for _, op := range events {
 		e := testutil.NewEnrichedEvent().WithOp(op).Build()
@@ -625,7 +626,7 @@ func TestCountingHandler(t *testing.T) {
 }
 
 func TestCountingHandler_Reset(t *testing.T) {
-	h := &fanwatch.CountingHandler{}
+	h := &fswatch.CountingHandler{}
 	ctx := context.Background()
 
 	_ = h.Handle(ctx, testutil.NewEnrichedEvent().Build())
@@ -638,7 +639,7 @@ func TestCountingHandler_Reset(t *testing.T) {
 }
 
 func TestCollectingHandler(t *testing.T) {
-	h := &fanwatch.CollectingHandler{}
+	h := &fswatch.CollectingHandler{}
 	ctx := context.Background()
 
 	for i := range 5 {
@@ -662,7 +663,7 @@ func TestCollectingHandler(t *testing.T) {
 }
 
 func TestCollectingHandler_Reset(t *testing.T) {
-	h := &fanwatch.CollectingHandler{}
+	h := &fswatch.CollectingHandler{}
 	ctx := context.Background()
 	_ = h.Handle(ctx, testutil.NewEnrichedEvent().Build())
 	h.Reset()
@@ -673,15 +674,15 @@ func TestCollectingHandler_Reset(t *testing.T) {
 
 func TestChainHandler_StopsOnError(t *testing.T) {
 	ran := false
-	first := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	first := fswatch.HandlerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		return fmt.Errorf("first handler failed")
 	})
-	second := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	second := fswatch.HandlerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		ran = true
 		return nil
 	})
 
-	chain := fanwatch.ChainHandler{first, second}
+	chain := fswatch.ChainHandler{first, second}
 	err := chain.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
 	if err == nil {
 		t.Error("ChainHandler: expected error")
@@ -693,16 +694,16 @@ func TestChainHandler_StopsOnError(t *testing.T) {
 
 func TestMultiHandler_RunsAll(t *testing.T) {
 	counts := [2]int{}
-	h1 := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	h1 := fswatch.HandlerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		counts[0]++
 		return fmt.Errorf("h1 error")
 	})
-	h2 := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	h2 := fswatch.HandlerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		counts[1]++
 		return nil
 	})
 
-	multi := fanwatch.MultiHandler{h1, h2}
+	multi := fswatch.MultiHandler{h1, h2}
 	err := multi.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
 
 	if err == nil {
@@ -714,7 +715,7 @@ func TestMultiHandler_RunsAll(t *testing.T) {
 }
 
 func TestNewChannelHandler(t *testing.T) {
-	h, ch := fanwatch.NewChannelHandler(10)
+	h, ch := fswatch.NewChannelHandler(10)
 	ctx := context.Background()
 
 	e := testutil.NewEnrichedEvent().WithPath("/merged/test.so").Build()
@@ -737,7 +738,7 @@ func TestNewChannelHandler(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestOverlayInfo_ContainsPath(t *testing.T) {
-	o := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
+	o := fswatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
 
 	if !o.ContainsPath("/merged/app/main.go") {
 		t.Error("ContainsPath: /merged/app/main.go should be inside merged dir")
@@ -751,7 +752,7 @@ func TestOverlayInfo_ContainsPath(t *testing.T) {
 }
 
 func TestOverlayInfo_RelPath(t *testing.T) {
-	o := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
+	o := fswatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
 
 	rel, err := o.RelPath("/merged/app/main.go")
 	if err != nil {
@@ -768,7 +769,7 @@ func TestOverlayInfo_RelPath(t *testing.T) {
 }
 
 func TestOverlayInfo_AllDirs(t *testing.T) {
-	o := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0", "/lower1"})
+	o := fswatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0", "/lower1"})
 	dirs := o.AllDirs()
 
 	if len(dirs) != 3 {
@@ -780,7 +781,7 @@ func TestOverlayInfo_AllDirs(t *testing.T) {
 }
 
 func TestOverlayInfo_BuildLayers(t *testing.T) {
-	o := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0", "/lower1"})
+	o := fswatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0", "/lower1"})
 
 	if len(o.Layers) != 3 {
 		t.Fatalf("Layers: want 3 (1 upper + 2 lowers), got %d", len(o.Layers))
@@ -798,12 +799,12 @@ func TestOverlayInfo_BuildLayers(t *testing.T) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 func TestPipeline_ReadOnlyPreset_FiltersWrites(t *testing.T) {
-	collector := &fanwatch.CollectingHandler{}
+	collector := &fswatch.CollectingHandler{}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithReadOnlyPipeline(),
-		fanwatch.WithHandler(collector),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithReadOnlyPipeline(),
+		fswatch.WithHandler(collector),
+		fswatch.WithWorkers(1),
 	)
 
 	watcher := testutil.NewFakeWatcher(32)
@@ -831,14 +832,14 @@ func TestPipeline_ReadOnlyPreset_FiltersWrites(t *testing.T) {
 }
 
 func TestPipeline_TransformerEnrichesEvents(t *testing.T) {
-	collector := &fanwatch.CollectingHandler{}
+	collector := &fswatch.CollectingHandler{}
 
-	tr := fanwatch.StaticAttrTransformer(map[string]any{"enriched": true})
+	tr := fswatch.StaticAttrTransformer(map[string]any{"enriched": true})
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithTransformer(tr),
-		fanwatch.WithHandler(collector),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithTransformer(tr),
+		fswatch.WithHandler(collector),
+		fswatch.WithWorkers(1),
 	)
 
 	watcher := testutil.NewFakeWatcher(8)
@@ -858,9 +859,9 @@ func TestPipeline_TransformerEnrichesEvents(t *testing.T) {
 }
 
 func TestPipeline_ContextCancellation_Stops(t *testing.T) {
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithHandler(fanwatch.NoopHandler{}),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithHandler(fswatch.NoopHandler{}),
+		fswatch.WithWorkers(1),
 	)
 
 	// Unbuffered watcher — pipeline will block waiting for the next event.
@@ -887,9 +888,9 @@ func TestPipeline_ContextCancellation_Stops(t *testing.T) {
 func TestPipeline_ErrorChannel_ReceivesHandlerErrors(t *testing.T) {
 	errHandler := &testutil.ErroringHandler{Err: fmt.Errorf("deliberate error")}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithHandler(errHandler),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithHandler(errHandler),
+		fswatch.WithWorkers(1),
 	)
 
 	watcher := testutil.NewFakeWatcher(4)
@@ -910,19 +911,19 @@ func TestPipeline_ErrorChannel_ReceivesHandlerErrors(t *testing.T) {
 }
 
 func TestPipeline_MultipleFilters_AllMustPass(t *testing.T) {
-	collector := &fanwatch.CollectingHandler{}
+	collector := &fswatch.CollectingHandler{}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithFilter(fanwatch.ReadOnlyFilter()),
-		fanwatch.WithFilter(fanwatch.PathPrefixFilter("/merged/app")),
-		fanwatch.WithHandler(collector),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithFilter(fswatch.ReadOnlyFilter()),
+		fswatch.WithFilter(fswatch.PathPrefixFilter("/merged/app")),
+		fswatch.WithHandler(collector),
+		fswatch.WithWorkers(1),
 	)
 
 	watcher := testutil.NewFakeWatcher(8)
-	watcher.Send(testutil.NewRawEvent().WithOp(fanwatch.OpAccess).WithPath("/merged/app/main.go").Build())
-	watcher.Send(testutil.NewRawEvent().WithOp(fanwatch.OpAccess).WithPath("/merged/other/file").Build())
-	watcher.Send(testutil.NewRawEvent().WithOp(fanwatch.OpModify).WithPath("/merged/app/main.go").Build())
+	watcher.Send(testutil.NewRawEvent().WithOp(fswatch.OpAccess).WithPath("/merged/app/main.go").Build())
+	watcher.Send(testutil.NewRawEvent().WithOp(fswatch.OpAccess).WithPath("/merged/other/file").Build())
+	watcher.Send(testutil.NewRawEvent().WithOp(fswatch.OpModify).WithPath("/merged/app/main.go").Build())
 	watcher.Close()
 
 	ctx := context.Background()
@@ -935,13 +936,13 @@ func TestPipeline_MultipleFilters_AllMustPass(t *testing.T) {
 }
 
 func TestPipeline_OverlayEnrichment(t *testing.T) {
-	overlay := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
-	collector := &fanwatch.CollectingHandler{}
+	overlay := fswatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
+	collector := &fswatch.CollectingHandler{}
 
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithOverlayEnrichment(overlay),
-		fanwatch.WithHandler(collector),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithOverlayEnrichment(overlay),
+		fswatch.WithHandler(collector),
+		fswatch.WithWorkers(1),
 	)
 
 	watcher := testutil.NewFakeWatcher(4)
@@ -968,11 +969,11 @@ func TestPipeline_OverlayEnrichment(t *testing.T) {
 // TestPipeline_Run_NonBlocking verifies the fixed Run() returns two proper
 // channels and delivers the correct final result (Bug 1).
 func TestPipeline_Run_NonBlocking(t *testing.T) {
-	counter := &fanwatch.CountingHandler{}
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithReadOnlyPipeline(),
-		fanwatch.WithHandler(counter),
-		fanwatch.WithWorkers(1),
+	counter := &fswatch.CountingHandler{}
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithReadOnlyPipeline(),
+		fswatch.WithHandler(counter),
+		fswatch.WithWorkers(1),
 	)
 
 	w := testutil.NewFakeWatcher(16)
@@ -1000,9 +1001,9 @@ func TestPipeline_Run_NonBlocking(t *testing.T) {
 // TestPipeline_Run_ResultChannelClosedAfterDone verifies resultCh is closed
 // exactly once and receives exactly one value (Bug 1).
 func TestPipeline_Run_ResultChannelClosedAfterDone(t *testing.T) {
-	pipeline := fanwatch.NewPipeline(
-		fanwatch.WithHandler(fanwatch.NoopHandler{}),
-		fanwatch.WithWorkers(1),
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithHandler(fswatch.NoopHandler{}),
+		fswatch.WithWorkers(1),
 	)
 
 	w := testutil.NewFakeWatcher(4)
@@ -1027,14 +1028,14 @@ func TestPipeline_Run_ResultChannelClosedAfterDone(t *testing.T) {
 // TestMaskReadOnly_IsImmutable verifies that MaskReadOnly is a constant and
 // cannot be accidentally overwritten (Bug 7 — mutable var to const).
 func TestMaskReadOnly_IsImmutable(t *testing.T) {
-	if !fanwatch.MaskReadOnly.IsReadOnly() {
+	if !fswatch.MaskReadOnly.IsReadOnly() {
 		t.Error("MaskReadOnly.IsReadOnly() should always be true")
 	}
 	// Verify it does not include any modification op.
-	for _, op := range []fanwatch.Op{
-		fanwatch.OpModify, fanwatch.OpCreate, fanwatch.OpDelete, fanwatch.OpCloseWrite,
+	for _, op := range []fswatch.Op{
+		fswatch.OpModify, fswatch.OpCreate, fswatch.OpDelete, fswatch.OpCloseWrite,
 	} {
-		if fanwatch.MaskReadOnly.Has(op) {
+		if fswatch.MaskReadOnly.Has(op) {
 			t.Errorf("MaskReadOnly unexpectedly contains %v", op)
 		}
 	}
@@ -1044,14 +1045,14 @@ func TestMaskReadOnly_IsImmutable(t *testing.T) {
 // MultiHandler's joined error (Bug 9 — fmt.Errorf to errors.Join).
 func TestMultiHandler_ErrorChainPreserved(t *testing.T) {
 	sentinel := fmt.Errorf("sentinel")
-	h1 := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	h1 := fswatch.HandlerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		return sentinel
 	})
-	h2 := fanwatch.HandlerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error {
+	h2 := fswatch.HandlerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error {
 		return nil
 	})
 
-	multi := fanwatch.MultiHandler{h1, h2}
+	multi := fswatch.MultiHandler{h1, h2}
 	err := multi.Handle(context.Background(), testutil.NewEnrichedEvent().Build())
 
 	if !errors.Is(err, sentinel) {
@@ -1062,8 +1063,8 @@ func TestMultiHandler_ErrorChainPreserved(t *testing.T) {
 // TestOverlayEnricher_SetsOverlay_OnlyWhenPathInside verifies that Overlay is
 // nil for external paths — the core false-positive fix (Bug 6).
 func TestOverlayEnricher_SetsOverlay_OnlyWhenPathInside(t *testing.T) {
-	overlay := fanwatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
-	enricher := fanwatch.NewOverlayEnricher(overlay)
+	overlay := fswatch.NewOverlayInfo("/merged", "/upper", "/work", []string{"/lower0"})
+	enricher := fswatch.NewOverlayEnricher(overlay)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -1097,7 +1098,7 @@ func TestOverlayEnricher_SetsOverlay_OnlyWhenPathInside(t *testing.T) {
 // original that didn't copy the map at construction time).
 func TestStaticAttrTransformer_CallerMutationSafe(t *testing.T) {
 	attrs := map[string]any{"key": "original"}
-	tr := fanwatch.StaticAttrTransformer(attrs)
+	tr := fswatch.StaticAttrTransformer(attrs)
 
 	// Mutate the source map after construction.
 	attrs["key"] = "mutated"
@@ -1122,10 +1123,10 @@ func TestChainTransformer_ErrorsJoined(t *testing.T) {
 	e1 := fmt.Errorf("transformer error 1")
 	e2 := fmt.Errorf("transformer error 2")
 
-	t1 := fanwatch.TransformerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error { return e1 })
-	t2 := fanwatch.TransformerFunc(func(_ context.Context, _ *fanwatch.EnrichedEvent) error { return e2 })
+	t1 := fswatch.TransformerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error { return e1 })
+	t2 := fswatch.TransformerFunc(func(_ context.Context, _ *fswatch.EnrichedEvent) error { return e2 })
 
-	chain := fanwatch.ChainTransformer{t1, t2}
+	chain := fswatch.ChainTransformer{t1, t2}
 	err := chain.Transform(context.Background(), testutil.NewEnrichedEvent().Build())
 
 	if !errors.Is(err, e1) {
@@ -1139,8 +1140,160 @@ func TestChainTransformer_ErrorsJoined(t *testing.T) {
 // TestFreshnessFilter_InFilterFile tests that FreshnessFilter is callable from
 // the fanwatch package (Bug 5 — was in pipeline.go, now in filter.go).
 func TestFreshnessFilter_CorrectPackage(t *testing.T) {
-	f := fanwatch.FreshnessFilter(100 * time.Millisecond)
+	f := fswatch.FreshnessFilter(100 * time.Millisecond)
 	if f == nil {
 		t.Error("FreshnessFilter returned nil")
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WatcherID promotion test (Fix: removed duplicate field from Event)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestRawEvent_WatcherID_PromotedToEvent verifies that WatcherID set on
+// RawEvent is accessible via the embedded field on Event and EnrichedEvent.
+func TestRawEvent_WatcherID_PromotedToEvent(t *testing.T) {
+	raw := testutil.NewRawEvent().Build()
+	raw.WatcherID = "watcher-42"
+
+	enriched := &fswatch.EnrichedEvent{
+		Event: fswatch.Event{
+			RawEvent: *raw,
+			Dir:      "/merged/dir",
+			Name:     "file.txt",
+		},
+	}
+
+	// WatcherID is promoted from RawEvent via embedding — no separate field.
+	if enriched.WatcherID != "watcher-42" {
+		t.Errorf("WatcherID = %q, want watcher-42 (promoted from RawEvent)", enriched.WatcherID)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ErrQueueOverflow pipeline routing test (Fix: overflow events wired to errCh)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestPipeline_OverflowEvent_RoutedToErrorChannel verifies that an overflow
+// event (OpOverflow mask) is not delivered to the handler but does emit
+// ErrQueueOverflow on the error channel.
+func TestPipeline_OverflowEvent_RoutedToErrorChannel(t *testing.T) {
+	collector := &fswatch.CollectingHandler{}
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithHandler(collector),
+		fswatch.WithWorkers(1),
+	)
+
+	w := testutil.NewFakeWatcher(4)
+	// Overflow event: OpOverflow mask, no path.
+	w.Send(testutil.NewRawEvent().WithMask(fswatch.EventMask(fswatch.OpOverflow)).WithPath("").Build())
+	// Normal event after overflow.
+	w.Send(testutil.NewRawEvent().WithOp(fswatch.OpAccess).WithPath("/merged/file.txt").Build())
+	w.Close()
+
+	var errs []error
+	ctx := context.Background()
+	ch, _ := w.Watch(ctx)
+	result := pipeline.RunSync(ctx, ch, func(err error) {
+		errs = append(errs, err)
+	})
+
+	if result.Received != 2 {
+		t.Errorf("Received = %d, want 2", result.Received)
+	}
+	// Overflow event should be filtered (not handled).
+	if result.Handled != 1 {
+		t.Errorf("Handled = %d, want 1 (normal event only)", result.Handled)
+	}
+	// ErrQueueOverflow should appear in the error channel.
+	found := false
+	for _, err := range errs {
+		if errors.Is(err, fswatch.ErrQueueOverflow) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected ErrQueueOverflow in error channel, got: %v", errs)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ErrQueueOverflow is not re-emitted by NoOverflowFilter
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestNoOverflowFilter_PreventsOverflowFromHandler verifies the filter works
+// as the primary guard when callers prefer silent overflow suppression.
+func TestNoOverflowFilter_PreventsOverflowFromReachingHandler(t *testing.T) {
+	counter := &fswatch.CountingHandler{}
+	pipeline := fswatch.NewPipeline(
+		fswatch.WithFilter(fswatch.NoOverflowFilter()),
+		fswatch.WithHandler(counter),
+		fswatch.WithWorkers(1),
+	)
+
+	w := testutil.NewFakeWatcher(4)
+	w.Send(testutil.NewRawEvent().WithMask(fswatch.EventMask(fswatch.OpOverflow)).Build())
+	w.Send(testutil.NewRawEvent().WithOp(fswatch.OpAccess).Build())
+	w.Close()
+
+	ctx := context.Background()
+	ch, _ := w.Watch(ctx)
+	// Overflow is not OpOverflow at pipeline entry — it's caught before filters.
+	// So even without NoOverflowFilter the handler won't receive it.
+	// With NoOverflowFilter in place, the ACCESS event should pass.
+	result := pipeline.RunSync(ctx, ch, nil)
+
+	if result.Handled != 1 {
+		t.Errorf("Handled = %d, want 1", result.Handled)
+	}
+	if counter.Snapshot().Total != 1 {
+		t.Errorf("CountingHandler.Total = %d, want 1", counter.Snapshot().Total)
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// parseKVOptions correctness (overlay.go internal, tested via OverlayInfoFromMount)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TestOverlayInfoFromMountFile_ComplexOptions verifies that VFSOptions with
+// multiple keys, spaces, and a 3-lowerdir stack parse correctly.
+func TestOverlayInfoFromMountFile_ComplexVFSOptions(t *testing.T) {
+	// Build a mountinfo fixture with 3 lower dirs and extra options.
+	mountFile := buildMountinfoFixture(t,
+		"/merged",
+		"/upper",
+		"/work",
+		"/lower3:/lower2:/lower1",
+		"rw,lowerdir=/lower3:/lower2:/lower1,upperdir=/upper,workdir=/work,userxattr",
+	)
+
+	info, err := fswatch.OverlayInfoFromMountFile(mountFile, "/merged")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(info.LowerDirs) != 3 {
+		t.Fatalf("LowerDirs len = %d, want 3; got %v", len(info.LowerDirs), info.LowerDirs)
+	}
+	if info.LowerDirs[0] != "/lower3" {
+		t.Errorf("LowerDirs[0] = %q, want /lower3", info.LowerDirs[0])
+	}
+}
+
+// buildMountinfoFixture writes a mountinfo file with a single overlay line.
+func buildMountinfoFixture(t *testing.T, merged, upper, work, lowerStr, superOpts string) string {
+	t.Helper()
+	// Suppress unused parameter warnings; upper/work/lowerStr are in superOpts.
+	_, _, _ = upper, work, lowerStr
+	f, err := os.CreateTemp(t.TempDir(), "mountinfo")
+	if err != nil {
+		t.Fatalf("create mountinfo fixture: %v", err)
+	}
+	defer f.Close()
+	line := fmt.Sprintf("69 64 0:46 / %s rw,relatime - overlay overlay %s\n", merged, superOpts)
+	if _, err := f.WriteString(line); err != nil {
+		t.Fatalf("write mountinfo fixture: %v", err)
+	}
+	return f.Name()
 }

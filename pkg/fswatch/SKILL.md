@@ -2,7 +2,7 @@
 
 ## Identity
 
-**Package path:** `github.com/bons/bons-ci/pkg/fswatch`
+**Package path:** `github.com/bons/fanwatch`
 **Language:** Go 1.22+
 **Build target:** Linux (fanotify); stubs for macOS/Windows
 **Privilege:** CAP_SYS_ADMIN (or `--privileged` container)

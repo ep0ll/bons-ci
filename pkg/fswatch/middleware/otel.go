@@ -1,6 +1,6 @@
 // Package middleware provides cross-cutting concerns for the fanwatch pipeline.
 //
-// Middleware wraps a [fanwatch.Handler] to add behaviour such as tracing,
+// Middleware wraps a [fswatch.Handler] to add behaviour such as tracing,
 // metrics, structured logging, or panic recovery without modifying handlers.
 //
 // # OTEL Integration
@@ -17,9 +17,9 @@
 //	    Tracer:           otel.Tracer("fanwatch"),
 //	    RecordAttributes: true,
 //	})
-//	pipeline := fanwatch.NewPipeline(
-//	    fanwatch.WithMiddleware(otelMW),
-//	    fanwatch.WithHandler(myHandler),
+//	pipeline := fswatch.NewPipeline(
+//	    fswatch.WithMiddleware(otelMW),
+//	    fswatch.WithHandler(myHandler),
 //	)
 package middleware
 
@@ -28,7 +28,7 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ type OTELConfig struct {
 	// Meter creates metric instruments. Nil disables metrics.
 	Meter Meter
 
-	// SpanName is the span name. Defaults to "fanwatch.event".
+	// SpanName is the span name. Defaults to "fswatch.event".
 	SpanName string
 
 	// RecordAttributes controls whether event attributes are added to spans
@@ -97,20 +97,20 @@ type OTELConfig struct {
 // OTELMiddleware
 // ─────────────────────────────────────────────────────────────────────────────
 
-// OTELMiddleware is a [fanwatch.Middleware] that adds tracing and metrics to
+// OTELMiddleware is a [fswatch.Middleware] that adds tracing and metrics to
 // every handled event.
 //
 // Spans:
-//   - fanwatch.event.mask  — event operation string
-//   - fanwatch.event.pid   — triggering PID
-//   - fanwatch.event.path  — file path
-//   - fanwatch.layer.index — layer stack index (requires OverlayEnricher)
-//   - fanwatch.layer.upper — whether the file is in the upperdir
-//   - fanwatch.process.comm — process short name (requires ProcessEnricher)
+//   - fswatch.event.mask  — event operation string
+//   - fswatch.event.pid   — triggering PID
+//   - fswatch.event.path  — file path
+//   - fswatch.layer.index — layer stack index (requires OverlayEnricher)
+//   - fswatch.layer.upper — whether the file is in the upperdir
+//   - fswatch.process.comm — process short name (requires ProcessEnricher)
 //
 // Metrics:
-//   - fanwatch.events.total  — counter per event, labelled by mask
-//   - fanwatch.events.errors — counter of handler errors
+//   - fswatch.events.total  — counter per event, labelled by mask
+//   - fswatch.events.errors — counter of handler errors
 type OTELMiddleware struct {
 	cfg    OTELConfig
 	events Counter
@@ -123,7 +123,7 @@ func NewOTEL(tracer Tracer, meter Meter) (*OTELMiddleware, error) {
 	return NewOTELWithConfig(OTELConfig{
 		Tracer:           tracer,
 		Meter:            meter,
-		SpanName:         "fanwatch.event",
+		SpanName:         "fswatch.event",
 		RecordAttributes: true,
 	})
 }
@@ -131,20 +131,20 @@ func NewOTEL(tracer Tracer, meter Meter) (*OTELMiddleware, error) {
 // NewOTELWithConfig constructs an [OTELMiddleware] from an explicit config.
 func NewOTELWithConfig(cfg OTELConfig) (*OTELMiddleware, error) {
 	if cfg.SpanName == "" {
-		cfg.SpanName = "fanwatch.event"
+		cfg.SpanName = "fswatch.event"
 	}
 	m := &OTELMiddleware{cfg: cfg}
 
 	if cfg.Meter != nil {
 		var err error
 		if m.events, err = cfg.Meter.Int64Counter(
-			"fanwatch.events.total",
+			"fswatch.events.total",
 			"Total fanwatch events handled",
 		); err != nil {
 			return nil, fmt.Errorf("otel: create events counter: %w", err)
 		}
 		if m.errors, err = cfg.Meter.Int64Counter(
-			"fanwatch.events.errors",
+			"fswatch.events.errors",
 			"Fanwatch handler errors",
 		); err != nil {
 			return nil, fmt.Errorf("otel: create errors counter: %w", err)
@@ -153,9 +153,9 @@ func NewOTELWithConfig(cfg OTELConfig) (*OTELMiddleware, error) {
 	return m, nil
 }
 
-// Wrap implements [fanwatch.Middleware].
-func (o *OTELMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
-	return fanwatch.HandlerFunc(func(ctx context.Context, e *fanwatch.EnrichedEvent) error {
+// Wrap implements [fswatch.Middleware].
+func (o *OTELMiddleware) Wrap(next fswatch.Handler) fswatch.Handler {
+	return fswatch.HandlerFunc(func(ctx context.Context, e *fswatch.EnrichedEvent) error {
 		ctx, span := o.startSpan(ctx, e)
 		defer span.End()
 
@@ -169,7 +169,7 @@ func (o *OTELMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
 	})
 }
 
-func (o *OTELMiddleware) startSpan(ctx context.Context, e *fanwatch.EnrichedEvent) (context.Context, Span) {
+func (o *OTELMiddleware) startSpan(ctx context.Context, e *fswatch.EnrichedEvent) (context.Context, Span) {
 	if o.cfg.Tracer == nil {
 		return ctx, noopSpan{}
 	}
@@ -180,7 +180,7 @@ func (o *OTELMiddleware) startSpan(ctx context.Context, e *fanwatch.EnrichedEven
 	return o.cfg.Tracer.Start(ctx, o.cfg.SpanName, attrs...)
 }
 
-func (o *OTELMiddleware) recordMetrics(ctx context.Context, e *fanwatch.EnrichedEvent, err error) {
+func (o *OTELMiddleware) recordMetrics(ctx context.Context, e *fswatch.EnrichedEvent, err error) {
 	if o.cfg.Meter == nil {
 		return
 	}
@@ -193,20 +193,20 @@ func (o *OTELMiddleware) recordMetrics(ctx context.Context, e *fanwatch.Enriched
 	}
 }
 
-func eventAttrs(e *fanwatch.EnrichedEvent) []KV {
+func eventAttrs(e *fswatch.EnrichedEvent) []KV {
 	attrs := []KV{
-		Attr("fanwatch.event.mask", e.Mask.String()),
-		Attr("fanwatch.event.pid", int(e.PID)),
-		Attr("fanwatch.event.path", e.Path),
+		Attr("fswatch.event.mask", e.Mask.String()),
+		Attr("fswatch.event.pid", int(e.PID)),
+		Attr("fswatch.event.path", e.Path),
 	}
 	if e.SourceLayer != nil {
 		attrs = append(attrs,
-			Attr("fanwatch.layer.index", e.SourceLayer.Index),
-			Attr("fanwatch.layer.upper", e.SourceLayer.IsUpper),
+			Attr("fswatch.layer.index", e.SourceLayer.Index),
+			Attr("fswatch.layer.upper", e.SourceLayer.IsUpper),
 		)
 	}
 	if e.Process != nil {
-		attrs = append(attrs, Attr("fanwatch.process.comm", e.Process.Comm))
+		attrs = append(attrs, Attr("fswatch.process.comm", e.Process.Comm))
 	}
 	return attrs
 }
@@ -214,16 +214,16 @@ func eventAttrs(e *fanwatch.EnrichedEvent) []KV {
 // noopSpan is a do-nothing Span used when no Tracer is configured.
 type noopSpan struct{}
 
-func (noopSpan) End(...any)                {}
+func (noopSpan) End(...any)            {}
 func (noopSpan) RecordError(error, ...any) {}
-func (noopSpan) SetAttributes(...KV)       {}
+func (noopSpan) SetAttributes(...KV)   {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LoggingMiddleware — structured error logging
 // ─────────────────────────────────────────────────────────────────────────────
 
 // LoggingMiddleware logs handler errors with structured context.
-// Successful events are not logged here — use [fanwatch.LogHandler] for that.
+// Successful events are not logged here — use [fswatch.LogHandler] for that.
 type LoggingMiddleware struct {
 	logFn func(msg string, args ...any)
 }
@@ -234,9 +234,9 @@ func NewLogging(logFn func(msg string, args ...any)) *LoggingMiddleware {
 	return &LoggingMiddleware{logFn: logFn}
 }
 
-// Wrap implements [fanwatch.Middleware].
-func (l *LoggingMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
-	return fanwatch.HandlerFunc(func(ctx context.Context, e *fanwatch.EnrichedEvent) error {
+// Wrap implements [fswatch.Middleware].
+func (l *LoggingMiddleware) Wrap(next fswatch.Handler) fswatch.Handler {
+	return fswatch.HandlerFunc(func(ctx context.Context, e *fswatch.EnrichedEvent) error {
 		err := next.Handle(ctx, e)
 		if err != nil {
 			l.logFn("fanwatch: handler error",
@@ -257,18 +257,18 @@ func (l *LoggingMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
 // RecoveryMiddleware catches panics in the wrapped handler and converts them
 // to errors, preventing worker goroutines from crashing.
 type RecoveryMiddleware struct {
-	onPanic func(recovered any, e *fanwatch.EnrichedEvent)
+	onPanic func(recovered any, e *fswatch.EnrichedEvent)
 }
 
 // NewRecovery constructs a [RecoveryMiddleware].
 // onPanic is called with the recovered value; it may be nil.
-func NewRecovery(onPanic func(recovered any, e *fanwatch.EnrichedEvent)) *RecoveryMiddleware {
+func NewRecovery(onPanic func(recovered any, e *fswatch.EnrichedEvent)) *RecoveryMiddleware {
 	return &RecoveryMiddleware{onPanic: onPanic}
 }
 
-// Wrap implements [fanwatch.Middleware].
-func (r *RecoveryMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
-	return fanwatch.HandlerFunc(func(ctx context.Context, e *fanwatch.EnrichedEvent) (err error) {
+// Wrap implements [fswatch.Middleware].
+func (r *RecoveryMiddleware) Wrap(next fswatch.Handler) fswatch.Handler {
+	return fswatch.HandlerFunc(func(ctx context.Context, e *fswatch.EnrichedEvent) (err error) {
 		defer func() {
 			if rec := recover(); rec != nil {
 				if r.onPanic != nil {
@@ -305,9 +305,9 @@ type MetricsMiddleware struct {
 	filtered atomic.Int64
 }
 
-// Wrap implements [fanwatch.Middleware].
-func (m *MetricsMiddleware) Wrap(next fanwatch.Handler) fanwatch.Handler {
-	return fanwatch.HandlerFunc(func(ctx context.Context, e *fanwatch.EnrichedEvent) error {
+// Wrap implements [fswatch.Middleware].
+func (m *MetricsMiddleware) Wrap(next fswatch.Handler) fswatch.Handler {
+	return fswatch.HandlerFunc(func(ctx context.Context, e *fswatch.EnrichedEvent) error {
 		err := next.Handle(ctx, e)
 		if err != nil {
 			m.errors.Add(1)

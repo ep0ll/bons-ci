@@ -1,4 +1,4 @@
-package fanwatch
+package fswatch
 
 import "context"
 

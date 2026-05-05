@@ -1,5 +1,5 @@
 // Package snapshot resolves containerd snapshotter mounts into fanwatch
-// [fanwatch.OverlayInfo] values using the official containerd libraries.
+// [fswatch.OverlayInfo] values using the official containerd libraries.
 //
 // # Import dependencies
 //
@@ -19,7 +19,7 @@
 //     data structure the containerd daemon uses to actually mount the snapshot.
 //     From those Mount.Options we extract lowerdir/upperdir/workdir.
 //
-// Both strategies produce the same [fanwatch.OverlayInfo] shape so the rest of
+// Both strategies produce the same [fswatch.OverlayInfo] shape so the rest of
 // the pipeline is oblivious to which was used.
 package snapshot
 
@@ -34,14 +34,14 @@ import (
 	"github.com/containerd/containerd/snapshots"
 	"github.com/moby/sys/mountinfo"
 
-	fanwatch "github.com/bons/bons-ci/pkg/fswatch"
+	fswatch "github.com/bons/bons-ci/pkg/fswatch"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Strategy 1 — live mount lookup via moby/sys/mountinfo
 // ─────────────────────────────────────────────────────────────────────────────
 
-// OverlayInfoFromMergedDir returns an [fanwatch.OverlayInfo] for a running
+// OverlayInfoFromMergedDir returns an [fswatch.OverlayInfo] for a running
 // container by finding its overlay mount via the kernel's mountinfo.
 //
 // It uses:
@@ -49,8 +49,8 @@ import (
 //     all overlay mounts efficiently.
 //   - containerd/mount.Lookup to resolve the exact mount for mergedDir.
 //
-// Returns [fanwatch.ErrMountNotFound] when no overlay mount matches mergedDir.
-func OverlayInfoFromMergedDir(mergedDir string) (*fanwatch.OverlayInfo, error) {
+// Returns [fswatch.ErrMountNotFound] when no overlay mount matches mergedDir.
+func OverlayInfoFromMergedDir(mergedDir string) (*fswatch.OverlayInfo, error) {
 	mergedDir = filepath.Clean(mergedDir)
 
 	// Use moby/sys/mountinfo to get all overlay mounts in one pass.
@@ -66,16 +66,16 @@ func OverlayInfoFromMergedDir(mergedDir string) (*fanwatch.OverlayInfo, error) {
 		}
 		return overlayInfoFromMountinfo(m, mergedDir)
 	}
-	return nil, fmt.Errorf("snapshot: %w: %q", fanwatch.ErrMountNotFound, mergedDir)
+	return nil, fmt.Errorf("snapshot: %w: %q", fswatch.ErrMountNotFound, mergedDir)
 }
 
 // overlayInfoFromMountinfo converts a moby/sys/mountinfo.Info entry into a
-// fanwatch.OverlayInfo by parsing the VFSOptions field for lowerdir/upperdir/workdir.
+// fswatch.OverlayInfo by parsing the VFSOptions field for lowerdir/upperdir/workdir.
 //
 // The mountinfo VFSOptions field (column 11 of /proc/self/mountinfo) contains
 // the superblock options string: "lowerdir=/l1:/l2,upperdir=/u,workdir=/w,..."
-func overlayInfoFromMountinfo(m *mountinfo.Info, mergedDir string) (*fanwatch.OverlayInfo, error) {
-	opts := parseKVOptions(m.VFSOptions)
+func overlayInfoFromMountinfo(m *mountinfo.Info, mergedDir string) (*fswatch.OverlayInfo, error) {
+	opts := parseOverlayOptions(m.VFSOptions)
 
 	lower := opts["lowerdir"]
 	if lower == "" {
@@ -90,7 +90,7 @@ func overlayInfoFromMountinfo(m *mountinfo.Info, mergedDir string) (*fanwatch.Ov
 	upper := opts["upperdir"]
 	work := opts["workdir"]
 
-	info := fanwatch.NewOverlayInfo(
+	info := fswatch.NewOverlayInfo(
 		mergedDir,
 		upper, // empty string for read-only mounts — NewOverlayInfo handles this
 		work,
@@ -103,7 +103,7 @@ func overlayInfoFromMountinfo(m *mountinfo.Info, mergedDir string) (*fanwatch.Ov
 // Strategy 2 — containerd Snapshotter.Mounts()
 // ─────────────────────────────────────────────────────────────────────────────
 
-// OverlayInfoFromSnapshotter resolves an [fanwatch.OverlayInfo] from a
+// OverlayInfoFromSnapshotter resolves an [fswatch.OverlayInfo] from a
 // containerd Snapshotter by calling Mounts(ctx, snapshotKey).
 //
 // Mounts() returns []mount.Mount populated by the snapshotter with the correct
@@ -122,7 +122,7 @@ func OverlayInfoFromSnapshotter(
 	sn snapshots.Snapshotter,
 	snapshotKey string,
 	mergedDir string,
-) (*fanwatch.OverlayInfo, error) {
+) (*fswatch.OverlayInfo, error) {
 	mounts, err := sn.Mounts(ctx, snapshotKey)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot: snapshotter.Mounts(%q): %w", snapshotKey, err)
@@ -136,12 +136,12 @@ func OverlayInfoFromSnapshotter(
 }
 
 // overlayInfoFromMounts converts the []mount.Mount returned by
-// snapshots.Snapshotter.Mounts() into an [fanwatch.OverlayInfo].
+// snapshots.Snapshotter.Mounts() into an [fswatch.OverlayInfo].
 //
 // containerd's overlayfs snapshotter produces exactly one mount of type
 // "overlay" with options containing lowerdir/upperdir/workdir, or a "bind"
 // mount for single-layer snapshots.
-func overlayInfoFromMounts(mounts []ctdmount.Mount, mergedDir string) (*fanwatch.OverlayInfo, error) {
+func overlayInfoFromMounts(mounts []ctdmount.Mount, mergedDir string) (*fswatch.OverlayInfo, error) {
 	for _, m := range mounts {
 		switch m.Type {
 		case "overlay":
@@ -149,10 +149,10 @@ func overlayInfoFromMounts(mounts []ctdmount.Mount, mergedDir string) (*fanwatch
 		case "bind":
 			// Single-layer snapshot: containerd returns a bind mount when there
 			// is only one layer and no parent. The bind source is the fs/ dir.
-			return fanwatch.NewOverlayInfo(
+			return fswatch.NewOverlayInfo(
 				mergedDir,
-				"", // no upperdir — read-only bind
-				"", // no workdir
+				"",         // no upperdir — read-only bind
+				"",         // no workdir
 				[]string{m.Source},
 			), nil
 		}
@@ -161,14 +161,14 @@ func overlayInfoFromMounts(mounts []ctdmount.Mount, mergedDir string) (*fanwatch
 }
 
 // overlayInfoFromOverlayMount parses a containerd mount.Mount of type "overlay"
-// into an [fanwatch.OverlayInfo].
+// into an [fswatch.OverlayInfo].
 //
 // containerd encodes the overlay options in mount.Mount.Options as a string
 // slice where each element is "key=value" or "key". For example:
 //
 //	Options: ["workdir=/snapshots/3/work", "upperdir=/snapshots/3/fs",
 //	           "lowerdir=/snapshots/2/fs:/snapshots/1/fs"]
-func overlayInfoFromOverlayMount(m ctdmount.Mount, mergedDir string) (*fanwatch.OverlayInfo, error) {
+func overlayInfoFromOverlayMount(m ctdmount.Mount, mergedDir string) (*fswatch.OverlayInfo, error) {
 	opts := parseSliceKVOptions(m.Options)
 
 	lower := opts["lowerdir"]
@@ -181,7 +181,7 @@ func overlayInfoFromOverlayMount(m ctdmount.Mount, mergedDir string) (*fanwatch.
 		lowerDirs[i] = filepath.Clean(d)
 	}
 
-	return fanwatch.NewOverlayInfo(
+	return fswatch.NewOverlayInfo(
 		mergedDir,
 		opts["upperdir"],
 		opts["workdir"],
@@ -193,7 +193,7 @@ func overlayInfoFromOverlayMount(m ctdmount.Mount, mergedDir string) (*fanwatch.
 // Strategy 3 — unified resolution with automatic fallback
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ResolveOverlayInfo resolves an [fanwatch.OverlayInfo] using the best
+// ResolveOverlayInfo resolves an [fswatch.OverlayInfo] using the best
 // available strategy:
 //
 //  1. Live-mount via moby/sys/mountinfo (fastest, most accurate for running containers).
@@ -205,7 +205,7 @@ func ResolveOverlayInfo(
 	mergedDir string,
 	sn snapshots.Snapshotter,
 	snapshotKey string,
-) (*fanwatch.OverlayInfo, error) {
+) (*fswatch.OverlayInfo, error) {
 	// Preferred: live mount lookup.
 	info, err := OverlayInfoFromMergedDir(mergedDir)
 	if err == nil {
@@ -233,7 +233,7 @@ type MountEntry struct {
 	// MergedDir is the mount point (merged overlay view).
 	MergedDir string
 	// Overlay contains the parsed overlay structure for this mount.
-	Overlay *fanwatch.OverlayInfo
+	Overlay *fswatch.OverlayInfo
 }
 
 // AllOverlayMounts returns every currently active overlay mount visible in
@@ -341,7 +341,7 @@ func IsMountReadOnly(m ctdmount.Mount) bool {
 
 // parseKVOptions parses a comma-separated "key=value" string (as found in
 // mountinfo VFSOptions) into a map.
-func parseKVOptions(opts string) map[string]string {
+func parseOverlayOptions(opts string) map[string]string {
 	m := make(map[string]string)
 	for _, field := range strings.Split(opts, ",") {
 		kv := strings.SplitN(field, "=", 2)

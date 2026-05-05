@@ -34,7 +34,7 @@ and delivers structured, enriched filesystem events over Go channels.
 ## Installation
 
 ```bash
-go get github.com/bons/bons-ci/pkg/fswatch
+go get github.com/bons/fanwatch
 ```
 
 ---
@@ -49,7 +49,7 @@ import (
     "log/slog"
     "os"
 
-    "github.com/bons/bons-ci/pkg/fswatch"
+    "github.com/bons/fanwatch"
 )
 
 func main() {
@@ -181,7 +181,7 @@ Compose with `ChainTransformer{}` or `ConditionalTransformer{}`.
 ## Middleware
 
 ```go
-import "github.com/bons/bons-ci/pkg/fswatch/middleware"
+import "github.com/bons/fanwatch/middleware"
 
 otel, _ := middleware.NewOTEL(tracer, meter)
 recovery := middleware.NewRecovery(func(rec any, e *fanwatch.EnrichedEvent) {
@@ -234,7 +234,7 @@ go test -tags integration -count=1 ./...
 ### Test helpers
 
 ```go
-import "github.com/bons/bons-ci/pkg/fswatch/testutil"
+import "github.com/bons/fanwatch/testutil"
 
 // Inject events without touching fanotify
 w := testutil.NewFakeWatcher(64)

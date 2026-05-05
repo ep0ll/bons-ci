@@ -1,4 +1,4 @@
-package fanwatch
+package fswatch
 
 import (
 	"fmt"
@@ -200,9 +200,6 @@ type Event struct {
 	// Nil when the file was already deleted before stat could complete.
 	FileInfo fs.FileInfo
 
-	// WatcherID identifies which Watcher produced this event.
-	// Useful when multiple watchers feed a single pipeline.
-	WatcherID string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
