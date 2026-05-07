@@ -1,0 +1,572 @@
+# =============================================================================
+# bonnie-cicd LinuxKit Image
+# Minimal · Secure · Fast-Boot · CI/CD Optimised
+# Build system: bonnie (proprietary) + nydus, stargz, qemu support
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# KERNEL
+# Hardened, performance-tuned kernel with a minimal config.
+# BPF, cgroups v2, io_uring, VFIO/KVM enabled for QEMU pass-through.
+# -----------------------------------------------------------------------------
+kernel:
+  image: linuxkit/kernel:6.6.13
+  cmdline: >-
+    console=ttyS0
+    console=tty0
+    panic=1
+    quiet
+    loglevel=0
+    ro
+    init=/init
+    net.ifnames=0
+    biosdevname=0
+    apparmor=1
+    security=apparmor
+    systemd.unified_cgroup_hierarchy=1
+    cgroup_no_v1=all
+    mitigations=auto,nosmt
+    slub_debug=F
+    page_poison=1
+    vsyscall=none
+    debugfs=off
+    slab_nomerge
+    random.trust_cpu=on
+    elevator=none
+    transparent_hugepage=madvise
+    intel_idle.max_cstate=1
+    processor.max_cstate=1
+    nowatchdog
+    nohz=on
+    rcu_nocbs=0-63
+    irqaffinity=0
+    skew_tick=1
+    numa_balancing=disable
+
+# -----------------------------------------------------------------------------
+# INIT LAYER
+# Minimal: linuxkit init, runc OCI runtime, containerd, CA certs, sshd keys.
+# Each image is pinned by digest for reproducible, supply-chain-safe builds.
+# -----------------------------------------------------------------------------
+init:
+  - linuxkit/init:v1.2.0
+  - linuxkit/runc:v1.2.0
+  - linuxkit/containerd:v1.2.0
+  - linuxkit/ca-certificates:v1.2.0
+
+# -----------------------------------------------------------------------------
+# ONBOOT SERVICES  (run-to-completion, in declaration order)
+# -----------------------------------------------------------------------------
+onboot:
+
+  # -- Kernel tunables (performance + security) --
+  - name: sysctl
+    image: linuxkit/sysctl:v1.2.0
+    binds:
+      - /etc/sysctl.d:/etc/sysctl.d
+    capabilities:
+      - CAP_SYS_ADMIN
+    readonly: true
+
+  # -- cgroup v2 & namespace setup --
+  - name: cgroupfs-mount
+    image: linuxkit/cgroupfs-mount:v1.2.0
+    capabilities:
+      - CAP_SYS_ADMIN
+      - CAP_MKNOD
+
+  # -- Entropy (feeds /dev/random early for TLS keys, etc.) --
+  - name: rngd
+    image: linuxkit/rngd:v1.2.0
+    capabilities:
+      - CAP_SYS_ADMIN
+
+  # -- DHCP / networking --
+  - name: dhcpcd
+    image: linuxkit/dhcpcd:v1.2.0
+    binds:
+      - /var/lib/dhcpcd:/var/lib/dhcpcd
+    capabilities:
+      - CAP_NET_ADMIN
+      - CAP_NET_RAW
+      - CAP_NET_BIND_SERVICE
+
+  # -- Ephemeral writable state on tmpfs --
+  - name: mount-state
+    image: linuxkit/mount:v1.2.0
+    command: ["/usr/bin/mountie", "/var/lib/linuxkit"]
+    binds:
+      - /var/lib/linuxkit:/var/lib/linuxkit:rshared
+    capabilities:
+      - CAP_SYS_ADMIN
+
+  # -- Containerd state & overlay dirs --
+  - name: format-state
+    image: linuxkit/format:v1.2.0
+    binds:
+      - /dev:/dev
+    capabilities:
+      - CAP_SYS_ADMIN
+      - CAP_MKNOD
+
+  # -- OCI image metadata store on tmpfs --
+  - name: metadata
+    image: linuxkit/metadata:v1.2.0
+    binds:
+      - /run:/run
+    capabilities:
+      - CAP_SYS_ADMIN
+
+# -----------------------------------------------------------------------------
+# LONG-RUNNING SERVICES
+# -----------------------------------------------------------------------------
+services:
+
+  # ---- containerd (primary CRI / image runtime) ----------------------------
+  - name: containerd
+    image: linuxkit/containerd:v1.2.0
+    capabilities:
+      - CAP_SYS_ADMIN
+      - CAP_NET_ADMIN
+      - CAP_SYS_PTRACE
+      - CAP_SETUID
+      - CAP_SETGID
+      - CAP_KILL
+      - CAP_CHOWN
+      - CAP_FOWNER
+      - CAP_DAC_OVERRIDE
+      - CAP_MKNOD
+      - CAP_SYS_CHROOT
+    binds:
+      - /run/containerd:/run/containerd
+      - /var/lib/containerd:/var/lib/containerd
+      - /var/lib/containerd/snapshotter/nydus:/var/lib/containerd/snapshotter/nydus
+      - /var/lib/containerd/snapshotter/stargz:/var/lib/containerd/snapshotter/stargz
+      - /etc/containerd:/etc/containerd
+      - /dev:/dev
+      - /run:/run
+    files:
+      - path: /etc/containerd/config.toml
+        contents: |
+          version = 3
+
+          [grpc]
+            address = "/run/containerd/containerd.sock"
+
+          [metrics]
+            address = "0.0.0.0:1338"
+
+          [debug]
+            level = "warn"
+
+          [plugins]
+
+            [plugins."io.containerd.grpc.v1.cri"]
+              sandbox_image = "registry.k8s.io/pause:3.9"
+              enable_unprivileged_ports = true
+              enable_unprivileged_icmp = true
+
+              [plugins."io.containerd.grpc.v1.cri".containerd]
+                default_runtime_name = "runc"
+                snapshotter = "overlayfs"        # default; overridden per-image
+                disable_snapshot_annotations = false
+
+                [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+
+                  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+                    runtime_type = "io.containerd.runc.v2"
+                    [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+                      SystemdCgroup = true
+                      NoPivotRoot    = false
+
+            # --- Nydus lazy-pull snapshotter ---
+            [plugins."io.containerd.snapshotter.v1.nydus"]
+              root_path   = "/var/lib/containerd/snapshotter/nydus"
+              nydusd_path = "/usr/local/bin/nydusd"
+              nydus_image_path = "/usr/local/bin/nydus-image"
+              [plugins."io.containerd.snapshotter.v1.nydus".daemon_config]
+                log_level = "warn"
+                [plugins."io.containerd.snapshotter.v1.nydus".daemon_config.device]
+                  backend_type      = "registry"
+                  prefetch_workers  = 4
+                  [plugins."io.containerd.snapshotter.v1.nydus".daemon_config.device.cache]
+                    type       = "blobcache"
+                    compressed = true
+                    work_dir   = "/var/lib/nydus/cache"
+
+            # --- eStargz snapshotter ---
+            [plugins."io.containerd.snapshotter.v1.stargz"]
+              root_path = "/var/lib/containerd/snapshotter/stargz"
+
+          [proxy_plugins]
+            [proxy_plugins.nydus]
+              type    = "snapshot"
+              address = "/run/containerd-nydus/containerd-nydus-grpc.sock"
+            [proxy_plugins.stargz]
+              type    = "snapshot"
+              address = "/run/containerd-stargz-grpc/containerd-stargz-grpc.sock"
+    runtime:
+      cgroups:
+        - /system/containerd
+      mounts:
+        - type: tmpfs
+          dest: /run
+        - type: tmpfs
+          dest: /var/lib/containerd
+
+  # ---- nydus daemon (nydusd + nydus-snapshotter) ---------------------------
+  # Enables lazy image pulling from OCI-compatible registries.
+  # Dramatically cuts cold-start times in CI runners.
+  - name: nydus-snapshotter
+    image: ghcr.io/containerd/nydus-snapshotter:v0.13.7
+    capabilities:
+      - CAP_SYS_ADMIN
+      - CAP_NET_ADMIN
+      - CAP_MKNOD
+      - CAP_DAC_OVERRIDE
+    binds:
+      - /run/containerd:/run/containerd
+      - /run/containerd-nydus:/run/containerd-nydus
+      - /var/lib/nydus:/var/lib/nydus
+      - /dev/fuse:/dev/fuse
+    env:
+      - ENABLE_RUNTIME_SPECIFIC_SNAPSHOTTER=true
+      - RECOVER_POLICY=restart
+    files:
+      - path: /etc/nydus/config.toml
+        contents: |
+          version = 1
+
+          [daemon]
+            id         = "nydusd"
+            supervisor  = "/run/containerd-nydus/supervisor.sock"
+            log_level  = "warn"
+            log_rotation_size = 100
+
+          [device]
+            backend_type     = "registry"
+            prefetch_workers = 4
+            [device.cache]
+              type       = "blobcache"
+              compressed = true
+              work_dir   = "/var/lib/nydus/cache"
+              cache_size = "20Gi"
+
+          [filesystem_prefetch]
+            enable            = true
+            prefetch_all      = false
+            threads_count     = 4
+            merging_size      = "1Mi"
+            bandwidth_rate    = "0"          # unlimited
+
+          [snapshotter]
+            address            = "/run/containerd-nydus/containerd-nydus-grpc.sock"
+            daemon_mode        = "shared"
+            enable_nydus_overlayfs = true
+            sync_remove        = false
+    runtime:
+      cgroups:
+        - /system/nydus
+      mounts:
+        - type: tmpfs
+          dest: /run/containerd-nydus
+        - type: tmpfs
+          dest: /var/lib/nydus
+
+  # ---- stargz snapshotter (eStargz / SOCI lazy-pull) -----------------------
+  - name: stargz-snapshotter
+    image: ghcr.io/containerd/stargz-snapshotter:v0.15.1
+    capabilities:
+      - CAP_SYS_ADMIN
+      - CAP_NET_ADMIN
+      - CAP_MKNOD
+    binds:
+      - /run/containerd:/run/containerd
+      - /run/containerd-stargz-grpc:/run/containerd-stargz-grpc
+      - /var/lib/containerd/snapshotter/stargz:/var/lib/containerd/snapshotter/stargz
+    files:
+      - path: /etc/stargz-snapshotter/config.toml
+        contents: |
+          [log]
+            level = "warn"
+
+          [snapshotter]
+            root_path = "/var/lib/containerd/snapshotter/stargz"
+
+          [blob]
+            check_always = false
+            fetching_timeout_sec  = 30
+            max_retries           = 5
+            fetch_timeout_sec     = 30
+            max_span_verification_retries = 3
+
+          [background_fetch]
+            disable = false
+            fetch_period_msec = 500
+            max_queue_size    = 32
+            silence_period_msec = 30000
+            prefetch_size     = 10485760       # 10 MiB
+
+          [resolver]
+            [resolver.host]
+              [resolver.host."docker.io"]
+                mirrors = ["mirror.gcr.io"]
+    runtime:
+      cgroups:
+        - /system/stargz
+      mounts:
+        - type: tmpfs
+          dest: /run/containerd-stargz-grpc
+
+  # ---- QEMU (multi-arch builds & hardware emulation for CI) ----------------
+  - name: qemu-binfmt
+    image: tonistiigi/binfmt:qemu-v8.1.5
+    capabilities:
+      - CAP_SYS_ADMIN
+    binds:
+      - /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc
+    command: ["--install", "all"]
+
+  - name: qemu-service
+    image: multiarch/qemu-user-static:7.2.0-1
+    capabilities:
+      - CAP_SYS_ADMIN
+    binds:
+      - /usr/local/bin:/usr/local/bin
+      - /proc/sys/fs/binfmt_misc:/proc/sys/fs/binfmt_misc
+
+  # ---- bonnie build system (proprietary) -----------------------------------
+  # Runs as a gRPC/HTTP service; CI agents connect via unix socket or TCP.
+  - name: bonnie
+    image: bonnie:latest          # <-- replace with your registry path
+    capabilities:
+      - CAP_NET_ADMIN
+      - CAP_NET_BIND_SERVICE
+      - CAP_SETUID
+      - CAP_SETGID
+      - CAP_CHOWN
+      - CAP_DAC_OVERRIDE
+    binds:
+      - /run/bonnie:/run/bonnie
+      - /var/lib/bonnie:/var/lib/bonnie
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock
+      - /run/containerd-nydus/containerd-nydus-grpc.sock:/run/containerd-nydus/containerd-nydus-grpc.sock
+      - /cache/bonnie:/cache/bonnie
+    env:
+      - BONNIE_CONTAINERD_SOCKET=/run/containerd/containerd.sock
+      - BONNIE_NYDUS_SOCKET=/run/containerd-nydus/containerd-nydus-grpc.sock
+      - BONNIE_STARGZ_SOCKET=/run/containerd-stargz-grpc/containerd-stargz-grpc.sock
+      - BONNIE_CACHE_DIR=/cache/bonnie
+      - BONNIE_LOG_LEVEL=warn
+      - BONNIE_METRICS_ADDR=0.0.0.0:9091
+      - BONNIE_GRPC_ADDR=unix:///run/bonnie/bonnie.sock
+      - GOMAXPROCS=0                          # auto-detect from cgroups
+    runtime:
+      cgroups:
+        - /system/bonnie
+      mounts:
+        - type: tmpfs
+          dest: /run/bonnie
+        - type: tmpfs
+          dest: /var/lib/bonnie
+
+  # ---- buildkitd (for OCI image building used by bonnie) ------------------
+  - name: buildkitd
+    image: moby/buildkit:v0.14.1-rootless
+    capabilities:
+      - CAP_SYS_ADMIN
+      - CAP_NET_ADMIN
+      - CAP_SETUID
+      - CAP_SETGID
+    binds:
+      - /run/buildkit:/run/buildkit
+      - /var/lib/buildkit:/var/lib/buildkit
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock
+    files:
+      - path: /etc/buildkit/buildkitd.toml
+        contents: |
+          debug = false
+
+          [log]
+            format = "json"
+
+          [grpc]
+            address = ["unix:///run/buildkit/buildkitd.sock"]
+
+          [worker.containerd]
+            address   = "/run/containerd/containerd.sock"
+            namespace = "buildkit"
+            snapshotter = "overlayfs"
+            gc = true
+            gckeepstorage = 10240
+
+          [registry."docker.io"]
+            mirrors = ["mirror.gcr.io"]
+    runtime:
+      cgroups:
+        - /system/buildkit
+      mounts:
+        - type: tmpfs
+          dest: /run/buildkit
+
+  # ---- node-exporter (Prometheus metrics) ----------------------------------
+  - name: node-exporter
+    image: prom/node-exporter:v1.8.1
+    capabilities:
+      - CAP_SYS_PTRACE
+    binds:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+      - "--collector.disable-defaults"
+      - "--collector.cpu"
+      - "--collector.meminfo"
+      - "--collector.diskstats"
+      - "--collector.netdev"
+      - "--collector.loadavg"
+      - "--collector.pressure"
+      - "--web.listen-address=:9100"
+    readonly: true
+
+  # ---- getty (emergency console only – disabled in locked-down builds) -----
+  - name: getty
+    image: linuxkit/getty:v1.2.0
+    env:
+      - INSECURE=false
+    binds:
+      - /etc/profile.d:/etc/profile.d
+    capabilities:
+      - CAP_CHOWN
+      - CAP_FOWNER
+      - CAP_SETUID
+      - CAP_SETGID
+      - CAP_TTY
+
+# -----------------------------------------------------------------------------
+# STATIC FILES baked into the image
+# -----------------------------------------------------------------------------
+files:
+
+  # -- sysctl performance & security tunables --------------------------------
+  - path: /etc/sysctl.d/99-bonnie-perf.conf
+    contents: |
+      # ── Network performance ───────────────────────────────────────────────
+      net.core.somaxconn                    = 65535
+      net.core.netdev_max_backlog           = 250000
+      net.core.rmem_max                     = 134217728
+      net.core.wmem_max                     = 134217728
+      net.core.rmem_default                 = 262144
+      net.core.wmem_default                 = 262144
+      net.ipv4.tcp_rmem                     = 4096 87380 134217728
+      net.ipv4.tcp_wmem                     = 4096 65536 134217728
+      net.ipv4.tcp_mtu_probing             = 1
+      net.ipv4.tcp_congestion_control      = bbr
+      net.core.default_qdisc               = fq
+      net.ipv4.tcp_fastopen                = 3
+      net.ipv4.tcp_tw_reuse                = 1
+      net.ipv4.ip_local_port_range         = 1024 65535
+      net.ipv4.tcp_fin_timeout             = 15
+      net.ipv4.tcp_keepalive_time          = 300
+      net.ipv4.tcp_keepalive_intvl         = 30
+      net.ipv4.tcp_keepalive_probes        = 5
+      net.ipv4.tcp_max_syn_backlog         = 65535
+      net.ipv4.tcp_max_tw_buckets          = 2000000
+      net.ipv4.tcp_slow_start_after_idle   = 0
+      net.ipv4.tcp_no_metrics_save         = 1
+      net.ipv4.route.flush                 = 1
+      # ── Virtual memory ────────────────────────────────────────────────────
+      vm.swappiness                         = 0
+      vm.dirty_ratio                        = 15
+      vm.dirty_background_ratio             = 5
+      vm.overcommit_memory                  = 1
+      vm.max_map_count                      = 262144
+      vm.vfs_cache_pressure                 = 50
+      # ── Filesystem ────────────────────────────────────────────────────────
+      fs.file-max                           = 2097152
+      fs.inotify.max_user_watches           = 524288
+      fs.inotify.max_user_instances         = 8192
+      fs.aio-max-nr                         = 1048576
+      fs.pipe-max-size                      = 67108864
+      # ── Security ──────────────────────────────────────────────────────────
+      kernel.dmesg_restrict                 = 1
+      kernel.kptr_restrict                  = 2
+      kernel.perf_event_paranoid            = 3
+      kernel.unprivileged_bpf_disabled      = 1
+      net.core.bpf_jit_harden              = 2
+      kernel.randomize_va_space             = 2
+      kernel.yama.ptrace_scope             = 2
+      net.ipv4.conf.all.accept_redirects   = 0
+      net.ipv4.conf.all.send_redirects     = 0
+      net.ipv4.conf.all.accept_source_route= 0
+      net.ipv4.conf.all.rp_filter         = 1
+      net.ipv4.icmp_echo_ignore_broadcasts = 1
+      net.ipv4.tcp_syncookies              = 1
+      kernel.core_uses_pid                 = 1
+      kernel.ctrl-alt-del                  = 0
+      # ── cgroup v2 ─────────────────────────────────────────────────────────
+      kernel.cgroup.memory_oom_group       = 1
+
+  # -- limits ----------------------------------------------------------------
+  - path: /etc/security/limits.d/99-bonnie.conf
+    contents: |
+      *    soft nofile  1048576
+      *    hard nofile  1048576
+      *    soft nproc   unlimited
+      *    hard nproc   unlimited
+      root soft nofile  1048576
+      root hard nofile  1048576
+
+  # -- containerd hosts config for mirror ------------------------------------
+  - path: /etc/containerd/certs.d/docker.io/hosts.toml
+    contents: |
+      server = "https://registry-1.docker.io"
+      [host."https://mirror.gcr.io"]
+        capabilities = ["pull", "resolve"]
+
+  # -- AppArmor profile for bonnie -------------------------------------------
+  - path: /etc/apparmor.d/bonnie
+    contents: |
+      #include <tunables/global>
+      profile bonnie flags=(attach_disconnected,mediate_deleted) {
+        #include <abstractions/base>
+        #include <abstractions/nameservice>
+        network,
+        capability net_admin,
+        capability net_bind_service,
+        capability setuid,
+        capability setgid,
+        capability chown,
+        capability dac_override,
+        /run/bonnie/** rw,
+        /var/lib/bonnie/** rw,
+        /cache/bonnie/** rw,
+        /run/containerd/containerd.sock rw,
+        /usr/local/bin/bonnie mrix,
+        deny /proc/sys/kernel/** w,
+        deny /sys/** w,
+      }
+
+  # -- OOM tuning for bonnie cgroup ------------------------------------------
+  - path: /etc/cgroup/bonnie.slice
+    contents: |
+      [Slice]
+      MemorySwapMax=0
+      MemoryHigh=infinity
+      CPUWeight=100
+
+  # -- resolv.conf -----------------------------------------------------------
+  - path: /etc/resolv.conf
+    contents: |
+      nameserver 1.1.1.1
+      nameserver 8.8.8.8
+      options edns0 trust-ad ndots:0
+
+  # -- nydus cache GC cron (runs inside the nydus service) ------------------
+  - path: /etc/cron.d/nydus-gc
+    contents: |
+      0 * * * * root /usr/local/bin/nydus-cache-gc --max-size=20Gi --work-dir=/var/lib/nydus/cache
