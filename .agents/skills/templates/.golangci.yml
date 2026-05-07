@@ -1,0 +1,179 @@
+run:
+  timeout: 5m
+  go: "1.22"
+  tests: true
+  build-tags: []
+
+linters:
+  enable:
+    # Default linters
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+    # Formatting
+    - gofmt
+    - goimports
+
+    # Style
+    - misspell
+    - revive
+    - gocritic
+    - godot           # godoc periods
+    - unconvert       # unnecessary type conversions
+    - unparam         # unused function parameters
+    - whitespace      # unnecessary whitespace
+
+    # Security
+    - gosec
+
+    # Error handling
+    - errcheck
+    - wrapcheck       # errors must be wrapped
+    - nilerr          # don't return nil when err != nil
+    - errorlint       # correct error wrapping patterns
+
+    # Context
+    - contextcheck    # context propagation
+    - noctx           # http requests need context
+
+    # HTTP / SQL
+    - bodyclose       # http response body must be closed
+    - sqlclosecheck   # sql rows/stmts must be closed
+    - rowserrcheck    # sql rows.Err() must be checked
+
+    # Complexity
+    - cyclop          # cyclomatic complexity
+    - funlen          # function length
+    - gocognit        # cognitive complexity
+    - maintidx        # maintainability index
+    - nestif          # deeply nested if statements
+
+    # Performance
+    - prealloc        # slice pre-allocation
+
+    # Correctness
+    - exhaustive      # exhaustive enum switches
+    - exportloopref   # loop variable capture (< Go 1.22)
+    - goconst         # repeated string constants
+    - makezero        # make([]T, n) with non-zero n
+    - noctx
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment  # enable only when optimizing structs explicitly
+
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+      - name: error-return
+      - name: error-naming
+      - name: var-naming
+      - name: receiver-naming
+      - name: increment-decrement
+      - name: range
+      - name: time-naming
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: argument-limit
+        arguments: [4]
+      - name: function-result-limit
+        arguments: [3]
+      - name: early-return
+      - name: superfluous-else
+
+  funlen:
+    lines: 60
+    statements: 40
+
+  gocognit:
+    min-complexity: 15
+
+  cyclop:
+    max-complexity: 10
+    package-average: 5.0
+
+  nestif:
+    min-complexity: 4
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - hugeParam       # allow large structs as params (performance profiles decide)
+      - rangeValCopy    # allow ranging over copies
+
+  gosec:
+    severity: medium
+    confidence: medium
+    excludes:
+      - G115  # integer overflow (too noisy for most code)
+
+  wrapcheck:
+    ignoreSigs:
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - errors.Join(
+      - status.Error(
+      - status.Errorf(
+
+  misspell:
+    locale: US
+
+  goimports:
+    local-prefixes: "github.com/org"  # replace with your module prefix
+
+  maintidx:
+    under: 20
+
+issues:
+  # Max issues per linter (0 = unlimited)
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # Fix suggestions where available
+  fix: true
+
+  exclude-rules:
+    # Tests: relax some rules
+    - path: _test\.go
+      linters:
+        - gosec          # test code can use weaker crypto
+        - funlen         # test functions can be longer
+        - gocognit       # test functions can be more complex
+        - wrapcheck      # test errors don't need wrapping
+        - goconst        # test strings don't need constants
+
+    # Generated files: skip all linting
+    - path: ".*\\.pb\\.go$"
+      linters: [all]
+    - path: ".*_gen\\.go$"
+      linters: [all]
+    - path: "wire_gen\\.go$"
+      linters: [all]
+    - path: "ent/.*\\.go$"
+      linters: [all]
+
+    # main packages: relax DI rules
+    - path: "cmd/"
+      linters:
+        - wrapcheck
+
+    # migration files: skip
+    - path: "migrations/"
+      linters: [all]

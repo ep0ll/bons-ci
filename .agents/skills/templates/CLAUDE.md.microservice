@@ -1,0 +1,117 @@
+# Project: [SERVICE NAME]
+
+## Overview
+[Brief description: what this service does, its bounded context, primary responsibilities]
+
+## Engineering Standards
+
+**Before writing any Go code**, always read:
+```
+.claude/skills/golang-skills/SKILL.md
+```
+
+Then load the relevant sub-skills for the task at hand (see routing table in SKILL.md).
+
+## Architecture
+
+**Pattern**: Hexagonal Architecture (Ports & Adapters)
+**Domain**: [domain name] — entities: [list key entities]
+**Layer structure**:
+```
+internal/
+├── domain/        → pure business logic, zero external imports
+├── app/           → use cases / command+query handlers
+├── adapters/      → HTTP, gRPC, Postgres, Redis, Kafka implementations
+└── ports/         → secondary port interfaces (notifier, publisher)
+```
+
+## Tech Stack
+
+| Concern | Package | Skill |
+|---|---|---|
+| HTTP router | `go-chi/chi/v5` | `packages/chi/SKILL.md` |
+| Database | `jackc/pgx/v5` | `packages/pgx/SKILL.md` |
+| Migrations | `golang-migrate/migrate` | `packages/migrate/SKILL.md` |
+| Messaging | `segmentio/kafka-go` | `packages/kafka/SKILL.md` |
+| DI | `google/wire` | `packages/wire/SKILL.md` |
+| Tracing | `go.opentelemetry.io/otel` | `packages/otel/SKILL.md` |
+| Logging | `log/slog` | `packages/slog/SKILL.md` |
+| Config | `spf13/viper` | `packages/cobra-viper/SKILL.md` |
+| Validation | `go-playground/validator/v10` | `packages/validator/SKILL.md` |
+| Mocks | `vektra/mockery/v2` | `packages/testify-mock/SKILL.md` |
+| Integration tests | `testcontainers-go` | `packages/testcontainers/SKILL.md` |
+
+## Hard Constraints (never violate)
+
+1. **Domain isolation**: `internal/domain/` never imports from `adapters/`, `infrastructure/`, or any HTTP/DB framework
+2. **Error wrapping**: Every error wrapped: `fmt.Errorf("Type.Method(param=%v): %w", param, err)`
+3. **Context**: `ctx context.Context` always first parameter on any function doing I/O
+4. **No global state**: All dependencies injected via constructors
+5. **No init()**: Initialization in `main.go` or `wire.go` only
+6. **Tests required**: Every exported function has a test; no production code without failing test first
+7. **Race-free**: `go test -race ./...` must always pass
+
+## Quality Gates (run before every commit)
+
+```bash
+make ci   # runs: tidy + vet + lint + vuln + test
+```
+
+Individual gates:
+```bash
+go vet ./...
+staticcheck ./...
+golangci-lint run
+govulncheck ./...
+go test -race -count=1 ./...
+```
+
+## Database Schema
+
+**Table prefix**: [e.g., `order_`]
+**Soft deletes**: all tables have `deleted_at TIMESTAMPTZ` — always filter `WHERE deleted_at IS NULL`
+**Migrations**: `migrations/` directory, sequential 6-digit prefix (`000001_`)
+**Key tables**: [list: `orders`, `order_items`, etc.]
+
+See `ASSUMPTIONS.md` for full schema details.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `APP_DATABASE_DSN` | YES | PostgreSQL DSN |
+| `APP_KAFKA_BROKERS` | YES | Comma-separated Kafka brokers |
+| `APP_SERVER_ADDR` | NO (`:8080`) | HTTP listen address |
+| `APP_LOG_LEVEL` | NO (`info`) | `debug\|info\|warn\|error` |
+| `APP_LOG_FORMAT` | NO (`json`) | `json\|text` |
+
+## Service Dependencies
+
+| Service | Protocol | Purpose |
+|---|---|---|
+| `inventory-service` | gRPC | Stock availability checks |
+| `notification-service` | Kafka events | Send emails/SMS |
+
+See `ASSUMPTIONS.md` for full dependency contracts.
+
+## API Contract
+
+Base path: `/v1`
+Auth: Bearer JWT (RS256)
+Errors: `{"error":{"code":"...","message":"...","fields":{...}}}`
+Pagination: cursor-based (`?cursor=...&limit=N`)
+
+## Current State
+
+See `PLAN.md` for current development status and next steps.
+
+## Package Skills
+
+Each package in this project has its own `SKILL.md` documenting contracts and assumptions.
+Always load the relevant package SKILL.md when modifying that package.
+
+| Package | SKILL.md |
+|---|---|
+| `internal/domain/order/` | `internal/domain/order/SKILL.md` |
+| `internal/adapters/postgres/` | `internal/adapters/postgres/SKILL.md` |
+| `internal/adapters/http/` | `internal/adapters/http/SKILL.md` |

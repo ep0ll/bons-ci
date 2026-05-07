@@ -1,0 +1,68 @@
+# Project: [CLI TOOL NAME]
+
+## Overview
+[Brief description: what this CLI does, target users, primary commands]
+
+## Engineering Standards
+
+**Before writing any Go code**, always read:
+```
+.claude/skills/golang-skills/SKILL.md
+```
+Then load: `cli/SKILL.md`, `configuration/SKILL.md`, `packages/cobra-viper/SKILL.md`
+
+## CLI Structure
+
+```
+cmd/
+└── [toolname]/
+    └── main.go          ← thin entrypoint
+
+internal/
+├── cli/
+│   ├── root.go          ← root cobra command
+│   ├── [command].go     ← subcommands
+│   └── output.go        ← formatters (table/json/yaml)
+├── client/              ← API client(s)
+├── config/              ← config types + loader
+└── [domain]/            ← business logic
+```
+
+## Tech Stack
+
+| Concern | Package | Skill |
+|---|---|---|
+| CLI framework | `spf13/cobra` + `viper` | `packages/cobra-viper/SKILL.md` |
+| Config | `spf13/viper` | `configuration/SKILL.md` |
+| HTTP client | `net/http` | `packages/http-std/SKILL.md` |
+| Logging | `log/slog` | `packages/slog/SKILL.md` |
+| Output | `text/tabwriter` + custom | `cli/SKILL.md` |
+
+## CLI Conventions
+
+- `SilenceUsage: true` — usage shown only on flag errors
+- `SilenceErrors: true` — error printing controlled by `main.go`
+- All data to `stdout`, all errors/logs to `stderr`
+- `--output` flag on all commands: `table` (default) | `json` | `yaml`
+- `--dry-run` on all mutating commands
+- Exit codes: `0` success, `1` error, `2` usage error, `3` timeout, `4` not found
+
+## Hard Constraints
+
+1. Context with timeout on all network operations
+2. All errors returned (never panicked) except programmer errors in `main`
+3. `--output json` mode always produces valid parseable JSON to `stdout`
+4. Config loaded via viper (env vars override file, flags override env)
+5. Shell completion via `completion` subcommand (bash/zsh/fish/powershell)
+
+## Config File
+
+Default location: `~/.config/[toolname]/config.yaml`, then `./config.yaml`
+Env prefix: `TOOLNAME_`
+
+## Quality Gates
+
+```bash
+make ci   # tidy + vet + lint + test
+go test -race -count=1 ./...
+```
