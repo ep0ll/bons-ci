@@ -24,11 +24,11 @@ type EngineHook interface {
 type NoopHook struct{}
 
 func (NoopHook) OnCacheHit(_ context.Context, _ HashRequest, _ *HashResult)  {}
-func (NoopHook) OnHashStart(_ context.Context, _ HashRequest)                 {}
-func (NoopHook) OnHashComplete(_ context.Context, _ HashRequest, _ FileHash)  {}
-func (NoopHook) OnHashError(_ context.Context, _ HashRequest, _ error)        {}
-func (NoopHook) OnEventDropped(_ context.Context, _ *AccessEvent, _ error)    {}
-func (NoopHook) OnVertexFinalized(_ context.Context, _ *MerkleTree)           {}
+func (NoopHook) OnHashStart(_ context.Context, _ HashRequest)                {}
+func (NoopHook) OnHashComplete(_ context.Context, _ HashRequest, _ FileHash) {}
+func (NoopHook) OnHashError(_ context.Context, _ HashRequest, _ error)       {}
+func (NoopHook) OnEventDropped(_ context.Context, _ *AccessEvent, _ error)   {}
+func (NoopHook) OnVertexFinalized(_ context.Context, _ *MerkleTree)          {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HookChain — fan-out Composite pattern

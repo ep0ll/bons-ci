@@ -25,7 +25,7 @@ func ExampleNewPipeline_readOnlyObserver() {
 	counter := &fswatch.CountingHandler{}
 
 	pipeline := fswatch.NewPipeline(
-		fswatch.WithReadOnlyPipeline(),       // filter: only ACCESS/OPEN/EXEC
+		fswatch.WithReadOnlyPipeline(),         // filter: only ACCESS/OPEN/EXEC
 		fswatch.WithOverlayEnrichment(overlay), // transform: add layer metadata
 		fswatch.WithHandler(counter),
 		fswatch.WithWorkers(1),

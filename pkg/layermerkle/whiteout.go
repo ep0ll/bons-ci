@@ -127,7 +127,7 @@ type WhiteoutIndex struct {
 // Returns an empty index (not nil) when no whiteouts are found.
 func BuildWhiteoutIndex(diffPath string) (*WhiteoutIndex, error) {
 	idx := &WhiteoutIndex{
-		fileWhiteouts:    make(map[string]struct{}),
+		fileWhiteouts:     make(map[string]struct{}),
 		opaqueDirectories: make(map[string]struct{}),
 	}
 	err := filepath.Walk(diffPath, func(path string, info os.FileInfo, err error) error {

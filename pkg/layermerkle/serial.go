@@ -16,19 +16,19 @@ import (
 
 // wireForest is the JSON wire format for a MerkleForest.
 type wireForest struct {
-	Version int         `json:"version"`
-	Trees   []wireTree  `json:"trees"`
+	Version int        `json:"version"`
+	Trees   []wireTree `json:"trees"`
 }
 
 // wireTree is the JSON wire format for a MerkleTree.
 type wireTree struct {
-	VertexID      string      `json:"vertex_id"`
-	LayerStack    []string    `json:"layer_stack"`
-	Root          string      `json:"root"`
-	Leaves        []wireLeaf  `json:"leaves"`
-	LeafCount     int         `json:"leaf_count"`
-	CacheHitCount int         `json:"cache_hit_count"`
-	FinalizedAt   time.Time   `json:"finalized_at"`
+	VertexID      string     `json:"vertex_id"`
+	LayerStack    []string   `json:"layer_stack"`
+	Root          string     `json:"root"`
+	Leaves        []wireLeaf `json:"leaves"`
+	LeafCount     int        `json:"leaf_count"`
+	CacheHitCount int        `json:"cache_hit_count"`
+	FinalizedAt   time.Time  `json:"finalized_at"`
 }
 
 // wireLeaf is the JSON wire format for a MerkleLeaf.

@@ -1,10 +1,10 @@
 package fswatch_test
 
 import (
-	"os"
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -45,9 +45,9 @@ func TestEventMask_Has(t *testing.T) {
 
 func TestEventMask_IsReadOnly(t *testing.T) {
 	tests := []struct {
-		name     string
-		mask     fswatch.EventMask
-		wantRO   bool
+		name   string
+		mask   fswatch.EventMask
+		wantRO bool
 	}{
 		{"read only mask", fswatch.MaskReadOnly, true},
 		{"access only", fswatch.EventMask(fswatch.OpAccess), true},

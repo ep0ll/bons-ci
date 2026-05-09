@@ -476,13 +476,13 @@ func TestWhiteoutIndex_BuildAndQuery(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create a per-file whiteout.
-	os.MkdirAll(filepath.Join(dir, "usr/lib"), 0o755)          //nolint:errcheck
-	os.WriteFile(filepath.Join(dir, "usr/lib/.wh.libssl.so"),  //nolint:errcheck
+	os.MkdirAll(filepath.Join(dir, "usr/lib"), 0o755)         //nolint:errcheck
+	os.WriteFile(filepath.Join(dir, "usr/lib/.wh.libssl.so"), //nolint:errcheck
 		nil, 0o644)
 
 	// Create an opaque whiteout directory.
-	os.MkdirAll(filepath.Join(dir, "etc"), 0o755)             //nolint:errcheck
-	os.WriteFile(filepath.Join(dir, "etc/.wh..wh..opq"),      //nolint:errcheck
+	os.MkdirAll(filepath.Join(dir, "etc"), 0o755)        //nolint:errcheck
+	os.WriteFile(filepath.Join(dir, "etc/.wh..wh..opq"), //nolint:errcheck
 		nil, 0o644)
 
 	idx, err := layermerkle.BuildWhiteoutIndex(dir)

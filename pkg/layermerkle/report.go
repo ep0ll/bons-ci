@@ -123,7 +123,10 @@ func (r *htmlReportRenderer) writeSummaryTable() {
 <thead><tr><th>Category</th><th>Count</th></tr></thead>
 <tbody>
 `)
-	rows := []struct{ label, class string; count int }{
+	rows := []struct {
+		label, class string
+		count        int
+	}{
 		{"Added vertices", "added", len(r.d.Added)},
 		{"Removed vertices", "removed", len(r.d.Removed)},
 		{"Changed vertices", "changed", len(r.d.Changed)},

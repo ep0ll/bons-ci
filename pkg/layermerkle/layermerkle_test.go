@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/bons/bons-ci/pkg/layermerkle"
-	"github.com/bons/bons-ci/pkg/layermerkle/testutil"
 	"github.com/bons/bons-ci/pkg/layermerkle/internal/digest"
+	"github.com/bons/bons-ci/pkg/layermerkle/testutil"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -183,9 +183,9 @@ func TestShardedLRUCache_Stats_HitRate(t *testing.T) {
 	c := layermerkle.NewShardedLRUCache(1024)
 	id := digest.FromString("l")
 	c.Set(id, "f", digest.FromString("h"))
-	c.Get(id, "f")      // hit
-	c.Get(id, "miss")   // miss
-	c.Get(id, "f")      // hit
+	c.Get(id, "f")    // hit
+	c.Get(id, "miss") // miss
+	c.Get(id, "f")    // hit
 
 	s := c.Stats()
 	if s.Hits != 2 {

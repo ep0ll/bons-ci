@@ -175,13 +175,13 @@ func TestIntegration_OCIWhiteoutResolution(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create a per-file whiteout.
-	os.MkdirAll(filepath.Join(dir, "usr/lib"), 0o755)             //nolint:errcheck
-	os.WriteFile(filepath.Join(dir, "usr/lib/.wh.libssl.so"), nil, 0o644) //nolint:errcheck
+	os.MkdirAll(filepath.Join(dir, "usr/lib"), 0o755)                         //nolint:errcheck
+	os.WriteFile(filepath.Join(dir, "usr/lib/.wh.libssl.so"), nil, 0o644)     //nolint:errcheck
 	os.WriteFile(filepath.Join(dir, "usr/lib/libz.so"), []byte("ELF"), 0o644) //nolint:errcheck
 
 	// Create an opaque whiteout directory.
-	os.MkdirAll(filepath.Join(dir, "etc"), 0o755)            //nolint:errcheck
-	os.WriteFile(filepath.Join(dir, "etc/.wh..wh..opq"), nil, 0o644) //nolint:errcheck
+	os.MkdirAll(filepath.Join(dir, "etc"), 0o755)                           //nolint:errcheck
+	os.WriteFile(filepath.Join(dir, "etc/.wh..wh..opq"), nil, 0o644)        //nolint:errcheck
 	os.WriteFile(filepath.Join(dir, "etc/shadow"), []byte("root::"), 0o644) //nolint:errcheck
 
 	idx, err := layermerkle.BuildWhiteoutIndex(dir)
@@ -190,9 +190,9 @@ func TestIntegration_OCIWhiteoutResolution(t *testing.T) {
 	}
 
 	testCases := []struct {
-		path    string
-		masked  bool
-		desc    string
+		path   string
+		masked bool
+		desc   string
 	}{
 		{"usr/lib/libssl.so", true, "per-file whiteout"},
 		{"usr/lib/libz.so", false, "present file not whiteout"},

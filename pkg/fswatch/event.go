@@ -199,7 +199,6 @@ type Event struct {
 	// FileInfo is the Lstat result for Path at event time.
 	// Nil when the file was already deleted before stat could complete.
 	FileInfo fs.FileInfo
-
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

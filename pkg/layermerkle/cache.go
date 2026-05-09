@@ -256,12 +256,12 @@ func fnv32(s string) uint32 {
 // anything. Use in benchmarks to measure raw hasher throughput.
 type NoopHashCache struct{}
 
-func (NoopHashCache) Get(LayerID, string) (FileHash, bool)  { return "", false }
-func (NoopHashCache) Set(LayerID, string, FileHash)         {}
-func (NoopHashCache) Delete(LayerID, string)                {}
-func (NoopHashCache) DeleteLayer(LayerID)                   {}
-func (NoopHashCache) Len() int                              { return 0 }
-func (NoopHashCache) Stats() CacheStats                     { return CacheStats{} }
+func (NoopHashCache) Get(LayerID, string) (FileHash, bool) { return "", false }
+func (NoopHashCache) Set(LayerID, string, FileHash)        {}
+func (NoopHashCache) Delete(LayerID, string)               {}
+func (NoopHashCache) DeleteLayer(LayerID)                  {}
+func (NoopHashCache) Len() int                             { return 0 }
+func (NoopHashCache) Stats() CacheStats                    { return CacheStats{} }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // InstrumentedHashCache — decorator that records cache operations
@@ -312,10 +312,10 @@ func (c *InstrumentedHashCache) Set(layerID LayerID, relPath string, h FileHash)
 	}
 }
 
-func (c *InstrumentedHashCache) Delete(l LayerID, p string)  { c.inner.Delete(l, p) }
-func (c *InstrumentedHashCache) DeleteLayer(l LayerID)       { c.inner.DeleteLayer(l) }
-func (c *InstrumentedHashCache) Len() int                    { return c.inner.Len() }
-func (c *InstrumentedHashCache) Stats() CacheStats           { return c.inner.Stats() }
+func (c *InstrumentedHashCache) Delete(l LayerID, p string) { c.inner.Delete(l, p) }
+func (c *InstrumentedHashCache) DeleteLayer(l LayerID)      { c.inner.DeleteLayer(l) }
+func (c *InstrumentedHashCache) Len() int                   { return c.inner.Len() }
+func (c *InstrumentedHashCache) Stats() CacheStats          { return c.inner.Stats() }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TTLHashCache — evicts entries older than TTL

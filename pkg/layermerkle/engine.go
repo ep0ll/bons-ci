@@ -41,10 +41,10 @@ type Engine struct {
 
 // engineConfig holds all tunable Engine parameters.
 type engineConfig struct {
-	workers        int
-	eventBufSize   int
-	cacheCapacity  int
-	statCacheSize  int
+	workers       int
+	eventBufSize  int
+	cacheCapacity int
+	statCacheSize int
 }
 
 func defaultEngineConfig() engineConfig {

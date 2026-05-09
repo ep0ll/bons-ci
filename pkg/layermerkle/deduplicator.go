@@ -162,9 +162,9 @@ func singleflightKey(stack LayerStack, relPath string) string {
 // VertexProcessor tracks in-flight vertex builds and routes HashResults to
 // the correct MerkleTreeBuilder.
 type VertexProcessor struct {
-	engine  *DeduplicationEngine
-	forest  *MerkleForest
-	onTree  func(*MerkleTree)
+	engine *DeduplicationEngine
+	forest *MerkleForest
+	onTree func(*MerkleTree)
 
 	mu       sync.Mutex
 	builders map[VertexID]*MerkleTreeBuilder

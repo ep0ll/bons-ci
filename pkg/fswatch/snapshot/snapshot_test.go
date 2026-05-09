@@ -1,9 +1,9 @@
 package snapshot_test
 
 import (
-	"strings"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -605,5 +605,3 @@ func TestSnapshotAncestors_CycleDetected(t *testing.T) {
 		t.Errorf("expected 'cycle' in error message, got: %v", err)
 	}
 }
-
-

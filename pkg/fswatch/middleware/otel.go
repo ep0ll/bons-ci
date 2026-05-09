@@ -214,9 +214,9 @@ func eventAttrs(e *fswatch.EnrichedEvent) []KV {
 // noopSpan is a do-nothing Span used when no Tracer is configured.
 type noopSpan struct{}
 
-func (noopSpan) End(...any)            {}
+func (noopSpan) End(...any)                {}
 func (noopSpan) RecordError(error, ...any) {}
-func (noopSpan) SetAttributes(...KV)   {}
+func (noopSpan) SetAttributes(...KV)       {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LoggingMiddleware — structured error logging

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bons/bons-ci/pkg/layermerkle/internal/hash"
 	"github.com/bons/bons-ci/pkg/layermerkle/internal/digest"
+	"github.com/bons/bons-ci/pkg/layermerkle/internal/hash"
 	"github.com/bons/bons-ci/pkg/layermerkle/internal/singleflight"
 )
 

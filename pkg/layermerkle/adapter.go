@@ -30,8 +30,8 @@ import (
 //	    fanwatch.WithHandler(fanwatch.HandlerFunc(adapter.HandleFanwatch)),
 //	)
 type PipelineAdapter struct {
-	engine   *Engine
-	onErr    func(error)
+	engine     *Engine
+	onErr      func(error)
 	dropOnFull bool
 }
 

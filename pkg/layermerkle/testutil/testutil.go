@@ -86,9 +86,9 @@ func (h *FakeHasher) Reset() {
 // ownership table. All DiffAbsPath values are computed as layerPath+"/"+relPath.
 type FakeResolver struct {
 	mu        sync.Mutex
-	ownership map[string]layermerkle.LayerID   // relPath → ownerLayerID
-	layerPath map[layermerkle.LayerID]string   // layerID → diffPath
-	whiteouts map[string]struct{}              // relPath → deleted
+	ownership map[string]layermerkle.LayerID // relPath → ownerLayerID
+	layerPath map[layermerkle.LayerID]string // layerID → diffPath
+	whiteouts map[string]struct{}            // relPath → deleted
 }
 
 // NewFakeResolver returns an empty FakeResolver.

@@ -151,8 +151,8 @@ func overlayInfoFromMounts(mounts []ctdmount.Mount, mergedDir string) (*fswatch.
 			// is only one layer and no parent. The bind source is the fs/ dir.
 			return fswatch.NewOverlayInfo(
 				mergedDir,
-				"",         // no upperdir — read-only bind
-				"",         // no workdir
+				"", // no upperdir — read-only bind
+				"", // no workdir
 				[]string{m.Source},
 			), nil
 		}

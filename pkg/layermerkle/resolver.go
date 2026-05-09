@@ -39,8 +39,8 @@ type LayerFileResolver interface {
 // Cache key: (LayerID, relPath) → ExistenceResult
 // This is separate from the hash cache to allow independent eviction policies.
 type OverlayResolver struct {
-	registry *LayerRegistry
-	mu       sync.RWMutex
+	registry  *LayerRegistry
+	mu        sync.RWMutex
 	statCache map[statKey]statResult
 	cacheSize int
 }

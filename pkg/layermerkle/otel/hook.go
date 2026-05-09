@@ -58,7 +58,10 @@ type Meter interface {
 }
 
 // KV is a key-value attribute.
-type KV struct{ Key string; Value any }
+type KV struct {
+	Key   string
+	Value any
+}
 
 // Attr constructs a KV.
 func Attr(k string, v any) KV { return KV{Key: k, Value: v} }
@@ -220,8 +223,8 @@ func (NoopTracer) Start(ctx context.Context, _ string) (context.Context, Span) {
 
 type noopSpan struct{}
 
-func (noopSpan) End()                      {}
-func (noopSpan) RecordError(_ error)       {}
+func (noopSpan) End()                         {}
+func (noopSpan) RecordError(_ error)          {}
 func (noopSpan) SetAttribute(_ string, _ any) {}
 
 // NoopMeter is a do-nothing Meter.

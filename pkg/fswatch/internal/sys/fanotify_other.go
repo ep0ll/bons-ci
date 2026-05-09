@@ -21,11 +21,11 @@ type EventRecord struct {
 	FD   int32
 }
 
-func Init() (int, error)                                       { return -1, ErrNotSupported }
-func MarkMount(_ int, _ uint64, _ string) error                { return ErrNotSupported }
-func ReadEvents(_ int, _ []byte) ([]EventRecord, error)        { return nil, ErrNotSupported }
-func FDToPath(_ int32) (string, error)                         { return "", ErrNotSupported }
-func WaitReadable(_, _ int) (bool, error)                      { return false, ErrNotSupported }
-func StopPipe() (int, int, error)                              { return -1, -1, ErrNotSupported }
-func SignalStop(_ int)                                          {}
-func Close(_ int)                                              {}
+func Init() (int, error)                                { return -1, ErrNotSupported }
+func MarkMount(_ int, _ uint64, _ string) error         { return ErrNotSupported }
+func ReadEvents(_ int, _ []byte) ([]EventRecord, error) { return nil, ErrNotSupported }
+func FDToPath(_ int32) (string, error)                  { return "", ErrNotSupported }
+func WaitReadable(_, _ int) (bool, error)               { return false, ErrNotSupported }
+func StopPipe() (int, int, error)                       { return -1, -1, ErrNotSupported }
+func SignalStop(_ int)                                  {}
+func Close(_ int)                                       {}
