@@ -1,0 +1,40 @@
+name               = "s3-proxy"
+main               = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+workers_dev        = false
+
+[[kv_namespaces]]
+binding    = "TENANT_KV"
+id         = "REPLACE_WITH_TENANT_KV_ID"
+preview_id = "REPLACE_WITH_TENANT_KV_PREVIEW_ID"
+
+[[kv_namespaces]]
+binding    = "UPLOAD_KV"
+id         = "REPLACE_WITH_UPLOAD_KV_ID"
+preview_id = "REPLACE_WITH_UPLOAD_KV_PREVIEW_ID"
+
+[[routes]]
+pattern   = "s3.example.com/*"
+zone_name = "example.com"
+
+[[routes]]
+pattern   = "*.s3.example.com/*"
+zone_name = "example.com"
+
+[vars]
+PROXY_DOMAIN      = "s3.example.com"
+LOG_LEVEL         = "info"
+PRESIGN_EXPIRY_S  = "900"
+
+# Secrets (set via: wrangler secret put MASTER_ENC_KEY)
+# MASTER_ENC_KEY — 64 hex chars, AES-256 master key
+
+[env.staging]
+name        = "s3-proxy-staging"
+workers_dev = true
+
+[env.staging.vars]
+PROXY_DOMAIN     = "s3-staging.example.com"
+LOG_LEVEL        = "debug"
+PRESIGN_EXPIRY_S = "300"
