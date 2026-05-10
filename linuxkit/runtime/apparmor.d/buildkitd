@@ -1,0 +1,64 @@
+#include <tunables/global>
+
+# =============================================================================
+# AppArmor profile: buildkitd
+#
+# Least-privilege profile for the BuildKit OCI image builder daemon.
+# Allows overlay filesystem operations, containerd socket access, and
+# ephemeral build workspace writes; denies raw hardware access.
+# =============================================================================
+
+profile buildkitd flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/ssl_certs>
+
+  # Networking
+  network tcp,
+  network unix,
+  network inet  stream,
+  network inet6 stream,
+
+  # Capabilities (needed for overlayfs + container launch)
+  capability sys_admin,
+  capability net_admin,
+  capability setuid,
+  capability setgid,
+  capability mknod,
+  capability chown,
+  capability fowner,
+  capability dac_override,
+
+  # Binary
+  /usr/bin/buildkitd              mrix,
+  /usr/local/bin/buildkitd        mrix,
+  /usr/bin/buildctl               mrix,
+
+  # Build workspace
+  /var/lib/buildkit/**            rwk,
+  /run/buildkit/**                rw,
+
+  # containerd integration
+  /run/containerd/containerd.sock rw,
+
+  # Runc (subprocess for build steps)
+  /usr/bin/runc                   mrix,
+  /usr/local/bin/runc             mrix,
+
+  # OCI bundle and overlay dirs
+  /tmp/buildkit-**                rwk,
+  /var/tmp/buildkit-**            rwk,
+
+  # Config
+  /etc/buildkit/**                r,
+
+  # Proc (read-only)
+  /proc/self/**                   r,
+  /proc/*/status                  r,
+
+  # Deny
+  deny /proc/sys/kernel/**        w,
+  deny /sys/**                    w,
+  deny /dev/mem                   rw,
+  deny /dev/kmem                  rw,
+}

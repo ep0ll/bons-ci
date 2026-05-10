@@ -1,0 +1,55 @@
+# =============================================================================
+# runtime/ima-policy
+#
+# IMA measurement + appraisal + audit policy.
+# Loaded at boot via: ima_policy=<path>
+# or by writing to /sys/kernel/security/ima/policy
+#
+# Strategy
+# --------
+# MEASURE   all executables, shared libs, kernel modules, firmware
+#           -> extends PCR 10; enables remote attestation.
+# APPRAISE  all executables and shared libs with IMA signatures
+#           -> blocks tampered binaries at exec time.
+# AUDIT     file writes to measured files
+#           -> audit trail of mutation events.
+#
+# Rules are evaluated top-to-bottom; first match wins.
+# =============================================================================
+
+# Do not measure/appraise tmpfs (runtime ephemeral state)
+dont_measure fsmagic=0x01021994
+dont_appraise fsmagic=0x01021994
+
+# Do not measure /proc, /sys, /dev
+dont_measure fsmagic=0x9fa0
+dont_measure fsmagic=0x62656572
+dont_measure fsmagic=0x64626720
+
+# MEASURE: all executables by any uid
+measure func=BPRM_CHECK mask=MAY_EXEC uid=0 pcr=10
+measure func=BPRM_CHECK mask=MAY_EXEC pcr=10
+
+# MEASURE: dynamic linker and shared libraries
+measure func=FILE_MMAP mask=MAY_EXEC pcr=10
+
+# MEASURE: kernel modules
+measure func=MODULE_CHECK pcr=10
+
+# MEASURE: firmware
+measure func=FIRMWARE_CHECK pcr=10
+
+# MEASURE: IMA policy itself
+measure func=POLICY_CHECK pcr=10
+
+# APPRAISE: executables (must carry IMA xattr or modsig)
+appraise func=BPRM_CHECK appraise_type=imasig|modsig
+
+# APPRAISE: shared libraries mapped executable
+appraise func=FILE_MMAP mask=MAY_EXEC appraise_type=imasig|modsig
+
+# APPRAISE: kernel modules
+appraise func=MODULE_CHECK appraise_type=imasig|modsig
+
+# AUDIT: file writes to measured files by root
+audit func=FILE_CHECK mask=MAY_WRITE uid=0

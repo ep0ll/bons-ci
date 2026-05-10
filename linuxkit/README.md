@@ -1,300 +1,298 @@
 # bonnie-cicd — LinuxKit Image
 
-A **minimal, immutable, reproducible** Linux image purpose-built for CI/CD workloads
-powered by the **bonnie** build system.
+Minimal · Immutable · Sub-5-second Boot · Hardened Kernel · CI/CD Native
+
+A production-grade LinuxKit image for the bonnie proprietary build system,
+with first-class lazy image pulling (nydus, stargz), multi-arch emulation
+(QEMU), and a fully locked-down security posture.
 
 ---
 
-## Architecture at a glance
+## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│  bonnie-cicd LinuxKit Image                                      │
-│                                                                  │
-│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │  containerd │  │  buildkitd   │  │  bonnie (build sys)  │   │
-│  │  (CRI + OCI)│  │  (image bld) │  │  gRPC / unix socket  │   │
-│  └──────┬──────┘  └──────┬───────┘  └──────────┬───────────┘   │
-│         │                │                      │               │
-│  ┌──────▼──────┐  ┌──────▼───────┐  ┌──────────▼───────────┐   │
-│  │  overlayfs  │  │nydus-snap.   │  │  stargz-snap.         │   │
-│  │ (default)   │  │(lazy-pull,   │  │  (eStargz/SOCI        │   │
-│  │             │  │ FUSE, cache) │  │   lazy-pull)          │   │
-│  └─────────────┘  └──────────────┘  └───────────────────────┘   │
-│                                                                  │
-│  ┌──────────────┐  ┌─────────────┐  ┌───────────────────────┐   │
-│  │  qemu-binfmt │  │ node-export │  │  AppArmor + seccomp   │   │
-│  │  (multi-arch)│  │ er (metrics)│  │  (per-service profiles│   │
-│  └──────────────┘  └─────────────┘  └───────────────────────┘   │
-│                                                                  │
-│  Kernel 6.6 LTS · cgroups v2 only · read-only rootfs            │
-│  BBR congestion · io_uring · BPF JIT · KASLR + Retpoline        │
-└──────────────────────────────────────────────────────────────────┘
-```
+    +--------------------------------------------------------------------------+
+    |                      bonnie-cicd LinuxKit Image                         |
+    |  Kernel 6.6 LTS  cgroups-v2-only  AppArmor+Landlock+Lockdown(integ.)  |
+    |  PREEMPT_NONE  HZ=100  BBR+FQ  io_uring  BPF-JIT-always-on            |
+    |                                                                          |
+    |  ONBOOT (sequential, run-to-completion):                                 |
+    |  rngd -> cgroupfs-mount -> sysctl -> dhcpcd -> mount-state ->           |
+    |  format-state -> metadata -> qemu-binfmt -> hugepages -> modules        |
+    |                                                                          |
+    |  +------------+  +--------------+  +---------------+  +-------------+  |
+    |  | containerd |  |    nydus-    |  |   stargz-     |  |  buildkitd  |  |
+    |  | (CRI+OCI)  |  | snapshotter  |  | snapshotter   |  |  10 GiB GC  |  |
+    |  | :1338 prom |  | shared-daemon|  | eStargz/SOCI  |  | unix socket |  |
+    |  | overlayfs  |  | 20 GiB cache |  |  :9092 prom   |  |             |  |
+    |  +-----+------+  +------+-------+  +------+--------+  +------+------+  |
+    |        |   proxy_plugin  |   proxy_plugin  |                  |         |
+    |        +--------+--------+                 |                  |         |
+    |                 |                          |                  |         |
+    |  +--------------+-----------------------------------------------------------+
+    |  |              bonnie (proprietary build system)                           |
+    |  |  unix:///run/bonnie/bonnie.sock  :9091 Prometheus                       |
+    |  |  BONNIE_SNAPSHOTTER_PRIORITY=nydus,stargz,overlayfs                     |
+    |  +--------------------------------------------------------------------------+
+    |                                                                          |
+    |  +-------------------+  +--------------------+  +--------------------+  |
+    |  |   qemu-binfmt     |  |   node-exporter    |  |       getty        |  |
+    |  | arm64 riscv64     |  |   :9100 Prometheus |  |  INSECURE=false    |  |
+    |  | s390x ppc64 mips  |  | cpu mem disk net   |  |  (debug only)      |  |
+    |  +-------------------+  +--------------------+  +--------------------+  |
+    +--------------------------------------------------------------------------+
+
+---
+
+## Boot Timeline (targets)
+
+      0 ms   kernel start (zstd-decompressed image)
+    200 ms   initrd mounted, /init running
+    400 ms   rngd seeded — entropy available
+    600 ms   cgroups v2 mounted, all sysctl applied
+    700 ms   DHCP lease acquired
+   ----      -------------------------------------------
+   2000 ms   containerd unix socket ready
+   2500 ms   nydus-snapshotter ready
+   3000 ms   stargz-snapshotter ready
+   3500 ms   buildkitd ready
+   4000 ms   bonnie accepting RPCs
+   4500 ms   node-exporter scrape-ready
+   ----      -------------------------------------------
+  <5000 ms   FULL SYSTEM READY
+
+Run: make benchmark
+
+---
+
+## Lazy Image Pulling
+
+    Traditional pull:
+      Job queued  [========= download 2 GB =========]  container starts
+                                 ~25 s (cold)
+
+    Nydus (warm blob cache):
+      Job queued  [d]  container starts, chunks streamed on-demand
+                  ~1 s
+
+    Nydus (cold cache):
+      Job queued  [==]  container starts, background prefetch continues
+                  ~4 s  (only metadata + first-accessed chunks)
+
+bonnie selects the snapshotter automatically:
+  BONNIE_SNAPSHOTTER_PRIORITY=nydus,stargz,overlayfs
+
+---
+
+## Security Layers
+
+  Kernel:     KASLR, PTI/KPTI, Retpoline, CFI, Shadow Call Stack
+  Kernel:     INIT_ON_ALLOC + INIT_ON_FREE (zero all freed memory always)
+  Kernel:     SLAB freelist randomisation and hardening
+  Kernel:     Module signing SHA-512 forced, no unsigned modules
+  Kernel:     Lockdown=integrity (no live patching from userspace)
+  Kernel:     Landlock + Yama + BPF LSM enabled via lsm= cmdline
+  Kernel:     vsyscall=none, debugfs=off, slab_nomerge, page_poison=1
+  Kernel:     init_on_alloc=1, init_on_free=1 on cmdline too
+  Userspace:  AppArmor enforce profiles on bonnie and containerd
+  Userspace:  seccomp syscall allowlist per service (runtime/seccomp-bonnie.json)
+  Userspace:  OCI spec noNewPrivileges + masked /proc paths (runtime/oci-spec-patch.json)
+  Userspace:  cgroups v2 only, no v1 hierarchy (cgroup_no_v1=all)
+  Userspace:  Read-only rootfs everywhere, all writable state on tmpfs
+  Userspace:  Least-privilege capabilities declared per service
+  Integrity:  IMA measurement + appraisal + audit (PCR 10) via runtime/ima-policy
+  Network:    SYN cookies, RP filter, no redirects, no source routing
+  Network:    BPF JIT harden=2, unprivileged BPF disabled
+  Network:    BBR + FQ for registry throughput (no head-of-line blocking)
+  Supply:     All init/service images pinned by sha256 digest
+  Supply:     SBOM generated and attested at every build
+  Supply:     cosign keyless signature via Sigstore on every publish
 
 ---
 
 ## Prerequisites
 
-| Tool | Minimum version | Purpose |
-|------|----------------|---------|
-| `linuxkit` | v1.2.0 | Image assembly |
-| `docker` | 24.x | Pull images during build |
-| `qemu-system-x86_64` | 8.x | Smoke-test boot |
-| `python3` + `pyyaml` | 3.11 / any | YAML lint |
-| `cosign` | 2.x | Image signing (CI only) |
+  linuxkit         v1.2.0+   github.com/linuxkit/linuxkit/releases
+  docker           24.x      docs.docker.com/get-docker
+  make             4.x       apt install make  OR  brew install make
+  python3+pyyaml   3.11      pip3 install pyyaml
+  qemu (optional)  8.x       smoke tests and benchmark only
+  cosign (opt.)    2.x       publish pipeline signing only
+  crane (opt.)     0.19      faster digest pinning in make pin
 
-```bash
-# macOS
-brew install linuxkit qemu python3
-pip3 install pyyaml
+Install linuxkit (Linux amd64):
+  curl -fsSL \
+    https://github.com/linuxkit/linuxkit/releases/download/v1.2.0/linuxkit-linux-amd64 \
+    | sudo tee /usr/local/bin/linuxkit && sudo chmod +x /usr/local/bin/linuxkit
 
-# Linux (Debian/Ubuntu)
-sudo apt-get install -y qemu-system-x86 python3-yaml
-curl -fsSL https://github.com/linuxkit/linuxkit/releases/latest/download/linuxkit-linux-amd64 \
-  | sudo tee /usr/local/bin/linuxkit && sudo chmod +x /usr/local/bin/linuxkit
-```
+Install linuxkit (macOS):
+  brew install linuxkit
 
----
-
-## Quick start
-
-```bash
-# 1. Clone / enter repo
-cd bonnie-cicd/
-
-# 2. Point to your bonnie Docker image
-export BONNIE_IMAGE=registry.example.com/bonnie:latest
-docker pull "$BONNIE_IMAGE"
-
-# 3. Build (produces output/bonnie-cicd.*)
-bash build.sh build
-
-# 4. Smoke-test boot in QEMU
-bash build.sh smoke
-
-# 5. Push to registry (optional)
-export PUSH_REGISTRY=registry.example.com
-bash build.sh push
-```
-
-### Build modes
-
-| Command | Effect |
-|---------|--------|
-| `bash build.sh lint` | YAML validation only |
-| `bash build.sh build` | Full build + SBOM |
-| `bash build.sh smoke` | QEMU boot test |
-| `bash build.sh push` | Push to `$PUSH_REGISTRY` |
-| `bash build.sh all` | All of the above |
-
-### Output formats
-
-Set `FORMAT=<value>` before building:
-
-| Value | Output | Use case |
-|-------|--------|----------|
-| `raw` | `.img` | Bare-metal / cloud (default) |
-| `iso` | `.iso` | ISO boot, VirtualBox |
-| `qcow2` | `.qcow2` | KVM / QEMU |
-| `vmdk` | `.vmdk` | VMware |
-| `kernel+initrd` | kernel + initrd.img | PXE / iPXE / direct QEMU |
+Python dep:
+  pip3 install pyyaml
 
 ---
 
-## Services
+## Quick Start
 
-### bonnie (proprietary build system)
-Runs as a long-lived daemon, exposing a gRPC endpoint on
-`unix:///run/bonnie/bonnie.sock` and Prometheus metrics on `:9091`.
-
-Environment variables forwarded into the container:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `BONNIE_CONTAINERD_SOCKET` | `/run/containerd/containerd.sock` | CRI connection |
-| `BONNIE_NYDUS_SOCKET` | `/run/containerd-nydus/…grpc.sock` | Nydus snapshotter |
-| `BONNIE_STARGZ_SOCKET` | `/run/containerd-stargz-grpc/…sock` | Stargz snapshotter |
-| `BONNIE_CACHE_DIR` | `/cache/bonnie` | Layer cache |
-| `BONNIE_LOG_LEVEL` | `warn` | Log verbosity |
-| `BONNIE_METRICS_ADDR` | `0.0.0.0:9091` | Prometheus |
-
-### nydus-snapshotter
-Enables **lazy image pulling** via FUSE-based chunk streaming.
-- Daemon mode: `shared` (one nydusd per node, not per container)
-- Blob cache: 20 GiB on-disk at `/var/lib/nydus/cache`
-- Prefetch workers: 4
-
-### stargz-snapshotter
-Complementary lazy-pull for **eStargz** and **SOCI**-formatted images.
-- Background prefetch: 10 MiB chunks, 500 ms poll
-- Configured with GCR mirror for docker.io
-
-### QEMU / binfmt
-- `tonistiigi/binfmt` registers all architectures (arm64, riscv64, s390x …)
-- `multiarch/qemu-user-static` provides the emulation binaries
-- Enables multi-arch image builds inside bonnie without a remote builder
-
-### buildkitd
-- Rootless-capable; runs in the `buildkit` containerd namespace
-- Uses overlayfs snapshotter; GC limit 10 GiB
+  export BONNIE_IMAGE=registry.example.com/bonnie:v1.2.3
+  make lint          # validate YAML
+  make build         # output/bonnie-cicd.img
+  make build-krd     # output/bonnie-cicd-kernel + initrd.img
+  make smoke         # QEMU 20-second boot test
+  make benchmark     # boot waterfall with ms timing
+  PUSH_REGISTRY=ghcr.io/my-org make push sign
 
 ---
 
-## Security hardening
+## All Make Targets
 
-### Kernel
-| Feature | Status |
-|---------|--------|
-| Page-table isolation (PTI/KPTI) | ✅ Enabled |
-| Retpoline + IBPB | ✅ Enabled |
-| KASLR + ASLR (randomize_memory) | ✅ Enabled |
-| INIT_ON_ALLOC / INIT_ON_FREE | ✅ Enabled |
-| Hardened usercopy | ✅ Enabled |
-| Module signature enforcement | ✅ SHA-512 |
-| BPF JIT hardening (level 2) | ✅ Enabled |
-| Unprivileged BPF disabled | ✅ Enabled |
-| vsyscall disabled | ✅ `vsyscall=none` |
-| debugfs disabled | ✅ Cmdline |
-| SLAB freelist randomised | ✅ Enabled |
-
-### Userspace
-- **AppArmor** default mandatory access for all services
-- **seccomp** filters applied via runc OCI runtime
-- **cgroups v2** only — no v1 subsystems
-- **Read-only rootfs** — writable state only on tmpfs mounts
-- **Principle of least privilege** — each service declares only the CAPs it needs
-- **No SSH** in default build (getty disabled); enable explicitly for debug
-- **SBOM** generated at every build and attested via GitHub Actions
-
-### sysctl highlights
-- `kernel.kptr_restrict=2` — kernel pointers never leaked to userspace
-- `kernel.dmesg_restrict=1` — dmesg requires CAP_SYSLOG
-- `kernel.yama.ptrace_scope=2` — only admin can ptrace
-- `net.core.bpf_jit_harden=2` — constant blinding in JIT
-- `net.ipv4.tcp_syncookies=1` — SYN flood protection
+  make build        Build raw image (default)
+  make build-iso    Build bootable ISO
+  make build-krd    Build kernel + initrd (required for smoke/benchmark)
+  make build-qcow2  Build QCOW2 for KVM/QEMU
+  make build-vmdk   Build VMDK for VMware
+  make smoke        QEMU boot smoke test (20 s, panic check)
+  make benchmark    Full boot waterfall with ms timing and pass/warn/fail
+  make verify       In-VM security posture checker (run inside the VM)
+  make pin          Resolve all image:tag to image:tag@sha256:...
+  make sbom         Generate Software Bill of Materials JSON
+  make push         Push to PUSH_REGISTRY
+  make sign         cosign keyless signature (Sigstore)
+  make lint         YAML validation only
+  make clean        Remove output/
+  make info         Print current configuration
+  make all          Full pipeline: lint, build, smoke, benchmark, push, sign
 
 ---
 
-## Performance tuning
+## File Layout
 
-### Boot time targets
-
-| Milestone | Target |
-|-----------|--------|
-| Kernel start → init | < 0.5 s |
-| containerd ready | < 2 s |
-| nydus-snapshotter ready | < 3 s |
-| bonnie accepting RPCs | < 4 s |
-| **Full system ready** | **< 5 s** |
-
-### Network (TCP BBR + FQ)
-BBR congestion control with Fair Queue discipline eliminates head-of-line
-blocking in high-throughput registry pulls during parallel CI jobs.
-
-### Lazy image pulling
-With nydus or stargz, CI jobs start executing **before** the full image is
-downloaded — only the requested file chunks are fetched on demand:
-
-```
-Traditional pull:  [====download====][run]        ~25 s for 2 GB image
-Nydus lazy pull:   [d][run+fetch in parallel]     ~4 s to first process
-```
-
-### io_uring
-containerd and buildkitd can leverage io_uring for high-throughput async I/O
-on layer extraction and snapshot operations.
+  bonnie-cicd/
+  |-- bonnie.yml                        Main LinuxKit definition (start here)
+  |-- Makefile                          Ergonomic build interface
+  |-- build.sh                          Core build/smoke/push script
+  |-- README.md                         This file
+  |-- CHANGELOG.md                      Release history
+  |
+  |-- kernel-config-fragments/
+  |   +-- bonnie-cicd.config            Kconfig fragment (200+ options)
+  |
+  |-- runtime/
+  |   |-- seccomp-bonnie.json           Strict seccomp syscall allowlist
+  |   |-- oci-spec-patch.json           OCI runtime baseline
+  |   +-- ima-policy                    IMA measurement + appraisal policy
+  |
+  |-- scripts/
+  |   |-- pin-digests.sh               Resolve image tags to sha256 digests
+  |   |-- benchmark-boot.sh            Boot waterfall benchmark (QEMU)
+  |   +-- verify-security.sh           In-VM security posture checker
+  |
+  |-- .github/
+  |   +-- workflows/
+  |       +-- bonnie-linuxkit.yml       CI: lint, build, smoke, scan, publish
+  |
+  +-- output/                           Build artefacts (git-ignored)
+      |-- bonnie-cicd.img
+      |-- bonnie-cicd-kernel
+      |-- bonnie-cicd-initrd.img
+      |-- sbom-<tag>.json
+      |-- boot-report-<ts>.json
+      +-- smoke-<tag>.log
 
 ---
 
-## Metrics
+## bonnie Service Variables
 
-| Exporter | Address | Key metrics |
-|----------|---------|-------------|
-| node-exporter | `:9100/metrics` | CPU, mem, disk, net |
-| bonnie | `:9091/metrics` | Build queue, duration, cache hit-rate |
-| containerd | `:1338/metrics` | Container starts, pull latency |
+  BONNIE_CONTAINERD_SOCKET    /run/containerd/containerd.sock
+  BONNIE_NYDUS_SOCKET         /run/containerd-nydus/containerd-nydus-grpc.sock
+  BONNIE_STARGZ_SOCKET        /run/containerd-stargz-grpc/containerd-stargz-grpc.sock
+  BONNIE_BUILDKIT_SOCKET      /run/buildkit/buildkitd.sock
+  BONNIE_SNAPSHOTTER_PRIORITY nydus,stargz,overlayfs
+  BONNIE_MAX_PARALLEL_JOBS    32
+  BONNIE_CACHE_DIR            /cache/bonnie (tmpfs, 10 GiB)
+  BONNIE_METRICS_ADDR         0.0.0.0:9091
+  BONNIE_GRPC_ADDR            unix:///run/bonnie/bonnie.sock
+  GOMAXPROCS                  0 (auto from cgroup quota)
+  GOMEMLIMIT                  4GiB
 
-Scrape with Prometheus and alert on:
-- `bonnie_build_queue_depth > 10` (backpressure)
-- `bonnie_cache_hit_ratio < 0.5` (cold cache)
-- `container_pull_latency_seconds{quantile="0.99"} > 30`
+---
+
+## Prometheus Metrics
+
+  containerd          :1338   pull latency, container starts, snapshot ops
+  nydus-snapshotter   :9090   cache hit ratio, chunk fetch duration
+  bonnie              :9091   build queue depth, job duration, cache hit rate
+  stargz-snapshotter  :9092   prefetch queue depth, fetch errors
+  node-exporter       :9100   CPU, mem, disk, net, hugepages, PSI pressure
+
+Recommended alert rules (Prometheus):
+
+  bonnie_boot_seconds > 5                         => BootTooSlow
+  bonnie_build_queue_depth > 10 for 2m            => BuildQueueBackpressure
+  bonnie_cache_hit_ratio < 0.5 for 5m             => LowCacheHitRate
+  nydus p99 chunk fetch > 2 s for 5m              => NydusChunkFetchSlow
 
 ---
 
 ## Customisation
 
-### Replace bonnie image
-Edit `bonnie.yml`, services → bonnie → `image`:
-```yaml
-- name: bonnie
-  image: your-registry.example.com/bonnie:v1.2.3
-```
+Replace bonnie image:
+  Edit bonnie.yml -> services -> bonnie -> image:
+    image: your-registry.example.com/bonnie:v2.0.0@sha256:<digest>
 
-### Add a private registry mirror
-Add to `files` in `bonnie.yml`:
-```yaml
-- path: /etc/containerd/certs.d/your-registry.example.com/hosts.toml
-  contents: |
-    server = "https://your-registry.example.com"
-    [host."https://your-mirror.example.com"]
-      capabilities = ["pull", "resolve"]
-```
+Add a registry mirror:
+  Add a file entry in bonnie.yml -> files:
+    path: /etc/containerd/certs.d/your-registry.example.com/hosts.toml
+    contents: |
+      server = "https://your-registry.example.com"
+      [host."https://your-mirror.internal"]
+        capabilities = ["pull", "resolve"]
 
-### Enable debug console
-Change `INSECURE=false` → `INSECURE=true` in the getty service
-and add your public SSH key to `/etc/linuxkit/authorized_keys`.
+Enable debug console (emergency only):
+  Set INSECURE=true in the getty service env and rebuild.
 
-### Custom kernel config
-Edit `kernel-config-fragments/bonnie-cicd.config`, then build a custom kernel:
-```bash
-linuxkit pkg build --org your-org kernel-config-fragments/
-# update bonnie.yml kernel.image to the new digest
-```
+Adjust CPU isolation (set upper bound to nproc-1):
+  Edit bonnie.yml kernel.cmdline:
+    isolcpus=2-63 nohz_full=2-63 rcu_nocbs=2-63 irqaffinity=0-1
 
----
+Increase nydus blob cache:
+  Edit nydus-snapshotter config.toml in bonnie.yml:
+    cache_size = "40Gi"
+  Also increase the tmpfs mount:
+    options: ["size=45g"]
 
-## Directory layout
-
-```
-bonnie-cicd/
-├── bonnie.yml                          # Main LinuxKit definition (start here)
-├── build.sh                            # Build / test / push helper
-├── kernel-config-fragments/
-│   └── bonnie-cicd.config              # Kernel Kconfig fragment
-├── .github/
-│   └── workflows/
-│       └── bonnie-linuxkit.yml         # GitHub Actions CI pipeline
-└── output/                             # Build artefacts (git-ignored)
-    ├── bonnie-cicd.img
-    ├── bonnie-cicd-kernel
-    ├── bonnie-cicd-initrd.img
-    └── sbom-<tag>.json
-```
+Custom kernel build:
+  Edit kernel-config-fragments/bonnie-cicd.config
+  Then: scripts/kconfig/merge_config.sh arch/x86/configs/x86_64_defconfig \
+          bonnie-cicd/kernel-config-fragments/bonnie-cicd.config
+  Build with linuxkit pkg build and update bonnie.yml kernel.image digest.
 
 ---
 
-## Upgrading components
+## Upgrading
 
-All images in `bonnie.yml` are pinned to explicit tags.  
-Run this helper to find new releases:
-
-```bash
-# Check linuxkit base images
-linuxkit pkg show-tag linuxkit/kernel linuxkit/containerd linuxkit/init
-
-# Check third-party images
-docker run --rm ghcr.io/containerd/nydus-snapshotter --version
-docker run --rm ghcr.io/containerd/stargz-snapshotter --version
-```
-
-Update the `image:` fields and re-run `bash build.sh all`.
+  1. Update image tags in bonnie.yml
+  2. make pin             (resolve to sha256)
+  3. git diff bonnie.yml  (review)
+  4. make all             (full pipeline)
 
 ---
 
-## License
+## Contributing
 
-Internal tooling — proprietary.  
-Third-party components are used under their respective open-source licences
-(LinuxKit: Apache 2.0, containerd: Apache 2.0, nydus: Apache 2.0,
-stargz-snapshotter: Apache 2.0, QEMU: GPL-2.0).
+  1. Branch from main
+  2. Edit bonnie.yml / scripts
+  3. make lint must pass
+  4. make smoke must pass
+  5. make benchmark — total boot must be under 5000 ms with KVM
+  6. make verify — all security checks must be PASS
+  7. Open PR; CI enforces every step above
+
+---
+
+## Licence
+
+Internal tooling, proprietary.
+Third-party components retain their upstream licences:
+LinuxKit (Apache-2.0), containerd (Apache-2.0), nydus (Apache-2.0),
+stargz-snapshotter (Apache-2.0), QEMU (GPL-2.0), Linux kernel (GPL-2.0).

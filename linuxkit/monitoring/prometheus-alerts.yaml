@@ -1,0 +1,298 @@
+# =============================================================================
+# monitoring/prometheus-alerts.yaml
+#
+# Prometheus alerting rules for bonnie-cicd.
+# Load via Prometheus rule_files or AlertManager.
+#
+# Scrape targets (add to prometheus.yml):
+#   - job_name: bonnie-cicd
+#     static_configs:
+#       - targets:
+#           - <node-ip>:1338   # containerd
+#           - <node-ip>:9090   # nydus-snapshotter
+#           - <node-ip>:9091   # bonnie
+#           - <node-ip>:9092   # stargz-snapshotter
+#           - <node-ip>:9100   # node-exporter
+# =============================================================================
+
+groups:
+
+  # ── Boot performance ────────────────────────────────────────────────────────
+  - name: bonnie.boot
+    rules:
+      - alert: BootTimeExceededTarget
+        expr: bonnie_boot_seconds > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "bonnie-cicd boot exceeded 5 s target"
+          description: >
+            Node {{ $labels.instance }} booted in {{ $value | humanizeDuration }}.
+            Target is 5 s. Check disk I/O and service startup ordering.
+
+      - alert: BootTimeCritical
+        expr: bonnie_boot_seconds > 15
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "bonnie-cicd boot critically slow (>15 s)"
+          description: >
+            Node {{ $labels.instance }} booted in {{ $value | humanizeDuration }}.
+            This indicates a serious startup problem.
+
+  # ── Build queue ─────────────────────────────────────────────────────────────
+  - name: bonnie.build
+    rules:
+      - alert: BuildQueueBackpressure
+        expr: bonnie_build_queue_depth > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "bonnie build queue depth > 10"
+          description: >
+            Build queue on {{ $labels.instance }} has {{ $value }} pending jobs.
+            Consider adding CI runner capacity.
+
+      - alert: BuildQueueCritical
+        expr: bonnie_build_queue_depth > 50
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "bonnie build queue critically backlogged (>50)"
+          description: >
+            Build queue on {{ $labels.instance }} has {{ $value }} pending jobs.
+            New CI jobs are likely timing out.
+
+      - alert: BuildJobsStalled
+        expr: increase(bonnie_builds_completed_total[10m]) == 0
+          and bonnie_build_queue_depth > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No build jobs completed in 10 min despite queue"
+          description: >
+            Node {{ $labels.instance }} has {{ $value }} queued jobs but
+            completed 0 in the last 10 minutes. bonnie may be deadlocked.
+
+      - alert: BuildJobDurationHigh
+        expr: >
+          histogram_quantile(0.99,
+            rate(bonnie_build_duration_seconds_bucket[5m])) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "bonnie p99 build duration > 5 min"
+          description: >
+            Node {{ $labels.instance }} p99 build duration is
+            {{ $value | humanizeDuration }}. Investigate slow builds.
+
+  # ── Layer cache ─────────────────────────────────────────────────────────────
+  - name: bonnie.cache
+    rules:
+      - alert: LowCacheHitRate
+        expr: bonnie_cache_hit_ratio < 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "bonnie layer cache hit rate below 50%"
+          description: >
+            Cache hit rate on {{ $labels.instance }} is {{ $value | humanizePercentage }}.
+            Cold cache increases registry pull load and slows job starts.
+
+      - alert: CacheCriticallyLow
+        expr: bonnie_cache_hit_ratio < 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "bonnie layer cache hit rate below 10% — near-miss"
+          description: >
+            Cache hit rate on {{ $labels.instance }} is {{ $value | humanizePercentage }}.
+            Check if the nydus blob cache was evicted or the cache dir was reset.
+
+  # ── Nydus snapshotter ───────────────────────────────────────────────────────
+  - name: bonnie.nydus
+    rules:
+      - alert: NydusChunkFetchSlow
+        expr: >
+          histogram_quantile(0.99,
+            rate(nydus_chunk_fetch_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "nydus p99 chunk fetch latency > 2 s"
+          description: >
+            Node {{ $labels.instance }} nydus p99 chunk fetch is
+            {{ $value | humanizeDuration }}. Check registry or network.
+
+      - alert: NydusSnapshotterDown
+        expr: up{job="nydus-snapshotter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "nydus-snapshotter is down"
+          description: >
+            nydus-snapshotter on {{ $labels.instance }} is unreachable.
+            Lazy image pulling is degraded — falling back to stargz/overlayfs.
+
+      - alert: NydusSocketMissing
+        expr: bonnie_nydus_socket_up == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "nydus unix socket not responding"
+          description: >
+            bonnie cannot reach the nydus gRPC socket on {{ $labels.instance }}.
+
+  # ── stargz snapshotter ──────────────────────────────────────────────────────
+  - name: bonnie.stargz
+    rules:
+      - alert: StargzSnapshotterDown
+        expr: up{job="stargz-snapshotter"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "stargz-snapshotter is down"
+          description: >
+            stargz-snapshotter on {{ $labels.instance }} is unreachable.
+            eStargz/SOCI images will fall back to full pull via overlayfs.
+
+  # ── containerd ─────────────────────────────────────────────────────────────
+  - name: bonnie.containerd
+    rules:
+      - alert: ContainerdDown
+        expr: up{job="containerd"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "containerd metrics endpoint is down"
+          description: >
+            containerd on {{ $labels.instance }} is not responding.
+            All container operations on this node are failing.
+
+      - alert: ContainerdPullLatencyHigh
+        expr: >
+          histogram_quantile(0.99,
+            rate(containerd_pull_duration_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "containerd p99 image pull > 60 s"
+          description: >
+            Image pull p99 on {{ $labels.instance }} is
+            {{ $value | humanizeDuration }}. Check registry throughput.
+
+  # ── Node / infrastructure ───────────────────────────────────────────────────
+  - name: bonnie.node
+    rules:
+      - alert: HighCPUSteal
+        expr: rate(node_cpu_seconds_total{mode="steal"}[5m]) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU steal time > 10% — noisy neighbour"
+          description: >
+            CPU steal on {{ $labels.instance }} is {{ $value | humanize }}%.
+            Shared-host hypervisor contention is slowing builds.
+
+      - alert: MemoryPressureHigh
+        expr: >
+          node_pressure_memory_waiting_seconds_total > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory PSI pressure > 50%"
+          description: >
+            Node {{ $labels.instance }} is under memory pressure.
+            Build processes may be swapping or being OOM-killed.
+
+      - alert: OOMKillDetected
+        expr: increase(node_vmstat_oom_kill[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OOM kill detected"
+          description: >
+            Node {{ $labels.instance }} had {{ $value }} OOM kill(s) in the
+            last 5 minutes. Check memory limits in bonnie service cgroup.
+
+      - alert: TmpfsDiskPressure
+        expr: >
+          (node_filesystem_avail_bytes{mountpoint=~"/run|/tmp|/var/lib/nydus|/cache/bonnie"}
+           / node_filesystem_size_bytes{mountpoint=~"/run|/tmp|/var/lib/nydus|/cache/bonnie"})
+          < 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "tmpfs mount < 10% free"
+          description: >
+            Mount {{ $labels.mountpoint }} on {{ $labels.instance }} is
+            {{ $value | humanizePercentage }} free. Builds will fail if full.
+
+      - alert: NydusBlcCacheNearFull
+        expr: nydus_cache_size_gib > 18
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nydus blob cache approaching 20 GiB limit"
+          description: >
+            Blob cache on {{ $labels.instance }} is {{ $value }} GiB.
+            GC will run automatically but monitor for write failures.
+
+      - alert: HugePagesExhausted
+        expr: node_memory_HugePages_Free == 0 and node_memory_HugePages_Total > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "All huge pages allocated"
+          description: >
+            Node {{ $labels.instance }} has no free huge pages.
+            QEMU instances may fall back to base pages (slower).
+
+  # ── Security ────────────────────────────────────────────────────────────────
+  - name: bonnie.security
+    rules:
+      - alert: AppArmorViolation
+        expr: increase(node_apparmor_denied_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AppArmor denial detected"
+          description: >
+            {{ $value }} AppArmor denial(s) on {{ $labels.instance }} in
+            the last 5 minutes. Check audit log: ausearch -m AVC.
+
+      - alert: UnexpectedOpenPort
+        expr: >
+          node_netstat_tcp_currestab and
+          node_network_receive_packets_total{device!~"lo|docker.*|veth.*|cni.*"}
+          unless
+          node_network_receive_packets_total{port=~"1338|9090|9091|9092|9100"}
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Unexpected network port active"
+          description: >
+            Unexpected TCP port activity on {{ $labels.instance }}.
+            Review with: ss -tlnp

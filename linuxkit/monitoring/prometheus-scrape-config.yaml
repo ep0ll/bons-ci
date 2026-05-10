@@ -1,0 +1,132 @@
+# =============================================================================
+# monitoring/prometheus-scrape-config.yaml
+#
+# Drop-in Prometheus scrape configuration for bonnie-cicd nodes.
+#
+# Install:
+#   cp monitoring/prometheus-scrape-config.yaml \
+#      /etc/prometheus/conf.d/bonnie-cicd.yaml
+#
+# Then reload Prometheus:
+#   curl -X POST http://localhost:9090/-/reload
+#
+# Replace <BONNIE_NODE_IP> with your node IPs or use service discovery.
+# =============================================================================
+
+scrape_configs:
+
+  # ── containerd metrics ──────────────────────────────────────────────────────
+  - job_name: containerd
+    scrape_interval: 15s
+    scrape_timeout:  10s
+    static_configs:
+      - targets: ["<BONNIE_NODE_IP>:1338"]
+        labels:
+          cluster:  bonnie-cicd
+          service:  containerd
+    metric_relabel_configs:
+      # Drop high-cardinality histograms we don't need
+      - source_labels: [__name__]
+        regex: "container_blkio_.*|container_network_.*_packets_dropped_total"
+        action: drop
+
+  # ── nydus-snapshotter metrics ───────────────────────────────────────────────
+  - job_name: nydus-snapshotter
+    scrape_interval: 15s
+    scrape_timeout:  10s
+    static_configs:
+      - targets: ["<BONNIE_NODE_IP>:9090"]
+        labels:
+          cluster:  bonnie-cicd
+          service:  nydus-snapshotter
+
+  # ── bonnie build system metrics ─────────────────────────────────────────────
+  - job_name: bonnie
+    scrape_interval: 10s   # more frequent — build queue changes fast
+    scrape_timeout:  8s
+    static_configs:
+      - targets: ["<BONNIE_NODE_IP>:9091"]
+        labels:
+          cluster:  bonnie-cicd
+          service:  bonnie
+    # Honour bonnie's rate limit header
+    honor_labels: true
+
+  # ── stargz-snapshotter metrics ──────────────────────────────────────────────
+  - job_name: stargz-snapshotter
+    scrape_interval: 15s
+    scrape_timeout:  10s
+    static_configs:
+      - targets: ["<BONNIE_NODE_IP>:9092"]
+        labels:
+          cluster:  bonnie-cicd
+          service:  stargz-snapshotter
+
+  # ── node-exporter (host metrics) ────────────────────────────────────────────
+  - job_name: node-exporter
+    scrape_interval: 15s
+    scrape_timeout:  10s
+    static_configs:
+      - targets: ["<BONNIE_NODE_IP>:9100"]
+        labels:
+          cluster:  bonnie-cicd
+          service:  node
+    metric_relabel_configs:
+      # Keep only the collectors we enabled in bonnie.yml
+      - source_labels: [__name__]
+        regex: >-
+          node_(cpu|memory|disk|network|load|filefd|hugepages|
+                cgroups|pressure|filesystem|vmstat|time).*
+        action: keep
+
+  # ── Blackbox health check (optional) ────────────────────────────────────────
+  - job_name: bonnie-blackbox
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          - "<BONNIE_NODE_IP>:9091"   # bonnie gRPC/metrics
+          - "<BONNIE_NODE_IP>:1338"   # containerd
+          - "<BONNIE_NODE_IP>:9100"   # node-exporter
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label:  __param_target
+      - source_labels: [__param_target]
+        target_label:  instance
+      - target_label: __address__
+        replacement:   "<BLACKBOX_EXPORTER_IP>:9115"
+      - target_label: cluster
+        replacement:   bonnie-cicd
+
+
+# ── Recording rules (pre-compute expensive queries) ─────────────────────────
+rule_files:
+  - /etc/prometheus/rules/bonnie-cicd-alerts.yaml
+  - /etc/prometheus/rules/bonnie-cicd-recordings.yaml
+
+
+# ── Example recording rules file content ─────────────────────────────────────
+# Save as /etc/prometheus/rules/bonnie-cicd-recordings.yaml:
+#
+# groups:
+#   - name: bonnie.recordings
+#     interval: 30s
+#     rules:
+#       - record: bonnie:cache_hit_ratio:rate5m
+#         expr: >
+#           rate(bonnie_cache_hits_total[5m]) /
+#           (rate(bonnie_cache_hits_total[5m]) + rate(bonnie_cache_misses_total[5m]))
+#
+#       - record: bonnie:build_throughput:rate1m
+#         expr: rate(bonnie_builds_completed_total[1m]) * 60
+#
+#       - record: bonnie:nydus_p99_fetch:rate5m
+#         expr: >
+#           histogram_quantile(0.99,
+#             rate(nydus_chunk_fetch_duration_seconds_bucket[5m]))
+#
+#       - record: node:cpu_utilisation:rate5m
+#         expr: >
+#           1 - avg by (instance) (
+#             rate(node_cpu_seconds_total{mode="idle"}[5m]))

@@ -1,0 +1,65 @@
+#include <tunables/global>
+
+# =============================================================================
+# AppArmor profile: nydus-snapshotter
+#
+# Enforces least-privilege access for the nydus-snapshotter daemon.
+# Permits FUSE mount operations and blob cache writes; denies all other
+# kernel interface writes.
+# =============================================================================
+
+profile nydus-snapshotter flags=(attach_disconnected, mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+  #include <abstractions/ssl_certs>
+
+  # Networking (HTTPS to OCI registry)
+  network tcp,
+  network unix,
+  network inet  stream,
+  network inet6 stream,
+
+  # Capabilities
+  capability sys_admin,     # FUSE mount
+  capability net_admin,
+  capability mknod,
+  capability dac_override,
+  capability setuid,
+  capability setgid,
+  capability fowner,
+  capability chown,
+
+  # Binary
+  /usr/local/bin/nydusd           mrix,
+  /usr/local/bin/nydus-image      mrix,
+  /usr/local/bin/containerd-nydus-grpc mrix,
+
+  # Runtime sockets
+  /run/containerd-nydus/**        rw,
+  /run/containerd/containerd.sock rw,
+
+  # Blob cache (large writes — essential for lazy pull)
+  /var/lib/nydus/**               rwk,
+
+  # FUSE device (lazy pull chunk streaming)
+  /dev/fuse                       rw,
+
+  # Config
+  /etc/nydus/**                   r,
+
+  # Proc (read-only — needed for self-inspection)
+  /proc/self/**                   r,
+  /proc/*/status                  r,
+  /proc/*/cmdline                 r,
+
+  # Logging
+  /var/log/nydus/**               rw,
+
+  # Deny all kernel write paths
+  deny /proc/sys/**               w,
+  deny /proc/sys/kernel/**        w,
+  deny /sys/**                    w,
+  deny /dev/mem                   rw,
+  deny /dev/kmem                  rw,
+  deny /dev/port                  rw,
+}
