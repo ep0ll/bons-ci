@@ -1,261 +1,201 @@
-/**
- * Tenant isolation and registry tests.
- * KV is mocked with a Map to avoid needing a real Cloudflare binding.
- */
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { makeTenantContext } from "../src/tenant/types";
-import type { TenantRecord, BackendConfig } from "../src/tenant/types";
+import { describe, it, expect, beforeAll } from "vitest";
+import { makeTenantContext, validateBucketName, validateObjectKey, type TenantRecord, type BackendConfig } from "../src/tenant";
 import { importMasterKey, encrypt } from "../src/crypto";
+import { ProxyError } from "../src/errors";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-async function makeRecord(
-  overrides: Partial<TenantRecord> = {}
-): Promise<TenantRecord> {
-  const key = await importMasterKey("c".repeat(64));
-  const secretEnc = await encrypt(key, "super-secret-key");
+async function makeRecord(overrides: Partial<TenantRecord> = {}): Promise<{ record: TenantRecord; key: CryptoKey }> {
+  const key    = await importMasterKey("1".repeat(64));
+  const secretEnc  = await encrypt(key, "tenant-secret-key");
+  const backendEnc = await encrypt(key, "backend-secret-key");
 
   const backend: BackendConfig = {
-    kind: "b2",
-    endpoint: "s3.us-west-004.backblazeb2.com",
-    region: "us-west-004",
-    bucket: "company-master-bucket",
-    accessKeyId: "B2_KEY_ID",
-    secretKeyEnc: await encrypt(key, "b2-application-key"),
-    forcePathStyle: false,
+    kind: "b2", endpoint: "s3.us-west-004.backblazeb2.com",
+    region: "us-west-004", bucket: "company-bucket",
+    accessKeyId: "B2KEYID", secretKeyEnc: backendEnc, forcePathStyle: false,
   };
 
-  return {
-    tenantId: "alice",
-    displayName: "Alice Corp",
-    secretKeyEnc: secretEnc,
-    defaultBackend: backend,
+  const record: TenantRecord = {
+    tenantId: "alice", displayName: "Alice Corp",
+    secretKeyEnc: secretEnc, defaultBackend: backend,
     keyPrefix: "tenant-alice/",
-    rateLimitRps: 0,
-    maxObjectBytes: 0,
+    rateLimitRps: 0, maxObjectBytes: 0,
+    createdAt: new Date().toISOString(),
     ...overrides,
   };
+  return { record, key };
 }
 
-// ─── TenantContext — realKey ──────────────────────────────────────────────────
+// ─── TenantContext.realKey ────────────────────────────────────────────────────
 
 describe("TenantContext.realKey", () => {
-  it("prepends the tenant prefix to the bucket and key", async () => {
-    const key = await importMasterKey("c".repeat(64));
-    const record = await makeRecord();
+  it("prepends tenant prefix to bucket and key", async () => {
+    const { record, key } = await makeRecord();
     const ctx = makeTenantContext(record, key);
-
-    expect(ctx.realKey("photos", "sunset.jpg")).toBe(
-      "tenant-alice/photos/sunset.jpg"
-    );
+    expect(ctx.realKey("photos", "sunset.jpg")).toBe("tenant-alice/photos/sunset.jpg");
   });
 
-  it("handles nested keys correctly", async () => {
-    const key = await importMasterKey("c".repeat(64));
-    const record = await makeRecord();
+  it("handles nested keys", async () => {
+    const { record, key } = await makeRecord();
     const ctx = makeTenantContext(record, key);
-
-    expect(ctx.realKey("docs", "2024/q1/report.pdf")).toBe(
-      "tenant-alice/docs/2024/q1/report.pdf"
-    );
+    expect(ctx.realKey("docs", "2024/q1/report.pdf")).toBe("tenant-alice/docs/2024/q1/report.pdf");
   });
 
-  it("two tenants with the same virtual bucket produce different real keys", async () => {
-    const key = await importMasterKey("c".repeat(64));
-
-    const aliceRecord = await makeRecord({
-      tenantId: "alice",
-      keyPrefix: "tenant-alice/",
-    });
-    const bobRecord = await makeRecord({
-      tenantId: "bob",
-      keyPrefix: "tenant-bob/",
-    });
-
-    const aliceCtx = makeTenantContext(aliceRecord, key);
-    const bobCtx = makeTenantContext(bobRecord, key);
-
-    const aliceKey = aliceCtx.realKey("photos", "avatar.jpg");
-    const bobKey = bobCtx.realKey("photos", "avatar.jpg");
-
-    expect(aliceKey).not.toBe(bobKey);
-    expect(aliceKey).toMatch(/^tenant-alice\//);
-    expect(bobKey).toMatch(/^tenant-bob\//);
+  it("two tenants with same virtual bucket produce different real keys", async () => {
+    const { record: r1, key } = await makeRecord({ tenantId: "alice", keyPrefix: "tenant-alice/" });
+    const { record: r2 }      = await makeRecord({ tenantId: "bob",   keyPrefix: "tenant-bob/"   });
+    const ctx1 = makeTenantContext(r1, key);
+    const ctx2 = makeTenantContext(r2, key);
+    expect(ctx1.realKey("photos", "a.jpg")).not.toBe(ctx2.realKey("photos", "a.jpg"));
+    expect(ctx1.realKey("photos", "a.jpg")).toMatch(/^tenant-alice\//);
+    expect(ctx2.realKey("photos", "a.jpg")).toMatch(/^tenant-bob\//);
   });
 });
 
-// ─── TenantContext — bucketPrefix ────────────────────────────────────────────
+// ─── TenantContext.bucketPrefix ───────────────────────────────────────────────
 
 describe("TenantContext.bucketPrefix", () => {
-  it("always ends with a trailing slash", async () => {
-    const key = await importMasterKey("c".repeat(64));
-    const record = await makeRecord();
+  it("always ends with /", async () => {
+    const { record, key } = await makeRecord();
     const ctx = makeTenantContext(record, key);
-
-    const prefix = ctx.bucketPrefix("photos");
-    expect(prefix).toBe("tenant-alice/photos/");
-    expect(prefix.endsWith("/")).toBe(true);
-  });
-
-  it("concatenating client prefix stays within tenant scope", async () => {
-    const key = await importMasterKey("c".repeat(64));
-    const record = await makeRecord();
-    const ctx = makeTenantContext(record, key);
-
-    const realPrefix = ctx.bucketPrefix("docs") + "2024/";
-    expect(realPrefix).toBe("tenant-alice/docs/2024/");
+    expect(ctx.bucketPrefix("photos")).toBe("tenant-alice/photos/");
+    expect(ctx.bucketPrefix("photos").endsWith("/")).toBe(true);
   });
 });
 
-// ─── Tenant isolation — prefix stripping ─────────────────────────────────────
+// ─── TenantContext.stripPrefix ────────────────────────────────────────────────
 
-describe("Tenant prefix isolation", () => {
-  it("stripping bucket prefix recovers the virtual key", async () => {
-    const key = await importMasterKey("c".repeat(64));
-    const record = await makeRecord();
-    const ctx = makeTenantContext(record, key);
-
+describe("TenantContext.stripPrefix", () => {
+  it("recovers virtual key from real key", async () => {
+    const { record, key } = await makeRecord();
+    const ctx     = makeTenantContext(record, key);
     const realKey = ctx.realKey("photos", "folder/image.png");
-    const prefix = ctx.bucketPrefix("photos");
-    const virtualKey = realKey.startsWith(prefix)
-      ? realKey.slice(prefix.length)
-      : null;
-
-    expect(virtualKey).toBe("folder/image.png");
+    expect(ctx.stripPrefix("photos", realKey)).toBe("folder/image.png");
   });
 
-  it("cannot strip bob's key using alice's prefix", async () => {
-    const masterKey = await importMasterKey("c".repeat(64));
-    const aliceRecord = await makeRecord({
-      tenantId: "alice",
-      keyPrefix: "tenant-alice/",
-    });
-    const bobRecord = await makeRecord({
-      tenantId: "bob",
-      keyPrefix: "tenant-bob/",
-    });
-
-    const aliceCtx = makeTenantContext(aliceRecord, masterKey);
-    const bobCtx = makeTenantContext(bobRecord, masterKey);
-
-    const bobRealKey = bobCtx.realKey("photos", "secret.jpg");
-    const alicePrefix = aliceCtx.bucketPrefix("photos");
-
-    // Alice's prefix should NOT match Bob's key
-    expect(bobRealKey.startsWith(alicePrefix)).toBe(false);
+  it("returns null for key from a different bucket", async () => {
+    const { record, key } = await makeRecord();
+    const ctx    = makeTenantContext(record, key);
+    const realKey = ctx.realKey("other-bucket", "file.txt");
+    expect(ctx.stripPrefix("photos", realKey)).toBeNull();
   });
 
-  it("path traversal in key cannot escape the tenant prefix", async () => {
-    const key = await importMasterKey("c".repeat(64));
-    const record = await makeRecord();
-    const ctx = makeTenantContext(record, key);
-
-    // Even if the client sends a key with "../" segments,
-    // realKey just concatenates — prefix is always prepended
-    const realKey = ctx.realKey("bucket", "../tenant-bob/secret.txt");
-    expect(realKey).toMatch(/^tenant-alice\//);
-    // The key is now tenant-alice/bucket/../tenant-bob/secret.txt
-    // which the backend will resolve within alice's namespace —
-    // it cannot reach tenant-bob/ because the prefix lock is at the
-    // IAM policy level on the backend (S3 bucket policy scoped to prefix).
-    expect(realKey.startsWith("tenant-alice/")).toBe(true);
+  it("returns null for key from a different tenant", async () => {
+    const { record: r1, key } = await makeRecord({ tenantId: "alice", keyPrefix: "tenant-alice/" });
+    const { record: r2 }      = await makeRecord({ tenantId: "bob",   keyPrefix: "tenant-bob/"   });
+    const alice = makeTenantContext(r1, key);
+    const bob   = makeTenantContext(r2, key);
+    const bobKey = bob.realKey("photos", "secret.jpg");
+    // Alice cannot strip Bob's key — returns null
+    expect(alice.stripPrefix("photos", bobKey)).toBeNull();
   });
 });
 
-// ─── TenantContext — backendSecret ───────────────────────────────────────────
+// ─── TenantContext.backendSecret ──────────────────────────────────────────────
 
 describe("TenantContext.backendSecret", () => {
-  it("decrypts the backend secret correctly", async () => {
-    const masterKey = await importMasterKey("c".repeat(64));
-    const plainSecret = "actual-backend-secret-key";
-
+  it("decrypts backend secret correctly", async () => {
+    const key    = await importMasterKey("2".repeat(64));
+    const secret = "my-actual-backend-secret";
+    const enc    = await encrypt(key, secret);
     const backend: BackendConfig = {
-      kind: "b2",
-      endpoint: "s3.us-west-004.backblazeb2.com",
-      region: "us-west-004",
-      bucket: "bucket",
-      accessKeyId: "AKID",
-      secretKeyEnc: await encrypt(masterKey, plainSecret),
-      forcePathStyle: false,
+      kind: "s3", endpoint: "s3.amazonaws.com", region: "us-east-1",
+      bucket: "b", accessKeyId: "AKID", secretKeyEnc: enc, forcePathStyle: false,
     };
-
-    const record = await makeRecord({ defaultBackend: backend });
-    const ctx = makeTenantContext(record, masterKey);
-    const secret = await ctx.backendSecret();
-
-    expect(secret).toBe(plainSecret);
+    const { record } = await makeRecord({ defaultBackend: backend });
+    const ctx = makeTenantContext({ ...record, defaultBackend: backend }, key);
+    expect(await ctx.backendSecret()).toBe(secret);
   });
 
-  it("throws when master key is wrong", async () => {
-    const key1 = await importMasterKey("a".repeat(64));
-    const key2 = await importMasterKey("b".repeat(64));
-
+  it("throws when key is wrong", async () => {
+    const key1 = await importMasterKey("3".repeat(64));
+    const key2 = await importMasterKey("4".repeat(64));
+    const enc  = await encrypt(key1, "secret");
     const backend: BackendConfig = {
-      kind: "s3",
-      endpoint: "s3.amazonaws.com",
-      region: "us-east-1",
-      bucket: "bucket",
-      accessKeyId: "AKID",
-      secretKeyEnc: await encrypt(key1, "secret"),
-      forcePathStyle: false,
+      kind: "minio", endpoint: "minio:9000", region: "us-east-1",
+      bucket: "b", accessKeyId: "AKID", secretKeyEnc: enc, forcePathStyle: true,
     };
-
-    const record = await makeRecord({ defaultBackend: backend });
-    const ctx = makeTenantContext(record, key2); // wrong key
-
+    const { record } = await makeRecord({ defaultBackend: backend });
+    const ctx = makeTenantContext({ ...record, defaultBackend: backend }, key2);
     await expect(ctx.backendSecret()).rejects.toThrow();
   });
 });
 
-// ─── Bucket name validation (via registry internals) ─────────────────────────
+// ─── validateBucketName ───────────────────────────────────────────────────────
 
-describe("Bucket name validation", () => {
-  // Import the validation function indirectly through the registry's createBucket,
-  // which throws ProxyError for invalid names.
-
-  const cases: { name: string; valid: boolean; reason: string }[] = [
-    { name: "valid-bucket", valid: true, reason: "standard valid name" },
-    { name: "abc", valid: true, reason: "minimum length (3)" },
-    { name: "a".repeat(63), valid: true, reason: "maximum length (63)" },
-    { name: "my.bucket.name", valid: false, reason: "dots are not allowed" },
-    { name: "UPPER", valid: false, reason: "uppercase not allowed" },
-    {
-      name: "-starts-with-dash",
-      valid: false,
-      reason: "cannot start with hyphen",
-    },
-    { name: "ends-with-dash-", valid: false, reason: "cannot end with hyphen" },
-    { name: "ab", valid: false, reason: "too short (2 chars)" },
-    { name: "a".repeat(64), valid: false, reason: "too long (64 chars)" },
-    { name: "192.168.0.1", valid: false, reason: "IP address format" },
-    { name: "with space", valid: false, reason: "spaces not allowed" },
-    { name: "with_under", valid: false, reason: "underscore not allowed" },
-    {
-      name: "all-lowercase-123",
-      valid: true,
-      reason: "lowercase with digits and hyphens",
-    },
+describe("validateBucketName", () => {
+  const valid = [
+    "abc", "my-bucket", "a".repeat(63), "my-bucket-123",
+    "all-lowercase-and-digits-123", "a1b2c3",
+  ];
+  const invalid: [string, string][] = [
+    ["ab",            "too short"],
+    ["a".repeat(64),  "too long"],
+    ["UPPER",         "uppercase"],
+    ["with space",    "space"],
+    ["with.dot",      "dot"],
+    ["with_under",    "underscore"],
+    ["-start",        "starts with hyphen"],
+    ["end-",          "ends with hyphen"],
+    ["192.168.0.1",   "IP address"],
+    ["xn--bucket",    "starts with xn--"],
+    ["bucket-s3alias","ends with -s3alias"],
+    ["",              "empty"],
   ];
 
-  // These tests verify the regex directly since we can't easily mock KV
-  it.each(cases.filter((c) => c.valid))(
-    "accepts valid bucket name: '$name' ($reason)",
-    ({ name }) => {
-      expect(
-        /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) &&
-          name.length >= 3 &&
-          name.length <= 63
-      ).toBe(true);
-    }
-  );
+  it.each(valid)("accepts: %s", (name) => {
+    expect(() => validateBucketName(name)).not.toThrow();
+  });
 
-  it.each(cases.filter((c) => !c.valid))(
-    "rejects invalid bucket name: '$name' ($reason)",
-    ({ name }) => {
-      const validFormat = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name);
-      const validLength = name.length >= 3 && name.length <= 63;
-      const validNotIp = !/^\d+\.\d+\.\d+\.\d+$/.test(name);
-      expect(validFormat && validLength && validNotIp).toBe(false);
+  it.each(invalid)("rejects: %s (%s)", (name) => {
+    expect(() => validateBucketName(name)).toThrow(ProxyError);
+  });
+});
+
+// ─── validateObjectKey ────────────────────────────────────────────────────────
+
+describe("validateObjectKey", () => {
+  it("accepts normal keys", () => {
+    expect(() => validateObjectKey("file.txt")).not.toThrow();
+    expect(() => validateObjectKey("deep/nested/path/file.bin")).not.toThrow();
+    expect(() => validateObjectKey("key with spaces.txt")).not.toThrow();
+    expect(() => validateObjectKey("unicode-日本語.txt")).not.toThrow();
+  });
+
+  it("throws on empty key", () => {
+    expect(() => validateObjectKey("")).toThrow(ProxyError);
+  });
+
+  it("throws on key exceeding 1024 UTF-8 bytes", () => {
+    // Each "a" is 1 byte; 1025 "a"s exceed the limit
+    expect(() => validateObjectKey("a".repeat(1025))).toThrow(ProxyError);
+    // Unicode: "中" is 3 bytes; 342 "中"s = 1026 bytes
+    expect(() => validateObjectKey("中".repeat(342))).toThrow(ProxyError);
+  });
+
+  it("accepts key of exactly 1024 UTF-8 bytes", () => {
+    expect(() => validateObjectKey("a".repeat(1024))).not.toThrow();
+  });
+});
+
+// ─── Isolation: cross-tenant path traversal ───────────────────────────────────
+
+describe("Tenant prefix isolation", () => {
+  it("path traversal in key stays within tenant namespace", async () => {
+    const { record, key } = await makeRecord({ tenantId: "alice", keyPrefix: "tenant-alice/" });
+    const ctx = makeTenantContext(record, key);
+    // Even if client sends "../tenant-bob/" the prefix is prepended, not bypassed
+    const realKey = ctx.realKey("bucket", "../tenant-bob/secret.txt");
+    // The real key starts with the tenant prefix — backend IAM enforces the rest
+    expect(realKey.startsWith("tenant-alice/")).toBe(true);
+    // stripPrefix on this crafted key should return null (doesn't cleanly strip "bucket/")
+    // or the literal "../tenant-bob/secret.txt" string — neither is the actual bob key
+    const stripped = ctx.stripPrefix("bucket", realKey);
+    if (stripped !== null) {
+      expect(stripped).toBe("../tenant-bob/secret.txt");
+      // It's the raw string with "../" — not the resolved bob key
+      expect(stripped.startsWith("tenant-bob/")).toBe(false);
     }
-  );
+  });
 });

@@ -1,21 +1,22 @@
 {
   "compilerOptions": {
-    "target":           "ES2022",
-    "module":           "ES2022",
-    "moduleResolution": "Bundler",
-    "lib":              ["ES2022", "WebWorker"],
-    "strict":           true,
-    "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess":   true,
-    "noImplicitReturns":          true,
-    "noFallthroughCasesInSwitch": true,
-    "skipLibCheck":     true,
-    "types":            ["@cloudflare/workers-types"],
-    "baseUrl":          ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "target":                        "ES2022",
+    "module":                        "ES2022",
+    "moduleResolution":              "Bundler",
+    "lib":                           ["ES2022", "WebWorker"],
+    "strict":                        true,
+    "exactOptionalPropertyTypes":    true,
+    "noUncheckedIndexedAccess":      true,
+    "noImplicitReturns":             true,
+    "noFallthroughCasesInSwitch":   true,
+    "noImplicitOverride":            true,
+    "allowUnreachableCode":          false,
+    "allowUnusedLabels":             false,
+    "skipLibCheck":                  true,
+    "types":                         ["@cloudflare/workers-types"],
+    "baseUrl":                       ".",
+    "paths":                         { "@/*": ["src/*"] }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "tests"]
+  "exclude": ["node_modules", "tests", "dist"]
 }

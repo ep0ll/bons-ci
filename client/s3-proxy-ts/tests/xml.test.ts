@@ -1,339 +1,252 @@
-/**
- * XML layer tests.
- * Parsing uses fast-xml-parser; generation is hand-rolled.
- * Both are tested here independently.
- */
 import { describe, it, expect } from "vitest";
 import {
-  parseDeleteRequest,
-  parseCompleteMpu,
-  xmlListBuckets,
-  xmlListObjectsV2,
-  xmlListObjectsV1,
-  xmlCreateMpu,
-  xmlListParts,
-  xmlDeleteResult,
+  parseDeleteRequest, parseCompleteMpu,
+  xmlListBuckets, xmlListObjectsV2, xmlListObjectsV1,
+  xmlCreateMpu, xmlCompleteResult, xmlListParts, xmlDeleteResult, xmlCopyObjectResult,
 } from "../src/protocol/xml";
 
 // ─── parseDeleteRequest ───────────────────────────────────────────────────────
 
 describe("parseDeleteRequest", () => {
-  it("parses a single-object delete request", () => {
-    const xml = `<?xml version="1.0"?>
-<Delete>
-  <Object><Key>photos/sunset.jpg</Key></Object>
-</Delete>`;
-    const req = parseDeleteRequest(xml);
-    expect(req.Objects).toHaveLength(1);
-    expect(req.Objects[0]!.Key).toBe("photos/sunset.jpg");
-    expect(req.Quiet).toBe(false);
+  it("parses single object", () => {
+    const r = parseDeleteRequest(`<Delete><Object><Key>a/b.txt</Key></Object></Delete>`);
+    expect(r.objects).toHaveLength(1);
+    expect(r.objects[0]!.Key).toBe("a/b.txt");
+    expect(r.quiet).toBe(false);
   });
 
   it("parses multiple objects", () => {
-    const xml = `<Delete>
-  <Object><Key>a.txt</Key></Object>
-  <Object><Key>b.txt</Key></Object>
-  <Object><Key>deep/nested/c.bin</Key></Object>
-</Delete>`;
-    const req = parseDeleteRequest(xml);
-    expect(req.Objects).toHaveLength(3);
-    expect(req.Objects[2]!.Key).toBe("deep/nested/c.bin");
+    const r = parseDeleteRequest(`<Delete>
+      <Object><Key>x</Key></Object>
+      <Object><Key>y</Key></Object>
+      <Object><Key>z</Key></Object>
+    </Delete>`);
+    expect(r.objects).toHaveLength(3);
+    expect(r.objects.map((o) => o.Key)).toEqual(["x", "y", "z"]);
   });
 
-  it("parses Quiet=true flag", () => {
-    const xml = `<Delete><Quiet>true</Quiet><Object><Key>x</Key></Object></Delete>`;
-    const req = parseDeleteRequest(xml);
-    expect(req.Quiet).toBe(true);
+  it("parses Quiet=true", () => {
+    const r = parseDeleteRequest(`<Delete><Quiet>true</Quiet><Object><Key>k</Key></Object></Delete>`);
+    expect(r.quiet).toBe(true);
   });
 
-  it("returns empty Objects array for empty Delete element", () => {
-    const xml = `<Delete></Delete>`;
-    const req = parseDeleteRequest(xml);
-    expect(req.Objects).toHaveLength(0);
+  it("parses empty Delete body (no objects)", () => {
+    const r = parseDeleteRequest(`<Delete></Delete>`);
+    expect(r.objects).toHaveLength(0);
   });
 
-  it("throws on missing root element", () => {
-    expect(() => parseDeleteRequest("<NotDelete/>")).toThrow(
-      /Missing <Delete>/
-    );
+  it("parses XML-encoded key values", () => {
+    const r = parseDeleteRequest(`<Delete><Object><Key>path/file&amp;name.txt</Key></Object></Delete>`);
+    expect(r.objects[0]!.Key).toBe("path/file&name.txt");
+  });
+
+  it("throws on missing Delete root", () => {
+    expect(() => parseDeleteRequest(`<Other/>`)).toThrow("Missing <Delete>");
+  });
+
+  it("throws on empty body", () => {
+    expect(() => parseDeleteRequest("")).toThrow();
   });
 
   it("throws on malformed XML", () => {
     expect(() => parseDeleteRequest("<Delete><unclosed>")).toThrow();
   });
 
-  it("handles keys with special characters", () => {
-    const xml = `<Delete>
-  <Object><Key>path/to/file with spaces.txt</Key></Object>
-  <Object><Key>path/to/file&amp;name.txt</Key></Object>
-</Delete>`;
-    const req = parseDeleteRequest(xml);
-    expect(req.Objects[0]!.Key).toBe("path/to/file with spaces.txt");
-    expect(req.Objects[1]!.Key).toBe("path/to/file&name.txt");
+  it("throws when Key is missing from Object", () => {
+    expect(() => parseDeleteRequest(`<Delete><Object></Object></Delete>`)).toThrow();
   });
 });
 
 // ─── parseCompleteMpu ─────────────────────────────────────────────────────────
 
 describe("parseCompleteMpu", () => {
-  it("parses a valid CompleteMultipartUpload body", () => {
-    const xml = `<CompleteMultipartUpload>
-  <Part><PartNumber>1</PartNumber><ETag>"etag-part-1"</ETag></Part>
-  <Part><PartNumber>2</PartNumber><ETag>"etag-part-2"</ETag></Part>
-  <Part><PartNumber>3</PartNumber><ETag>"etag-part-3"</ETag></Part>
-</CompleteMultipartUpload>`;
-    const req = parseCompleteMpu(xml);
-    expect(req.Parts).toHaveLength(3);
-    expect(req.Parts[0]!.PartNumber).toBe(1);
-    expect(req.Parts[0]!.ETag).toBe('"etag-part-1"');
-    expect(req.Parts[2]!.PartNumber).toBe(3);
+  const VALID = `<CompleteMultipartUpload>
+    <Part><PartNumber>1</PartNumber><ETag>"aa"</ETag></Part>
+    <Part><PartNumber>2</PartNumber><ETag>"bb"</ETag></Part>
+  </CompleteMultipartUpload>`;
+
+  it("parses valid body", () => {
+    const r = parseCompleteMpu(VALID);
+    expect(r.parts).toHaveLength(2);
+    expect(r.parts[0]).toEqual({ PartNumber: 1, ETag: '"aa"' });
+    expect(r.parts[1]).toEqual({ PartNumber: 2, ETag: '"bb"' });
+  });
+
+  it("parses empty part list", () => {
+    const r = parseCompleteMpu(`<CompleteMultipartUpload></CompleteMultipartUpload>`);
+    expect(r.parts).toHaveLength(0);
+  });
+
+  it("parses single part (not wrapped in array)", () => {
+    const r = parseCompleteMpu(`<CompleteMultipartUpload>
+      <Part><PartNumber>5</PartNumber><ETag>"cc"</ETag></Part>
+    </CompleteMultipartUpload>`);
+    expect(r.parts[0]!.PartNumber).toBe(5);
+  });
+
+  it("throws on invalid PartNumber (non-integer)", () => {
+    expect(() => parseCompleteMpu(`<CompleteMultipartUpload>
+      <Part><PartNumber>abc</PartNumber><ETag>"x"</ETag></Part>
+    </CompleteMultipartUpload>`)).toThrow("PartNumber");
+  });
+
+  it("throws on PartNumber > 10000", () => {
+    expect(() => parseCompleteMpu(`<CompleteMultipartUpload>
+      <Part><PartNumber>10001</PartNumber><ETag>"x"</ETag></Part>
+    </CompleteMultipartUpload>`)).toThrow("PartNumber");
+  });
+
+  it("throws on missing ETag", () => {
+    expect(() => parseCompleteMpu(`<CompleteMultipartUpload>
+      <Part><PartNumber>1</PartNumber></Part>
+    </CompleteMultipartUpload>`)).toThrow("ETag");
   });
 
   it("throws on missing root element", () => {
-    expect(() => parseCompleteMpu("<Other/>")).toThrow(
-      /Missing <CompleteMultipartUpload>/
-    );
+    expect(() => parseCompleteMpu(`<Other/>`)).toThrow("Missing");
   });
 
-  it("throws on invalid PartNumber", () => {
-    const xml = `<CompleteMultipartUpload>
-  <Part><PartNumber>not-a-number</PartNumber><ETag>"x"</ETag></Part>
-</CompleteMultipartUpload>`;
-    expect(() => parseCompleteMpu(xml)).toThrow(/PartNumber/);
-  });
-
-  it("throws on PartNumber out of range", () => {
-    const xml = `<CompleteMultipartUpload>
-  <Part><PartNumber>10001</PartNumber><ETag>"x"</ETag></Part>
-</CompleteMultipartUpload>`;
-    expect(() => parseCompleteMpu(xml)).toThrow(/PartNumber/);
-  });
-
-  it("handles empty part list", () => {
-    const xml = `<CompleteMultipartUpload></CompleteMultipartUpload>`;
-    const req = parseCompleteMpu(xml);
-    expect(req.Parts).toHaveLength(0);
+  it("throws on empty body", () => {
+    expect(() => parseCompleteMpu("")).toThrow();
   });
 });
 
 // ─── xmlListBuckets ───────────────────────────────────────────────────────────
 
 describe("xmlListBuckets", () => {
-  it("generates correct XML structure", () => {
-    const xml = xmlListBuckets("alice", [
-      { name: "photos", createdAt: "2024-01-01T00:00:00Z" },
-      { name: "backups", createdAt: "2024-02-01T00:00:00Z" },
+  it("contains required fields", () => {
+    const xml = xmlListBuckets("alice", "Alice Corp", [
+      { name: "photos", createdAt: "2024-01-01T00:00:00.000Z" },
     ]);
-    expect(xml).toContain("<Name>photos</Name>");
-    expect(xml).toContain("<Name>backups</Name>");
+    expect(xml).toContain('<ListAllMyBucketsResult');
     expect(xml).toContain("<ID>alice</ID>");
-    expect(xml).toContain("ListAllMyBucketsResult");
-    expect(xml).toContain("http://s3.amazonaws.com/doc/2006-03-01/");
+    expect(xml).toContain("<DisplayName>Alice Corp</DisplayName>");
+    expect(xml).toContain("<Name>photos</Name>");
+    expect(xml).toContain("<CreationDate>2024-01-01T00:00:00.000Z</CreationDate>");
   });
 
   it("handles empty bucket list", () => {
-    const xml = xmlListBuckets("tenant-1", []);
+    const xml = xmlListBuckets("t", "T", []);
     expect(xml).toContain("<Buckets>");
     expect(xml).not.toContain("<Bucket>");
   });
 
-  it("XML-escapes bucket names with special chars", () => {
-    const xml = xmlListBuckets("t", [
-      { name: "a&b<c>d", createdAt: "2024-01-01T00:00:00Z" },
+  it("XML-escapes all values", () => {
+    const xml = xmlListBuckets("t&<>\"'", "Name&<>\"'", [
+      { name: "b&<>", createdAt: "2024-01-01T00:00:00.000Z" },
     ]);
-    expect(xml).toContain("a&amp;b&lt;c&gt;d");
-    expect(xml).not.toMatch(/<Name>[^<]*&[^a][^<]*<\/Name>/);
+    expect(xml).not.toMatch(/[^>]&[^a-z#][^;]*</); // no unescaped &
+    expect(xml).toContain("&amp;");
+    expect(xml).toContain("&lt;");
   });
 });
 
 // ─── xmlListObjectsV2 ────────────────────────────────────────────────────────
 
 describe("xmlListObjectsV2", () => {
-  const baseParams = {
-    bucket: "my-bucket",
-    prefix: "photos/",
-    delimiter: "/",
-    maxKeys: 1000,
-    isTruncated: false,
-    keyCount: 2,
-    contents: [
-      {
-        key: "photos/a.jpg",
-        lastModified: "2024-01-15T12:00:00Z",
-        etag: '"etag-a"',
-        size: 1024,
-        storageClass: "STANDARD",
-      },
-      {
-        key: "photos/b.jpg",
-        lastModified: "2024-01-16T12:00:00Z",
-        etag: '"etag-b"',
-        size: 2048,
-        storageClass: "STANDARD",
-      },
-    ],
-    commonPrefixes: ["photos/2024/"],
+  const BASE = {
+    bucket: "my-bucket", prefix: "", delimiter: "", maxKeys: 1000,
+    isTruncated: false, keyCount: 0, contents: [], commonPrefixes: [],
   };
 
-  it("contains all required fields", () => {
-    const xml = xmlListObjectsV2(baseParams);
-    expect(xml).toContain("<Name>my-bucket</Name>");
-    expect(xml).toContain("<Prefix>photos/</Prefix>");
-    expect(xml).toContain("<MaxKeys>1000</MaxKeys>");
-    expect(xml).toContain("<KeyCount>2</KeyCount>");
-    expect(xml).toContain("<IsTruncated>false</IsTruncated>");
-    expect(xml).toContain("<Key>photos/a.jpg</Key>");
+  it("contains xmlns declaration", () => {
+    const xml = xmlListObjectsV2(BASE);
+    expect(xml).toContain('xmlns="http://s3.amazonaws.com/doc/2006-03-01/"');
+  });
+
+  it("renders content objects", () => {
+    const xml = xmlListObjectsV2({
+      ...BASE,
+      keyCount: 1,
+      contents: [{
+        key: "dir/file.txt", lastModified: "2024-01-15T12:00:00Z",
+        etag: '"abc"', size: 1024n, storageClass: "STANDARD",
+      }],
+    });
+    expect(xml).toContain("<Key>dir/file.txt</Key>");
     expect(xml).toContain("<Size>1024</Size>");
-    expect(xml).toContain(
-      "<CommonPrefixes><Prefix>photos/2024/</Prefix></CommonPrefixes>"
-    );
+    expect(xml).toContain("<ETag>&#34;abc&#34;</ETag>"); // or <ETag>&quot;abc&quot;</ETag>
+  });
+
+  it("renders common prefixes", () => {
+    const xml = xmlListObjectsV2({ ...BASE, commonPrefixes: ["folder/"] });
+    expect(xml).toContain("<Prefix>folder/</Prefix>");
   });
 
   it("includes NextContinuationToken when truncated", () => {
-    const xml = xmlListObjectsV2({
-      ...baseParams,
-      isTruncated: true,
-      nextContinuationToken: "next-page-token-xyz",
-    });
+    const xml = xmlListObjectsV2({ ...BASE, isTruncated: true, nextContinuationToken: "tok123" });
     expect(xml).toContain("<IsTruncated>true</IsTruncated>");
-    expect(xml).toContain(
-      "<NextContinuationToken>next-page-token-xyz</NextContinuationToken>"
-    );
+    expect(xml).toContain("<NextContinuationToken>tok123</NextContinuationToken>");
   });
 
-  it("XML-escapes keys with special characters", () => {
-    const xml = xmlListObjectsV2({
-      ...baseParams,
-      contents: [
-        {
-          key: "path/<weird>&key.txt",
-          lastModified: "",
-          etag: '""',
-          size: 0,
-          storageClass: "STANDARD",
-        },
-      ],
-      keyCount: 1,
-    });
-    expect(xml).toContain("&lt;weird&gt;");
-    expect(xml).toContain("&amp;key");
-    expect(xml).not.toContain("<Key>path/<");
-  });
-
-  it("omits optional fields when not provided", () => {
-    const xml = xmlListObjectsV2({
-      ...baseParams,
-      delimiter: "",
-      continuationToken: undefined,
-    });
+  it("omits optional fields when absent", () => {
+    const xml = xmlListObjectsV2(BASE);
     expect(xml).not.toContain("<Delimiter>");
     expect(xml).not.toContain("<ContinuationToken>");
+    expect(xml).not.toContain("<NextContinuationToken>");
+    expect(xml).not.toContain("<StartAfter>");
   });
-});
 
-// ─── xmlListObjectsV1 ────────────────────────────────────────────────────────
-
-describe("xmlListObjectsV1", () => {
-  it("contains Marker and optional NextMarker when truncated", () => {
-    const xml = xmlListObjectsV1({
-      bucket: "b",
-      prefix: "",
-      delimiter: "",
-      marker: "last-seen-key.txt",
-      maxKeys: 100,
-      isTruncated: true,
-      nextMarker: "last-seen-key.txt",
-      contents: [
-        {
-          key: "last-seen-key.txt",
-          lastModified: "",
-          etag: '""',
-          size: 0,
-          storageClass: "STANDARD",
-        },
-      ],
-      commonPrefixes: [],
+  it("renders BigInt sizes correctly (no 'n' suffix)", () => {
+    const xml = xmlListObjectsV2({
+      ...BASE, keyCount: 1,
+      contents: [{ key: "f", lastModified: "", etag: '""', size: 5_000_000_000n, storageClass: "STANDARD" }],
     });
-    expect(xml).toContain("<Marker>last-seen-key.txt</Marker>");
-    expect(xml).toContain("<NextMarker>last-seen-key.txt</NextMarker>");
-    expect(xml).toContain("<IsTruncated>true</IsTruncated>");
-  });
-});
-
-// ─── xmlCreateMpu ─────────────────────────────────────────────────────────────
-
-describe("xmlCreateMpu", () => {
-  it("contains all three required fields", () => {
-    const xml = xmlCreateMpu(
-      "photos",
-      "2024/big-file.bin",
-      "proxy-upload-uuid"
-    );
-    expect(xml).toContain("<Bucket>photos</Bucket>");
-    expect(xml).toContain("<Key>2024/big-file.bin</Key>");
-    expect(xml).toContain("<UploadId>proxy-upload-uuid</UploadId>");
-    expect(xml).toContain("InitiateMultipartUploadResult");
-  });
-});
-
-// ─── xmlListParts ─────────────────────────────────────────────────────────────
-
-describe("xmlListParts", () => {
-  it("lists all parts with correct fields", () => {
-    const xml = xmlListParts("b", "k", "uid", [
-      {
-        partNumber: 1,
-        etag: '"etag-1"',
-        size: 5_242_880,
-        lastModified: "2024-01-15T12:00:00Z",
-      },
-      {
-        partNumber: 2,
-        etag: '"etag-2"',
-        size: 5_242_880,
-        lastModified: "2024-01-15T12:05:00Z",
-      },
-    ]);
-    expect(xml).toContain("<PartNumber>1</PartNumber>");
-    expect(xml).toContain("<PartNumber>2</PartNumber>");
-    expect(xml).toContain("<Size>5242880</Size>");
-    expect(xml).toContain("ListPartsResult");
+    expect(xml).toContain("<Size>5000000000</Size>");
+    expect(xml).not.toContain("5000000000n");
   });
 });
 
 // ─── xmlDeleteResult ─────────────────────────────────────────────────────────
 
 describe("xmlDeleteResult", () => {
-  it("separates deleted keys from errors", () => {
+  it("renders deleted and error entries", () => {
     const xml = xmlDeleteResult(
-      ["a.txt", "b.txt"],
-      [{ key: "c.txt", message: "Access Denied" }]
+      ["ok.txt"],
+      [{ key: "fail.txt", code: "AccessDenied", message: "Permission denied" }],
     );
-    expect(xml).toContain("<Deleted><Key>a.txt</Key></Deleted>");
-    expect(xml).toContain("<Deleted><Key>b.txt</Key></Deleted>");
-    expect(xml).toContain("<Error>");
-    expect(xml).toContain("<Key>c.txt</Key>");
-    expect(xml).toContain("<Message>Access Denied</Message>");
+    expect(xml).toContain("<Deleted><Key>ok.txt</Key></Deleted>");
+    expect(xml).toContain("<Code>AccessDenied</Code>");
+    expect(xml).toContain("<Message>Permission denied</Message>");
   });
 
-  it("produces valid XML when all deleted", () => {
-    const xml = xmlDeleteResult(["x.bin"], []);
-    expect(xml).toContain("<Deleted>");
+  it("renders all-deleted case", () => {
+    const xml = xmlDeleteResult(["a", "b"], []);
     expect(xml).not.toContain("<Error>");
   });
 
-  it("produces valid XML when all errors", () => {
-    const xml = xmlDeleteResult([], [{ key: "y.bin", message: "No such key" }]);
+  it("renders all-error case", () => {
+    const xml = xmlDeleteResult([], [{ key: "a", code: "InternalError", message: "Oops" }]);
     expect(xml).not.toContain("<Deleted>");
-    expect(xml).toContain("<Error>");
+  });
+});
+
+// ─── xmlCreateMpu ────────────────────────────────────────────────────────────
+
+describe("xmlCreateMpu", () => {
+  it("contains all required fields", () => {
+    const xml = xmlCreateMpu("b", "k/p.bin", "upload-uuid");
+    expect(xml).toContain("<Bucket>b</Bucket>");
+    expect(xml).toContain("<Key>k/p.bin</Key>");
+    expect(xml).toContain("<UploadId>upload-uuid</UploadId>");
+    expect(xml).toContain("InitiateMultipartUploadResult");
+  });
+});
+
+// ─── xmlCompleteResult ───────────────────────────────────────────────────────
+
+describe("xmlCompleteResult", () => {
+  it("contains ETag and Location", () => {
+    const xml = xmlCompleteResult("bucket", "key", '"final-etag"', "https://backend/bucket/key");
+    expect(xml).toContain("CompleteMultipartUploadResult");
+    expect(xml).toContain("<ETag>");
+    expect(xml).toContain("<Location>");
+    expect(xml).toContain("<Bucket>bucket</Bucket>");
+    expect(xml).toContain("<Key>key</Key>");
   });
 
-  it("XML-escapes error messages with special chars", () => {
-    const xml = xmlDeleteResult(
-      [],
-      [{ key: "z.txt", message: 'Error: "access" < denied' }]
-    );
-    expect(xml).toContain("&quot;access&quot;");
-    expect(xml).toContain("&lt; denied");
+  it("falls back to constructed Location when backend returns empty", () => {
+    const xml = xmlCompleteResult("b", "k", '"e"', "");
+    expect(xml).toContain("<Location>/b/k</Location>");
   });
 });

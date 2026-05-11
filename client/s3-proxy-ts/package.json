@@ -1,35 +1,37 @@
 {
   "name": "s3-proxy",
-  "version": "2.0.0",
-  "description": "Multi-tenant S3-compatible proxy with presigned redirects — Cloudflare Workers",
+  "version": "3.0.0",
   "private": true,
   "scripts": {
-    "dev":       "wrangler dev",
-    "deploy":    "wrangler deploy",
-    "typecheck": "tsc --noEmit",
-    "test":      "vitest run",
-    "test:watch":"vitest",
-    "test:coverage": "vitest run --coverage",
-    "lint":      "eslint src tests --ext .ts",
-    "fmt":       "prettier --write 'src/**/*.ts' 'tests/**/*.ts'"
+    "dev":          "wrangler dev --env dev",
+    "deploy":       "wrangler deploy",
+    "typecheck":    "tsc --noEmit",
+    "test":         "vitest run",
+    "test:watch":   "vitest",
+    "test:coverage":"vitest run --coverage",
+    "lint":         "eslint 'src/**/*.ts' 'tests/**/*.ts'",
+    "fmt":          "prettier --write 'src/**/*.ts' 'tests/**/*.ts'"
   },
   "dependencies": {
-    "@aws-sdk/client-s3":           "^3.600.0",
-    "@aws-sdk/s3-request-presigner":"^3.600.0",
-    "@aws-sdk/lib-storage":         "^3.600.0",
-    "@smithy/signature-v4":         "^3.1.1",
-    "@aws-crypto/sha256-js":        "^5.2.0",
-    "fast-xml-parser":              "^4.4.0",
-    "hono":                         "^4.4.0",
-    "zod":                          "^3.23.0"
+    "@aws-sdk/client-s3":            "^3.614.0",
+    "@aws-sdk/s3-request-presigner": "^3.614.0",
+    "@smithy/fetch-http-handler":    "^3.2.4",
+    "@smithy/protocol-http":         "^4.1.0",
+    "@smithy/signature-v4":          "^4.1.0",
+    "@aws-crypto/sha256-js":         "^5.2.0",
+    "fast-xml-parser":               "^4.4.1",
+    "hono":                          "^4.5.3",
+    "zod":                           "^3.23.8"
   },
   "devDependencies": {
-    "@cloudflare/workers-types":    "^4.20240725.0",
-    "@vitest/coverage-v8":          "^1.6.0",
-    "typescript":                   "^5.5.0",
-    "vitest":                       "^1.6.0",
-    "eslint":                       "^9.0.0",
-    "prettier":                     "^3.3.0",
-    "wrangler":                     "^3.65.0"
+    "@cloudflare/workers-types": "^4.20240909.0",
+    "@vitest/coverage-v8":       "^2.0.5",
+    "typescript":                "^5.5.4",
+    "vitest":                    "^2.0.5",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "eslint":                    "^9.9.0",
+    "prettier":                  "^3.3.3",
+    "wrangler":                  "^3.72.0"
   }
 }

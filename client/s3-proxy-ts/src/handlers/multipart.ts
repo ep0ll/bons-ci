@@ -1,242 +1,323 @@
 /**
  * Multipart upload handlers.
  *
- * UploadPart returns a presigned 307 redirect — the client uploads the part
- * directly to the backend.  All orchestration (Create, Complete, Abort, List)
- * is proxied through the Worker using the `@aws-sdk/client-s3` SDK.
+ * OPERATION MAP:
+ *   CreateMultipartUpload   → proxied  (returns UploadId in XML)
+ *   UploadPart              → 307 presigned redirect (data-plane)
+ *   CompleteMultipartUpload → proxied  (assembles parts on backend)
+ *   AbortMultipartUpload    → proxied  (signals backend + cleans KV)
+ *   ListParts               → proxied  (returns part list from backend)
  *
- * State (proxy_upload_id → backend_upload_id mapping) is stored in UPLOAD_KV
- * with a 7-day TTL.  The proxy assigns a UUID as the client-facing upload ID;
- * the real backend ID is stored encrypted alongside it.
+ * STATE MANAGEMENT (Cloudflare KV):
+ *   "upload:meta:{proxyId}" → UploadMeta (7-day TTL)
+ *
+ *   The proxy assigns a UUID as the client-facing UploadId. The real
+ *   backend UploadId is stored in KV alongside the metadata needed to
+ *   verify ownership on subsequent calls.
+ *
+ * OWNERSHIP VERIFICATION:
+ *   Every UploadPart / Complete / Abort / ListParts call verifies that:
+ *     - The proxyId is known (KV lookup)
+ *     - The tenantId matches the current request's tenant
+ *     - The bucket and key in the URL match the stored values
+ *   All three must match, or we return NoSuchUpload (403 cross-tenant,
+ *   404 genuine not-found — both surfaces return 404 to avoid oracle).
+ *
+ * PART ETAG TRACKING:
+ *   Parts are uploaded directly to the backend via presigned URLs.
+ *   The backend returns an ETag per part in the HTTP response to the
+ *   client. The client then sends all ETags in CompleteMultipartUpload.
+ *   We do NOT need to store ETags in KV — the client tracks them per
+ *   the S3 protocol specification.
+ *
+ * CONCURRENCY:
+ *   Multiple UploadPart requests may run concurrently (the S3 protocol
+ *   requires this support). Each part gets its own presigned URL; there
+ *   is no shared mutable state during the upload phase.
  */
-import type { Context } from "hono";
+
+import type { Context }      from "hono";
 import type { CompletedPart } from "@aws-sdk/client-s3";
-import { S3CompatClient } from "@/backend/client";
-import { presignUploadPart } from "@/backend/presigned";
-import { parseCompleteMpu, xmlCreateMpu, xmlListParts } from "@/protocol/xml";
-import { ProxyError } from "@/errors";
+import {
+  resolveBucket, resolveKey, makeClient,
+  redirectResponse, xmlResponse, emptyResponse, presignExpiry,
+} from "./common";
+import { presignUploadPart }  from "@/backend/presigned";
+import {
+  parseCompleteMpu,
+  xmlCreateMpu,
+  xmlCompleteResult,
+  xmlListParts,
+} from "@/protocol/xml";
+import { ProxyError }         from "@/errors";
+import { validateObjectKey }  from "@/tenant";
 
 // ─── KV state ─────────────────────────────────────────────────────────────────
 
 interface UploadMeta {
-  proxyUploadId: string;
+  proxyUploadId:   string;
   backendUploadId: string;
-  realKey: string;
-  virtualBucket: string;
-  virtualKey: string;
-  tenantId: string;
+  realKey:         string;
+  virtualBucket:   string;
+  virtualKey:      string;
+  tenantId:        string;
+  createdAt:       string;
 }
 
-const UPLOAD_TTL = 7 * 24 * 3600; // 7 days (seconds)
+const UPLOAD_TTL_S = 604_800; // 7 days — matches S3 multipart upload lifetime
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── CreateMultipartUpload ────────────────────────────────────────────────────
 
-function xmlRes(body: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: { "Content-Type": "application/xml" },
-  });
-}
+export async function handleCreateMultipartUpload(c: Context): Promise<Response> {
+  const ctx    = c.get("tenantCtx");
+  const reqId  = c.get("requestId");
+  const bucket = resolveBucket(c);
+  const key    = resolveKey(c);
 
-function presignRedirect(url: string): Response {
-  return new Response(null, {
-    status: 307,
-    headers: { Location: url, "Cache-Control": "no-store" },
-  });
-}
+  validateObjectKey(key);
 
-async function loadMeta(env: Env, proxyId: string): Promise<UploadMeta> {
-  const raw = await env.UPLOAD_KV.get(`upload:meta:${proxyId}`);
-  if (!raw) throw ProxyError.noSuchUpload(proxyId);
-  return JSON.parse(raw) as UploadMeta;
-}
+  // Verify bucket exists
+  const registry = c.get("registry");
+  if (!await registry.bucketExists(ctx.record.tenantId, bucket)) {
+    throw ProxyError.noSuchBucket(bucket);
+  }
 
-async function saveMeta(env: Env, meta: UploadMeta): Promise<void> {
-  await env.UPLOAD_KV.put(
-    `upload:meta:${meta.proxyUploadId}`,
-    JSON.stringify(meta),
-    { expirationTtl: UPLOAD_TTL }
-  );
-}
+  const contentType = c.req.header("content-type") ?? "application/octet-stream";
+  const client      = await makeClient(ctx);
+  const realKey     = ctx.realKey(bucket, key);
 
-function guardOwnership(
-  meta: UploadMeta,
-  tenantId: string,
-  bucket: string,
-  key: string,
-  proxyId: string
-): void {
-  if (
-    meta.tenantId !== tenantId ||
-    meta.virtualBucket !== bucket ||
-    meta.virtualKey !== key
-  )
-    throw ProxyError.noSuchUpload(proxyId);
-}
-
-// ─── POST /{bucket}/{key}?uploads — CreateMultipartUpload ─────────────────────
-
-export async function handleCreateMultipartUpload(
-  c: Context
-): Promise<Response> {
-  const ctx = c.get("tenantCtx");
-  const secretKey = await ctx.backendSecret();
-  const client = new S3CompatClient(ctx.record.defaultBackend, secretKey);
-  const bucket = c.req.param("bucket");
-  const key = c.req.param("key") ?? "";
-  const realKey = ctx.realKey(bucket, key);
-  const ct = c.req.header("content-type") ?? "application/octet-stream";
-
-  // SDK call to initiate on backend
-  const backendId = await client.createMultipartUpload(realKey, ct);
-  const proxyId = crypto.randomUUID();
+  // Initiate on the backend (SDK handles the XML request/response)
+  const backendId = await client.createMultipartUpload(realKey, contentType);
+  const proxyId   = generateUploadId();
 
   const meta: UploadMeta = {
-    proxyUploadId: proxyId,
+    proxyUploadId:   proxyId,
     backendUploadId: backendId,
     realKey,
-    virtualBucket: bucket,
-    virtualKey: key,
-    tenantId: ctx.record.tenantId,
+    virtualBucket:   bucket,
+    virtualKey:      key,
+    tenantId:        ctx.record.tenantId,
+    createdAt:       new Date().toISOString(),
   };
-  await saveMeta(c.env as Env, meta);
 
-  return xmlRes(xmlCreateMpu(bucket, key, proxyId));
+  const kv = (c.env as Env).UPLOAD_KV;
+  await kv.put(`upload:meta:${proxyId}`, JSON.stringify(meta), {
+    expirationTtl: UPLOAD_TTL_S,
+  });
+
+  return xmlResponse(xmlCreateMpu(bucket, key, proxyId), 200, reqId);
 }
 
-// ─── PUT /{bucket}/{key}?partNumber=N&uploadId=X — UploadPart → 307 ──────────
+// ─── UploadPart → 307 presigned redirect ──────────────────────────────────────
 
 export async function handleUploadPart(c: Context): Promise<Response> {
-  const ctx = c.get("tenantCtx");
-  const secretKey = await ctx.backendSecret();
-  const client = new S3CompatClient(ctx.record.defaultBackend, secretKey);
-  const bucket = c.req.param("bucket");
-  const key = c.req.param("key") ?? "";
-  const proxyId = c.req.query("uploadId") ?? "";
-  const partNum = parseInt(c.req.query("partNumber") ?? "0", 10);
-  const env = c.env as Env;
+  const ctx    = c.get("tenantCtx");
+  const reqId  = c.get("requestId");
+  const bucket = resolveBucket(c);
+  const key    = resolveKey(c);
+  const kv     = (c.env as Env).UPLOAD_KV;
 
-  if (isNaN(partNum) || partNum < 1 || partNum > 10_000) {
-    throw ProxyError.badRequest(
-      `partNumber must be 1-10000, got ${c.req.query("partNumber")}`
+  const uploadId  = c.req.query("uploadId") ?? "";
+  const partNumRaw = c.req.query("partNumber") ?? "";
+  const partNum   = parseInt(partNumRaw, 10);
+
+  if (!uploadId)                                    throw ProxyError.malformedXML("uploadId query param missing");
+  if (!Number.isInteger(partNum) || partNum < 1 || partNum > 10_000) {
+    throw ProxyError.invalidArgument(
+      `partNumber must be an integer 1-10000, got: ${partNumRaw}`,
     );
   }
 
-  const meta = await loadMeta(env, proxyId);
-  guardOwnership(meta, ctx.record.tenantId, bucket, key, proxyId);
+  const meta = await loadMeta(kv, uploadId);
+  verifyOwnership(meta, ctx.record.tenantId, bucket, key, uploadId);
 
-  const expiresIn = Number(
-    (c.env as Env & { PRESIGN_EXPIRY_S?: string }).PRESIGN_EXPIRY_S ?? 3600
-  );
+  const client  = await makeClient(ctx);
+  const expires = Math.min(presignExpiry(c) * 4, 3600); // parts may be large; give more time
+
   const url = await presignUploadPart(
     client.rawClient,
-    client.bucketName,
+    client.bucket,
     meta.realKey,
     meta.backendUploadId,
     partNum,
-    { expiresIn }
+    { expiresIn: expires },
   );
 
-  return presignRedirect(url);
+  return redirectResponse(url, reqId);
 }
 
-// ─── POST /{bucket}/{key}?uploadId=X — CompleteMultipartUpload ───────────────
+// ─── CompleteMultipartUpload ──────────────────────────────────────────────────
 
-export async function handleCompleteMultipartUpload(
-  c: Context
-): Promise<Response> {
-  const ctx = c.get("tenantCtx");
-  const secretKey = await ctx.backendSecret();
-  const client = new S3CompatClient(ctx.record.defaultBackend, secretKey);
-  const bucket = c.req.param("bucket");
-  const key = c.req.param("key") ?? "";
-  const proxyId = c.req.query("uploadId") ?? "";
-  const env = c.env as Env;
+export async function handleCompleteMultipartUpload(c: Context): Promise<Response> {
+  const ctx    = c.get("tenantCtx");
+  const reqId  = c.get("requestId");
+  const bucket = resolveBucket(c);
+  const key    = resolveKey(c);
+  const kv     = (c.env as Env).UPLOAD_KV;
 
-  const meta = await loadMeta(env, proxyId);
-  guardOwnership(meta, ctx.record.tenantId, bucket, key, proxyId);
+  const uploadId = c.req.query("uploadId") ?? "";
+  if (!uploadId) throw ProxyError.malformedXML("uploadId query param missing");
 
+  const meta = await loadMeta(kv, uploadId);
+  verifyOwnership(meta, ctx.record.tenantId, bucket, key, uploadId);
+
+  // Parse the client's <CompleteMultipartUpload> body
   const body = await c.req.text();
-  let req;
+  if (!body.trim()) throw ProxyError.malformedXML("Request body is empty");
+
+  let parsed;
   try {
-    req = parseCompleteMpu(body);
+    parsed = parseCompleteMpu(body);
   } catch (e) {
-    throw ProxyError.badRequest(`CompleteMultipartUpload XML: ${String(e)}`);
+    throw ProxyError.malformedXML(e instanceof Error ? e.message : String(e));
   }
 
-  // Validate ascending part order (S3 spec requirement)
-  for (let i = 1; i < req.Parts.length; i++) {
-    const prev = req.Parts[i - 1]!;
-    const curr = req.Parts[i]!;
+  if (parsed.parts.length === 0) {
+    throw ProxyError.malformedXML("CompleteMultipartUpload must contain at least one Part");
+  }
+
+  // Validate strictly ascending part numbers (S3 spec §CompleteMultipartUpload)
+  for (let i = 1; i < parsed.parts.length; i++) {
+    const prev = parsed.parts[i - 1]!;
+    const curr = parsed.parts[i]!;
     if (prev.PartNumber >= curr.PartNumber) {
       throw ProxyError.invalidPartOrder(
-        `Part ${prev.PartNumber} must precede ${curr.PartNumber}`
+        `Part ${curr.PartNumber} must have a higher part number than part ${prev.PartNumber}`,
       );
     }
   }
 
-  // Build the SDK CompletedPart array from the client-supplied ETags
-  const parts: CompletedPart[] = req.Parts.map((p) => ({
+  // Build the SDK CompletedPart array — ETags from the client are forwarded as-is
+  const completedParts: CompletedPart[] = parsed.parts.map((p) => ({
     PartNumber: p.PartNumber,
-    ETag: p.ETag,
+    ETag:       p.ETag,
   }));
 
-  await client.completeMultipartUpload(
+  const client = await makeClient(ctx);
+  const result = await client.completeMultipartUpload(
     meta.realKey,
     meta.backendUploadId,
-    parts
+    completedParts,
   );
 
-  // Best-effort cleanup
-  await env.UPLOAD_KV.delete(`upload:meta:${proxyId}`).catch(() => {});
+  // Async cleanup — fire-and-forget; TTL handles it if this fails
+  c.executionCtx?.waitUntil(
+    kv.delete(`upload:meta:${uploadId}`).catch(
+      (err: unknown) => console.warn("Failed to delete upload meta:", err),
+    ),
+  );
 
-  return new Response(null, { status: 200 });
+  return xmlResponse(
+    xmlCompleteResult(bucket, key, result.etag, result.location),
+    200, reqId,
+  );
 }
 
-// ─── DELETE /{bucket}/{key}?uploadId=X — AbortMultipartUpload ────────────────
+// ─── AbortMultipartUpload ────────────────────────────────────────────────────
 
-export async function handleAbortMultipartUpload(
-  c: Context
-): Promise<Response> {
-  const ctx = c.get("tenantCtx");
-  const secretKey = await ctx.backendSecret();
-  const client = new S3CompatClient(ctx.record.defaultBackend, secretKey);
-  const bucket = c.req.param("bucket");
-  const key = c.req.param("key") ?? "";
-  const proxyId = c.req.query("uploadId") ?? "";
-  const env = c.env as Env;
+export async function handleAbortMultipartUpload(c: Context): Promise<Response> {
+  const ctx    = c.get("tenantCtx");
+  const reqId  = c.get("requestId");
+  const bucket = resolveBucket(c);
+  const key    = resolveKey(c);
+  const kv     = (c.env as Env).UPLOAD_KV;
 
-  const meta = await loadMeta(env, proxyId);
-  guardOwnership(meta, ctx.record.tenantId, bucket, key, proxyId);
+  const uploadId = c.req.query("uploadId") ?? "";
+  if (!uploadId) throw ProxyError.malformedXML("uploadId query param missing");
 
+  const meta = await loadMeta(kv, uploadId);
+  verifyOwnership(meta, ctx.record.tenantId, bucket, key, uploadId);
+
+  const client = await makeClient(ctx);
   await client.abortMultipartUpload(meta.realKey, meta.backendUploadId);
-  await env.UPLOAD_KV.delete(`upload:meta:${proxyId}`).catch(() => {});
 
-  return new Response(null, { status: 204 });
+  c.executionCtx?.waitUntil(
+    kv.delete(`upload:meta:${uploadId}`).catch(
+      (err: unknown) => console.warn("Failed to delete upload meta:", err),
+    ),
+  );
+
+  return emptyResponse(204, reqId);
 }
 
-// ─── GET /{bucket}/{key}?uploadId=X — ListParts ──────────────────────────────
+// ─── ListParts ───────────────────────────────────────────────────────────────
 
 export async function handleListParts(c: Context): Promise<Response> {
-  const ctx = c.get("tenantCtx");
-  const secretKey = await ctx.backendSecret();
-  const client = new S3CompatClient(ctx.record.defaultBackend, secretKey);
-  const bucket = c.req.param("bucket");
-  const key = c.req.param("key") ?? "";
-  const proxyId = c.req.query("uploadId") ?? "";
-  const env = c.env as Env;
+  const ctx    = c.get("tenantCtx");
+  const reqId  = c.get("requestId");
+  const bucket = resolveBucket(c);
+  const key    = resolveKey(c);
+  const kv     = (c.env as Env).UPLOAD_KV;
 
-  const meta = await loadMeta(env, proxyId);
-  guardOwnership(meta, ctx.record.tenantId, bucket, key, proxyId);
+  const uploadId         = c.req.query("uploadId") ?? "";
+  const maxPartsRaw      = c.req.query("max-parts")           ?? "1000";
+  const partMarkerRaw    = c.req.query("part-number-marker")  ?? "";
 
-  // Use SDK to list parts — response is already typed
-  const resp = await client.listParts(meta.realKey, meta.backendUploadId);
-  const parts = (resp.Parts ?? []).map((p) => ({
-    partNumber: p.PartNumber ?? 0,
-    etag: p.ETag ?? "",
-    size: p.Size ?? 0,
+  if (!uploadId) throw ProxyError.malformedXML("uploadId query param missing");
+
+  const maxParts  = Math.min(parseInt(maxPartsRaw, 10) || 1000, 1000);
+  const partMarker = partMarkerRaw ? parseInt(partMarkerRaw, 10) : undefined;
+
+  const meta = await loadMeta(kv, uploadId);
+  verifyOwnership(meta, ctx.record.tenantId, bucket, key, uploadId);
+
+  const client = await makeClient(ctx);
+  const result = await client.listParts(meta.realKey, meta.backendUploadId, maxParts, partMarker);
+
+  const parts = (result.parts ?? []).map((p) => ({
+    partNumber:   p.PartNumber   ?? 0,
+    etag:         p.ETag         ?? "",
+    size:         BigInt(p.Size  ?? 0),
     lastModified: p.LastModified?.toISOString() ?? "",
   }));
 
-  return xmlRes(xmlListParts(bucket, key, proxyId, parts));
+  return xmlResponse(
+    xmlListParts(
+      bucket, key, uploadId,
+      result.isTruncated,
+      result.nextPartNumber,
+      parts,
+    ),
+    200, reqId,
+  );
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+async function loadMeta(kv: KVNamespace, proxyId: string): Promise<UploadMeta> {
+  // Sanitise the proxyId before using it as a KV key
+  if (!/^[0-9a-f-]{36}$/i.test(proxyId)) {
+    throw ProxyError.noSuchUpload(proxyId);
+  }
+  const raw = await kv.get(`upload:meta:${proxyId}`);
+  if (!raw) throw ProxyError.noSuchUpload(proxyId);
+  try {
+    return JSON.parse(raw) as UploadMeta;
+  } catch {
+    throw ProxyError.internal("Upload metadata is corrupt");
+  }
+}
+
+function verifyOwnership(
+  meta:     UploadMeta,
+  tenantId: string,
+  bucket:   string,
+  key:      string,
+  proxyId:  string,
+): void {
+  // All three conditions must match — partial matches are treated identically
+  // to avoid oracle attacks (an attacker can't distinguish "wrong tenant" from
+  // "wrong bucket" from "upload not found")
+  if (
+    meta.tenantId      !== tenantId ||
+    meta.virtualBucket !== bucket   ||
+    meta.virtualKey    !== key
+  ) {
+    throw ProxyError.noSuchUpload(proxyId);
+  }
+}
+
+function generateUploadId(): string {
+  // Standard UUID v4 format — compatible with all S3 client parsers
+  return crypto.randomUUID();
 }

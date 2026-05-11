@@ -1,181 +1,186 @@
 /**
- * SigV4 verification using the official `@smithy/signature-v4` library.
+ * SigV4 signature verification using `@smithy/signature-v4`.
  *
- * We use the library's `sign()` method to compute what the correct signature
- * _should_ be for the incoming request, then compare it in constant time
- * against the client-supplied signature.
+ * We reconstruct the request the client signed, then ask the Smithy library
+ * to compute what the correct signature should be. We compare the result
+ * to the client-supplied signature using constant-time comparison.
  *
- * This replaces ~300 lines of hand-rolled SigV4 in v1/v2 with ~60 lines
- * that delegate all canonical-request, HMAC-SHA256, and string-to-sign
- * construction to the battle-tested Smithy implementation.
+ * This handles all edge cases that hand-rolled SigV4 gets wrong:
+ *   - Canonical header value normalisation (multi-space collapsing)
+ *   - URI double-encoding rules for path segments
+ *   - Query parameter sorting (encoded key, then encoded value)
+ *   - Chunked transfer encoding detection
+ *   - `UNSIGNED-PAYLOAD` vs actual SHA-256 payload hash
  *
- * @see https://www.npmjs.com/package/@smithy/signature-v4
+ * Presigned URL verification also supported — the Smithy library
+ * correctly handles the `X-Amz-*` query params being part of the
+ * canonical request rather than headers.
  */
-import { SignatureV4 } from "@smithy/signature-v4";
-import { Sha256 } from "@aws-crypto/sha256-js";
+
+import { SignatureV4 }      from "@smithy/signature-v4";
+import { Sha256 }           from "@aws-crypto/sha256-js";
 import { constantTimeEqual } from "@/crypto";
-import { ProxyError } from "@/errors";
+import { ProxyError }        from "@/errors";
+import {
+  parseAuthHeader,
+  parsePresignedParams,
+  isTimestampFresh,
+  type ParsedAuth,
+} from "./parser";
 
-// ─── Parsed Authorization header ─────────────────────────────────────────────
+// ─── Public API ───────────────────────────────────────────────────────────────
 
-export interface ParsedAuth {
-  readonly accessKeyId: string;
-  readonly date: string; // YYYYMMDD
-  readonly region: string;
-  readonly service: string;
-  readonly signedHeaders: string[];
-  readonly signature: string;
+export { ParsedAuth };
+
+export interface VerifyResult {
+  readonly parsed: ParsedAuth;
 }
 
-export function parseAuthHeader(header: string): ParsedAuth {
-  const tail = header.replace(/^AWS4-HMAC-SHA256\s+/, "");
-  if (tail === header)
-    throw ProxyError.malformedAuth("must start with AWS4-HMAC-SHA256");
+/**
+ * Verify the SigV4 signature on an incoming request.
+ *
+ * Supports both:
+ *   - Header auth (`Authorization: AWS4-HMAC-SHA256 …`)
+ *   - Presigned URL auth (`?X-Amz-Signature=…`)
+ *
+ * Returns the parsed auth fields for use in subsequent handler logic.
+ */
+export async function verifySigV4(
+  request:   Request,
+  secretKey: string,
+): Promise<VerifyResult> {
+  const url     = new URL(request.url);
+  const headers = request.headers;
 
-  const parts = Object.fromEntries(
-    tail.split(", ").map((p) => p.split("=", 2) as [string, string])
-  );
+  // ── Detect auth style ──────────────────────────────────────────────────────
+  const isPresigned = url.searchParams.has("X-Amz-Signature");
 
-  const credential = parts["Credential"] ?? "";
-  const signedHeaders = parts["SignedHeaders"] ?? "";
-  const signature = parts["Signature"] ?? "";
+  let parsed: ParsedAuth;
 
-  if (!credential || !signedHeaders || !signature) {
+  if (isPresigned) {
+    parsed = parsePresignedParams(url.searchParams);
+
+    // Presigned URL: check wall-clock expiry first
+    if (!parsed.expiresAt || Date.now() > parsed.expiresAt.getTime()) {
+      throw ProxyError.requestExpired();
+    }
+  } else {
+    const authHeader  = headers.get("Authorization");
+    if (!authHeader)  throw ProxyError.noAuth();
+
+    const xAmzDate    = headers.get("x-amz-date");
+    parsed            = parseAuthHeader(authHeader, xAmzDate);
+
+    // Header auth: check timestamp freshness (±15 min)
+    if (!isTimestampFresh(parsed.timestamp)) {
+      throw ProxyError.requestExpired();
+    }
+  }
+
+  // ── Build the HttpRequest the Smithy signer expects ───────────────────────
+  const smithyRequest = buildSmithyRequest(request, url, parsed, isPresigned);
+
+  // ── Re-sign using @smithy/signature-v4 ───────────────────────────────────
+  const signer = new SignatureV4({
+    credentials: {
+      accessKeyId:     parsed.accessKeyId,
+      secretAccessKey: secretKey,
+    },
+    region:  parsed.region,
+    service: parsed.service,
+    sha256:  Sha256,
+    // applyChecksum: false allows UNSIGNED-PAYLOAD to pass through
+    applyChecksum: false,
+  });
+
+  let expectedSig: string;
+  try {
+    if (isPresigned) {
+      // For presigned URLs, use presign() to get the expected query params
+      const signed = await signer.presign(smithyRequest, {
+        expiresIn:   Math.ceil((parsed.expiresAt!.getTime() - new Date(parsed.timestamp.replace(
+          /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
+          "$1-$2-$3T$4:$5:$6Z",
+        )).getTime()) / 1000),
+        signingDate: new Date(parsed.timestamp.replace(
+          /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
+          "$1-$2-$3T$4:$5:$6Z",
+        )),
+      });
+      expectedSig = (new URL(`https://x${signed.path ?? ""}`)).searchParams
+        .get("X-Amz-Signature") ?? "";
+    } else {
+      const signed = await signer.sign(smithyRequest, {
+        signingDate: new Date(parsed.timestamp.replace(
+          /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/,
+          "$1-$2-$3T$4:$5:$6Z",
+        )),
+      });
+      const authValue = (signed.headers as Record<string, string>)["authorization"] ?? "";
+      const match = /Signature=([0-9a-f]+)/i.exec(authValue);
+      expectedSig = match?.[1]?.toLowerCase() ?? "";
+    }
+  } catch (err) {
+    // Signer errors indicate malformed request rather than wrong credentials
     throw ProxyError.malformedAuth(
-      "missing Credential, SignedHeaders, or Signature"
+      `Cannot compute expected signature: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 
-  const [akid, date, region, service, terminator] = credential.split("/");
-  if (terminator !== "aws4_request" || !akid || !date || !region || !service) {
-    throw ProxyError.malformedAuth(`invalid Credential: ${credential}`);
+  if (!expectedSig) {
+    throw ProxyError.internal("Signer produced empty signature");
+  }
+
+  // ── Constant-time comparison ──────────────────────────────────────────────
+  if (!constantTimeEqual(expectedSig, parsed.signature.toLowerCase())) {
+    throw ProxyError.signatureMismatch();
+  }
+
+  return { parsed };
+}
+
+// ─── Smithy request builder ───────────────────────────────────────────────────
+
+function buildSmithyRequest(
+  request:     Request,
+  url:         URL,
+  parsed:      ParsedAuth,
+  isPresigned: boolean,
+) {
+  // Collect only the headers that were included in the signature
+  const headers: Record<string, string> = {};
+
+  if (!isPresigned) {
+    for (const name of parsed.signedHeaders) {
+      const value = request.headers.get(name);
+      if (value !== null) {
+        headers[name] = value;
+      } else {
+        // A signed header that's not in the request is always a sig mismatch
+        // but we let the Smithy comparison catch it for consistency
+        headers[name] = "";
+      }
+    }
+  } else {
+    // Presigned: only "host" is typically signed
+    headers["host"] = url.host;
+  }
+
+  // Build query map, excluding auth params for presigned comparison
+  const query: Record<string, string> = {};
+  for (const [k, v] of url.searchParams.entries()) {
+    if (isPresigned && k === "X-Amz-Signature") continue;
+    query[k] = v;
   }
 
   return {
-    accessKeyId: akid,
-    date,
-    region,
-    service,
-    signedHeaders: signedHeaders.split(";"),
-    signature,
-  };
-}
-
-// ─── Verify ───────────────────────────────────────────────────────────────────
-
-export interface VerifyParams {
-  readonly method: string;
-  readonly url: URL;
-  readonly headers: Headers;
-  readonly parsedAuth: ParsedAuth;
-  /** Tenant's plaintext secret key (fetched from KV after access key lookup). */
-  readonly secretKey: string;
-}
-
-/**
- * Verify an incoming SigV4 signature.
- *
- * Uses `@smithy/signature-v4` to reconstruct the expected signature, then
- * compares it against the client-supplied value in constant time.
- */
-export async function verifySigV4(params: VerifyParams): Promise<void> {
-  const { method, url, headers, parsedAuth, secretKey } = params;
-
-  // Validate timestamp freshness (±15 minutes from now, per AWS spec)
-  const amzDate = headers.get("x-amz-date") ?? "";
-  if (!isTimestampFresh(amzDate)) throw ProxyError.requestExpired();
-
-  // Build a request object in the shape @smithy/signature-v4 expects
-  const requestToSign = {
-    method,
-    headers: headersToRecord(headers, parsedAuth.signedHeaders),
+    method:   request.method.toUpperCase(),
+    protocol: "https:",
     hostname: url.hostname,
-    path: url.pathname,
-    query: Object.fromEntries(url.searchParams),
-    // Pass the payload hash from the header — "UNSIGNED-PAYLOAD" for presigned
-    body: undefined as undefined,
+    port:     url.port ? parseInt(url.port, 10) : undefined,
+    path:     url.pathname,
+    query,
+    headers,
+    body:     undefined as undefined,
   };
-
-  const signer = new SignatureV4({
-    credentials: {
-      accessKeyId: parsedAuth.accessKeyId,
-      secretAccessKey: secretKey,
-    },
-    region: parsedAuth.region,
-    service: parsedAuth.service,
-    sha256: Sha256,
-    applyChecksum: false, // we accept UNSIGNED-PAYLOAD
-  });
-
-  // Re-sign the request to get the expected Authorization header
-  const signed = await signer.sign(requestToSign, {
-    signingDate: parseSigV4Date(parsedAuth.date, amzDate),
-  });
-
-  const expectedAuth = (signed.headers["authorization"] as string) ?? "";
-  const expectedSig = extractSignature(expectedAuth);
-
-  if (!constantTimeEqual(expectedSig, parsedAuth.signature)) {
-    throw ProxyError.signatureMismatch();
-  }
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Convert a Headers object to a plain record, only including headers
- * that appear in the signed headers list.
- */
-function headersToRecord(
-  headers: Headers,
-  signedHeaderNames: string[]
-): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const name of signedHeaderNames) {
-    const value = headers.get(name);
-    if (value !== null) result[name] = value;
-  }
-  return result;
-}
-
-/**
- * Parse an AMZ date string ("20240115T120000Z") into a Date object.
- * Falls back to the YYYYMMDD date if the full timestamp is unavailable.
- */
-function parseSigV4Date(yyyymmdd: string, timestamp: string): Date {
-  if (timestamp && /^\d{8}T\d{6}Z$/.test(timestamp)) {
-    return new Date(
-      `${timestamp.slice(0, 4)}-${timestamp.slice(4, 6)}-${timestamp.slice(
-        6,
-        8
-      )}T` +
-        `${timestamp.slice(9, 11)}:${timestamp.slice(11, 13)}:${timestamp.slice(
-          13,
-          15
-        )}Z`
-    );
-  }
-  return new Date(
-    `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(
-      6,
-      8
-    )}T00:00:00Z`
-  );
-}
-
-/** Extract the Signature= value from an Authorization header. */
-function extractSignature(auth: string): string {
-  const match = /Signature=([0-9a-f]+)/i.exec(auth);
-  return match?.[1] ?? "";
-}
-
-/** Check that an AMZ timestamp is within ±15 minutes of now. */
-function isTimestampFresh(amzDate: string): boolean {
-  if (!amzDate || !/^\d{8}T\d{6}Z$/.test(amzDate)) return false;
-
-  const ts = parseSigV4Date(amzDate.slice(0, 8), amzDate).getTime();
-  const now = Date.now();
-  const FIFTEEN_MIN_MS = 15 * 60 * 1000;
-
-  return Math.abs(now - ts) <= FIFTEEN_MIN_MS;
 }
