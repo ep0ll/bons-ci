@@ -17,11 +17,13 @@ require (
 	github.com/containerd/stargz-snapshotter v0.18.2
 	github.com/containerd/stargz-snapshotter/estargz v0.18.2
 	github.com/containernetworking/plugins v1.9.0
+	github.com/cyphar/filepath-securejoin v0.6.0
 	github.com/gofrs/flock v0.13.0
 	github.com/klauspost/pgzip v1.2.6
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/moby/buildkit v0.28.0
+	github.com/moby/patternmatcher v0.6.0
 	github.com/moby/profiles/seccomp v0.1.0
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/moby/sys/signal v0.7.1
@@ -54,7 +56,6 @@ require (
 	github.com/containernetworking/cni v1.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
-	github.com/cyphar/filepath-securejoin v0.6.0 // indirect
 	github.com/data-accelerator/zdfs v0.1.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/docker/cli v29.3.0+incompatible // indirect
