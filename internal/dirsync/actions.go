@@ -1,4 +1,4 @@
-package differ
+package dirsync
 
 import (
 	"context"
@@ -6,29 +6,32 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 	"sync/atomic"
 )
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Observers (read-only, no mutations)
+// Logging handlers — structured output via slog
 // ─────────────────────────────────────────────────────────────────────────────
 
-// LogExclusiveHandler logs each exclusive path using structured [slog].
+// LogExclusiveHandler logs each exclusive path as a structured [slog] record.
+// It is a pure observer — it performs no mutations.
 type LogExclusiveHandler struct {
+	// Logger is the slog instance to write to. Required; will panic if nil.
 	Logger *slog.Logger
-	Level  slog.Level
+	// Level controls which log level is used. Defaults to slog.LevelInfo.
+	Level slog.Level
 }
 
 // HandleExclusive implements [ExclusiveHandler].
-//
-// BUG FIX L1: The original used context.Background() instead of the provided
-// ctx. This discarded any trace IDs, cancellation signals, or deadline
-// information that callers attached to the context.
-func (l *LogExclusiveHandler) HandleExclusive(ctx context.Context, ep ExclusivePath) error {
-	l.Logger.Log(ctx, l.Level, "exclusive path",
+func (h *LogExclusiveHandler) HandleExclusive(ctx context.Context, ep ExclusivePath) error {
+	// Using the provided ctx preserves trace IDs, cancellation, and deadline
+	// information that callers attach — never use context.Background() here.
+	h.Logger.Log(ctx, h.Level, "exclusive path",
 		slog.String("path", ep.Path),
 		slog.String("kind", ep.Kind.String()),
-		slog.Bool("collapsed", ep.Collapsed))
+		slog.Bool("collapsed", ep.Collapsed),
+	)
 	return nil
 }
 
@@ -39,24 +42,24 @@ type LogCommonHandler struct {
 }
 
 // HandleCommon implements [CommonHandler].
-//
-// BUG FIX L1: Same fix as LogExclusiveHandler — use the provided ctx.
-func (l *LogCommonHandler) HandleCommon(ctx context.Context, cp CommonPath) error {
+func (h *LogCommonHandler) HandleCommon(ctx context.Context, cp CommonPath) error {
 	eq, checked := cp.IsContentEqual()
-	l.Logger.Log(ctx, l.Level, "common path",
+	h.Logger.Log(ctx, h.Level, "common path",
 		slog.String("path", cp.Path),
 		slog.String("kind", cp.Kind.String()),
 		slog.Bool("hash_checked", checked),
 		slog.Bool("hash_equal", eq),
-		slog.Bool("type_mismatch", cp.TypeMismatch()))
+		slog.Bool("type_mismatch", cp.TypeMismatch()),
+	)
 	return nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Counters (atomic, concurrency-safe)
+// Counting handlers — atomic, concurrency-safe tallies
 // ─────────────────────────────────────────────────────────────────────────────
 
-// CountingExclusiveHandler tallies exclusive paths by kind using atomic counters.
+// CountingExclusiveHandler tallies exclusive paths by kind using atomic
+// counters. Safe for concurrent use from multiple handler goroutines.
 type CountingExclusiveHandler struct {
 	files     atomic.Int64
 	dirs      atomic.Int64
@@ -65,6 +68,7 @@ type CountingExclusiveHandler struct {
 	collapsed atomic.Int64
 }
 
+// HandleExclusive implements [ExclusiveHandler].
 func (c *CountingExclusiveHandler) HandleExclusive(_ context.Context, ep ExclusivePath) error {
 	switch ep.Kind {
 	case PathKindFile:
@@ -83,8 +87,9 @@ func (c *CountingExclusiveHandler) HandleExclusive(_ context.Context, ep Exclusi
 }
 
 // Snapshot returns a point-in-time copy of all counters.
-func (c *CountingExclusiveHandler) Snapshot() ExclusiveCounters {
-	return ExclusiveCounters{
+// The snapshot is self-consistent within the bounds of one atomic read per field.
+func (c *CountingExclusiveHandler) Snapshot() ExclusiveCounts {
+	return ExclusiveCounts{
 		Files:     c.files.Load(),
 		Dirs:      c.dirs.Load(),
 		Symlinks:  c.symlinks.Load(),
@@ -93,23 +98,26 @@ func (c *CountingExclusiveHandler) Snapshot() ExclusiveCounters {
 	}
 }
 
-// ExclusiveCounters is an immutable snapshot of [CountingExclusiveHandler] counters.
-type ExclusiveCounters struct {
-	Files, Dirs, Symlinks, Other, Collapsed int64
+// ExclusiveCounts is an immutable snapshot of [CountingExclusiveHandler] counters.
+type ExclusiveCounts struct {
+	Files, Dirs, Symlinks, Other int64
+	// Collapsed is the subset of Dirs entries that were collapsed.
+	Collapsed int64
 }
 
-// Total returns the sum of all classified entries.
-func (e ExclusiveCounters) Total() int64 { return e.Files + e.Dirs + e.Symlinks + e.Other }
+// Total returns the sum of all classified entries (files + dirs + symlinks + other).
+func (e ExclusiveCounts) Total() int64 { return e.Files + e.Dirs + e.Symlinks + e.Other }
 
-// CountingCommonHandler tallies common paths by outcome.
+// CountingCommonHandler tallies common paths by their comparison outcome.
 type CountingCommonHandler struct {
 	total     atomic.Int64
 	equal     atomic.Int64
 	changed   atomic.Int64
-	unchecked atomic.Int64
-	mismatch  atomic.Int64
+	unchecked atomic.Int64 // directories, special files; comparison not performed
+	mismatch  atomic.Int64 // type-mismatch entries
 }
 
+// HandleCommon implements [CommonHandler].
 func (c *CountingCommonHandler) HandleCommon(_ context.Context, cp CommonPath) error {
 	c.total.Add(1)
 	if cp.TypeMismatch() {
@@ -129,8 +137,8 @@ func (c *CountingCommonHandler) HandleCommon(_ context.Context, cp CommonPath) e
 }
 
 // Snapshot returns a point-in-time copy of all counters.
-func (c *CountingCommonHandler) Snapshot() CommonCounters {
-	return CommonCounters{
+func (c *CountingCommonHandler) Snapshot() CommonCounts {
+	return CommonCounts{
 		Total:     c.total.Load(),
 		Equal:     c.equal.Load(),
 		Changed:   c.changed.Load(),
@@ -139,36 +147,26 @@ func (c *CountingCommonHandler) Snapshot() CommonCounters {
 	}
 }
 
-// CommonCounters is an immutable snapshot of [CountingCommonHandler] counters.
-type CommonCounters struct {
+// CommonCounts is an immutable snapshot of [CountingCommonHandler] counters.
+type CommonCounts struct {
 	Total, Equal, Changed, Unchecked, Mismatch int64
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Accumulating handler — feeds a PruningSet
+// Collecting handlers — in-memory accumulation, for tests and audit
 // ─────────────────────────────────────────────────────────────────────────────
 
-// AccumulatingExclusiveHandler appends each exclusive path into a [PruningSet].
-// Designed for two-phase workflows: collect all paths, then batch-process.
-type AccumulatingExclusiveHandler struct {
-	Set *PruningSet
-}
-
-func (a *AccumulatingExclusiveHandler) HandleExclusive(_ context.Context, ep ExclusivePath) error {
-	a.Set.Add(ep)
-	return nil
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Collecting handlers — in-memory accumulation (test doubles / audit)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// CollectingExclusiveHandler accumulates all ExclusivePath values in memory.
+// CollectingExclusiveHandler accumulates all [ExclusivePath] values in memory.
+// Intended for unit tests and audit use cases where in-memory inspection is
+// more convenient than channel draining.
+//
+// Thread-safe: multiple goroutines may call HandleExclusive concurrently.
 type CollectingExclusiveHandler struct {
-	mu    noCopy
+	mu    sync.Mutex
 	paths []ExclusivePath
 }
 
+// HandleExclusive implements [ExclusiveHandler].
 func (c *CollectingExclusiveHandler) HandleExclusive(_ context.Context, ep ExclusivePath) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -176,7 +174,8 @@ func (c *CollectingExclusiveHandler) HandleExclusive(_ context.Context, ep Exclu
 	return nil
 }
 
-// Paths returns a snapshot of accumulated paths.
+// Paths returns a point-in-time snapshot of all accumulated paths.
+// The returned slice is a copy; modifications do not affect the handler.
 func (c *CollectingExclusiveHandler) Paths() []ExclusivePath {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -185,19 +184,20 @@ func (c *CollectingExclusiveHandler) Paths() []ExclusivePath {
 	return out
 }
 
-// Reset clears the accumulated paths.
+// Reset clears all accumulated paths.
 func (c *CollectingExclusiveHandler) Reset() {
 	c.mu.Lock()
 	c.paths = c.paths[:0]
 	c.mu.Unlock()
 }
 
-// CollectingCommonHandler accumulates all CommonPath values in memory.
+// CollectingCommonHandler accumulates all [CommonPath] values in memory.
 type CollectingCommonHandler struct {
-	mu    noCopy
+	mu    sync.Mutex
 	paths []CommonPath
 }
 
+// HandleCommon implements [CommonHandler].
 func (c *CollectingCommonHandler) HandleCommon(_ context.Context, cp CommonPath) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -205,7 +205,7 @@ func (c *CollectingCommonHandler) HandleCommon(_ context.Context, cp CommonPath)
 	return nil
 }
 
-// Paths returns a snapshot of accumulated paths.
+// Paths returns a point-in-time snapshot of all accumulated paths.
 func (c *CollectingCommonHandler) Paths() []CommonPath {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -214,7 +214,7 @@ func (c *CollectingCommonHandler) Paths() []CommonPath {
 	return out
 }
 
-// Reset clears the accumulated paths.
+// Reset clears all accumulated paths.
 func (c *CollectingCommonHandler) Reset() {
 	c.mu.Lock()
 	c.paths = c.paths[:0]
@@ -222,21 +222,52 @@ func (c *CollectingCommonHandler) Reset() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DryRun handler — prints what would happen
+// AccumulatingExclusiveHandler — feeds a PruningSet for two-phase workflows
+// ─────────────────────────────────────────────────────────────────────────────
+
+// AccumulatingExclusiveHandler appends each exclusive path into a [PruningSet].
+//
+// Designed for two-phase workflows where all paths must be collected first
+// and then batch-processed:
+//
+//  1. Collect phase: run the pipeline with this handler; PruningSet accumulates.
+//  2. Process phase: call PruningSet.Drain to execute the batched operations.
+//
+// This avoids the overhead of individual Remove calls during classification,
+// which is beneficial when removal requires exclusive access or cross-system
+// coordination.
+type AccumulatingExclusiveHandler struct {
+	// Set is the target pruning set. Must be non-nil.
+	Set *PruningSet
+}
+
+// HandleExclusive implements [ExclusiveHandler].
+func (a *AccumulatingExclusiveHandler) HandleExclusive(_ context.Context, ep ExclusivePath) error {
+	a.Set.Add(ep)
+	return nil
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DryRunExclusiveHandler — preview without mutation
 // ─────────────────────────────────────────────────────────────────────────────
 
 // DryRunExclusiveHandler records every exclusive path that would have been
-// deleted, without performing any filesystem mutation.
+// deleted, printing a human-readable description to Writer without performing
+// any filesystem mutations. Use it to preview operations before committing.
 type DryRunExclusiveHandler struct {
-	// Writer is where dry-run output is written. Defaults to os.Stdout.
+	// Writer receives the dry-run output. Defaults to os.Stdout when nil.
 	Writer io.Writer
 }
 
-func (r *DryRunExclusiveHandler) HandleExclusive(_ context.Context, ep ExclusivePath) error {
-	w := r.Writer
+// HandleExclusive implements [ExclusiveHandler].
+func (h *DryRunExclusiveHandler) HandleExclusive(_ context.Context, ep ExclusivePath) error {
+	w := h.Writer
 	if w == nil {
 		w = os.Stdout
 	}
+
+	// Collapsed directories would use RemoveAll (recursive); individual files
+	// and non-collapsed entries use the lighter Remove.
 	verb := "remove"
 	if ep.Collapsed {
 		verb = "removeAll"

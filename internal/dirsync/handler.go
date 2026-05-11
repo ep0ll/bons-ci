@@ -1,51 +1,42 @@
-package differ
+package dirsync
 
 import "context"
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ExclusiveHandler
+// Core handler interfaces
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ExclusiveHandler processes entries that exist only in the lower directory.
 //
 // Implementations receive [ExclusivePath] values from the exclusive stream.
-// Collapsed directory entries (Collapsed==true) represent an entire subtree
-// that the handler should treat as a single atomic unit — e.g. one
-// os.RemoveAll call rather than per-file operations.
+// Collapsed directory entries (Collapsed == true) represent an entire subtree
+// that the handler should treat as one atomic unit — e.g. one os.RemoveAll
+// call rather than per-file operations.
 //
-// All implementations must be safe for concurrent use: the [Engine] may
-// invoke HandleExclusive from multiple goroutines simultaneously.
+// All implementations must be safe for concurrent use: the [Pipeline] may
+// call HandleExclusive from multiple goroutines simultaneously.
 type ExclusiveHandler interface {
-	// HandleExclusive is called once per exclusive path.
-	// Returning a non-nil error causes the [Engine] to collect the error and
-	// (depending on engine configuration) optionally abort the pipeline.
 	HandleExclusive(ctx context.Context, ep ExclusivePath) error
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CommonHandler
-// ─────────────────────────────────────────────────────────────────────────────
-
 // CommonHandler processes entries that exist in both lower and upper.
 //
-// When called, cp.HashEqual is already populated (for regular files and
-// symlinks). The handler inspects the equality result to decide what action to
-// take — e.g. delete from merged if content is identical to lower, overwrite
-// if changed, or skip.
+// When called, cp.HashEqual is already populated for regular files and
+// symlinks. Handlers inspect the equality result to decide what action to
+// take — delete from merged if identical, skip if changed, etc.
 //
 // All implementations must be safe for concurrent use.
 type CommonHandler interface {
-	// HandleCommon is called once per common path.
 	HandleCommon(ctx context.Context, cp CommonPath) error
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ExclusiveHandlerFunc / CommonHandlerFunc — adapter types
+// Function adapters — turn plain functions into handler interface values
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ExclusiveHandlerFunc is a function that implements [ExclusiveHandler].
-// It allows plain functions and closures to satisfy the interface without a
-// named struct type.
+// It lets closures and package-level functions satisfy the interface without
+// needing a named struct type.
 type ExclusiveHandlerFunc func(ctx context.Context, ep ExclusivePath) error
 
 // HandleExclusive implements [ExclusiveHandler].
@@ -62,34 +53,32 @@ func (f CommonHandlerFunc) HandleCommon(ctx context.Context, cp CommonPath) erro
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NoopExclusiveHandler / NoopCommonHandler
+// No-ops — silent discard, useful as placeholders
 // ─────────────────────────────────────────────────────────────────────────────
 
 // NoopExclusiveHandler silently discards all exclusive paths.
-// Useful as a placeholder or in unit tests that only care about the common stream.
+// Useful as a placeholder in [Pipeline] when only the common stream matters,
+// or as the handler in an observe-only [Engine].
 type NoopExclusiveHandler struct{}
 
 // HandleExclusive implements [ExclusiveHandler].
-func (NoopExclusiveHandler) HandleExclusive(_ context.Context, _ ExclusivePath) error {
-	return nil
-}
+func (NoopExclusiveHandler) HandleExclusive(_ context.Context, _ ExclusivePath) error { return nil }
 
 // NoopCommonHandler silently discards all common paths.
 type NoopCommonHandler struct{}
 
 // HandleCommon implements [CommonHandler].
-func (NoopCommonHandler) HandleCommon(_ context.Context, _ CommonPath) error {
-	return nil
-}
+func (NoopCommonHandler) HandleCommon(_ context.Context, _ CommonPath) error { return nil }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ChainExclusiveHandler / ChainCommonHandler — composite handlers
+// ChainHandler — sequential composition, stops on first error
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ChainExclusiveHandler invokes a sequence of [ExclusiveHandler] implementations
-// in order. If any handler returns an error, the chain stops and that error is
-// returned. Use [MultiExclusiveHandler] for a fan-out strategy that continues
-// despite individual errors.
+// in order. Stops and returns the error from the first handler that fails.
+//
+// Use [MultiExclusiveHandler] when you need a fan-out that continues even when
+// individual handlers fail.
 type ChainExclusiveHandler []ExclusiveHandler
 
 // HandleExclusive implements [ExclusiveHandler].
@@ -102,8 +91,8 @@ func (c ChainExclusiveHandler) HandleExclusive(ctx context.Context, ep Exclusive
 	return nil
 }
 
-// ChainCommonHandler invokes a sequence of [CommonHandler] implementations in
-// order, stopping on the first error.
+// ChainCommonHandler invokes a sequence of [CommonHandler] implementations
+// in order, stopping on the first error.
 type ChainCommonHandler []CommonHandler
 
 // HandleCommon implements [CommonHandler].
@@ -117,12 +106,12 @@ func (c ChainCommonHandler) HandleCommon(ctx context.Context, cp CommonPath) err
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MultiExclusiveHandler / MultiCommonHandler — fan-out handlers
+// MultiHandler — fan-out composition, collects all errors
 // ─────────────────────────────────────────────────────────────────────────────
 
-// MultiExclusiveHandler fans out each exclusive path to all registered handlers,
-// collecting all errors via errors.Join. Unlike [ChainExclusiveHandler], every
-// handler is always invoked even when earlier handlers fail.
+// MultiExclusiveHandler fans each exclusive path out to all registered handlers.
+// Unlike [ChainExclusiveHandler], every handler is always invoked even when
+// earlier handlers fail. All errors are collected via [errors.Join].
 type MultiExclusiveHandler []ExclusiveHandler
 
 // HandleExclusive implements [ExclusiveHandler].
@@ -136,7 +125,7 @@ func (m MultiExclusiveHandler) HandleExclusive(ctx context.Context, ep Exclusive
 	return joinErrors(errs)
 }
 
-// MultiCommonHandler fans out each common path to all registered handlers,
+// MultiCommonHandler fans each common path out to all registered handlers,
 // collecting all errors.
 type MultiCommonHandler []CommonHandler
 
@@ -152,17 +141,18 @@ func (m MultiCommonHandler) HandleCommon(ctx context.Context, cp CommonPath) err
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PredicateExclusiveHandler / PredicateCommonHandler — conditional routing
+// PredicateHandler — conditional routing
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ExclusivePredicate is a function that decides whether an [ExclusiveHandler]
-// should be invoked for the given path. It must not perform I/O or block.
+// ExclusivePredicate is a pure function that decides whether an
+// [ExclusiveHandler] should be invoked for a given path.
+// It must not perform I/O, block, or have side effects.
 type ExclusivePredicate func(ep ExclusivePath) bool
 
-// PredicateExclusiveHandler wraps an [ExclusiveHandler] and only delegates to
-// it when the predicate returns true. This is the preferred mechanism for
-// kind-based routing (e.g. handle only dirs, only files) without baking
-// conditional logic into concrete handler implementations.
+// PredicateExclusiveHandler wraps an [ExclusiveHandler] and only delegates
+// when the predicate returns true. This is the preferred way to route by kind
+// (e.g. only dirs, only files) without baking conditional logic into concrete
+// handler implementations.
 type PredicateExclusiveHandler struct {
 	Predicate ExclusivePredicate
 	Handler   ExclusiveHandler
@@ -176,7 +166,7 @@ func (p PredicateExclusiveHandler) HandleExclusive(ctx context.Context, ep Exclu
 	return nil
 }
 
-// CommonPredicate is a function that gates a [CommonHandler].
+// CommonPredicate is a pure function that gates a [CommonHandler].
 type CommonPredicate func(cp CommonPath) bool
 
 // PredicateCommonHandler wraps a [CommonHandler] behind a predicate gate.
@@ -194,22 +184,24 @@ func (p PredicateCommonHandler) HandleCommon(ctx context.Context, cp CommonPath)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Predicate constructors — common routing decisions
+// Built-in predicates — common routing decisions ready to use
 // ─────────────────────────────────────────────────────────────────────────────
 
-// OnlyCollapsed is a predicate that matches only collapsed exclusive dirs.
+// OnlyCollapsed returns a predicate that matches only collapsed exclusive
+// directory entries (those that represent an entire subtree).
 func OnlyCollapsed() ExclusivePredicate {
 	return func(ep ExclusivePath) bool { return ep.Collapsed }
 }
 
-// OnlyKind returns a predicate that matches only entries of the given kind.
+// OnlyKind returns a predicate that matches only exclusive entries of the
+// given [PathKind].
 func OnlyKind(k PathKind) ExclusivePredicate {
 	return func(ep ExclusivePath) bool { return ep.Kind == k }
 }
 
-// OnlyChanged is a predicate for common paths where content has changed.
-// It returns false for paths whose HashEqual is nil (comparison not performed,
-// e.g. directories) or where the hash comparison confirmed equality.
+// OnlyChanged returns a predicate for common paths where content has changed.
+// Returns false for paths where HashEqual is nil (comparison not performed,
+// e.g. directories) or where the comparison confirmed equality.
 func OnlyChanged() CommonPredicate {
 	return func(cp CommonPath) bool {
 		eq, checked := cp.IsContentEqual()
@@ -217,8 +209,8 @@ func OnlyChanged() CommonPredicate {
 	}
 }
 
-// OnlyUnchanged is the inverse of [OnlyChanged]: matches paths where hash
-// comparison confirmed equality.
+// OnlyUnchanged is the inverse of [OnlyChanged]: matches only paths where
+// the hash comparison confirmed byte-for-byte equality.
 func OnlyUnchanged() CommonPredicate {
 	return func(cp CommonPath) bool {
 		eq, checked := cp.IsContentEqual()
@@ -226,8 +218,10 @@ func OnlyUnchanged() CommonPredicate {
 	}
 }
 
-// OnlyTypeMismatched matches common paths where lower and upper have different
-// entry types (e.g. lower=dir, upper=file), following BuildKit overlay semantics.
+// OnlyTypeMismatched returns a predicate that matches common paths where lower
+// and upper have different entry types (e.g. lower=dir, upper=file).
+// This follows BuildKit overlay semantics where an upper non-directory
+// implicitly removes the lower directory tree.
 func OnlyTypeMismatched() CommonPredicate {
 	return func(cp CommonPath) bool { return cp.TypeMismatch() }
 }

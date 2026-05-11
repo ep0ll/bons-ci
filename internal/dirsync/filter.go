@@ -1,99 +1,130 @@
-package differ
+package dirsync
 
 import (
-	"path/filepath"
+	"fmt"
 	"strings"
+
+	"github.com/moby/patternmatcher"
 )
 
-// Filter determines which relative paths participate in the diff.
-// All implementations must be safe for concurrent use from multiple goroutines.
+// ─────────────────────────────────────────────────────────────────────────────
+// Filter interface
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Filter controls which relative paths participate in the diff.
+//
+// All implementations must be safe for concurrent use because the walker may
+// call Include from a goroutine while multiple Classifiers share a Filter.
 type Filter interface {
-	// Include returns true if the given relative path should be processed.
+	// Include returns true when relPath should be processed.
 	//
-	// isDir signals that the entry is a directory. Implementations should return
-	// true for directories whose descendants may still match, even if the
-	// directory itself does not match an include pattern. This preserves correct
-	// recursive descent.
+	// isDir is true when the entry is a directory. Implementations must return
+	// true for directories whose descendants may match — even when the directory
+	// itself does not — so the walker can recurse into them and find children.
 	Include(relPath string, isDir bool) bool
 
-	// RequiredPaths returns paths (relative to the lower root) that must exist
-	// in the lower directory tree. The caller is responsible for reporting
-	// missing required paths as errors.
+	// RequiredPaths returns paths (relative to lower root) that must exist
+	// before classification begins. The Classifier reports a [RequiredPathError]
+	// for each absent path.
 	RequiredPaths() []string
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// NoopFilter — zero-overhead passthrough (the default)
+// ─────────────────────────────────────────────────────────────────────────────
+
 // NoopFilter is a [Filter] that accepts every path and requires nothing.
-// It is the zero-overhead default used when no filtering options are set.
+// Both methods inline to nothing, so there is genuinely zero overhead on
+// the hot path compared to having no filter at all.
 type NoopFilter struct{}
 
+// Include implements [Filter] — always returns true.
 func (NoopFilter) Include(_ string, _ bool) bool { return true }
-func (NoopFilter) RequiredPaths() []string       { return nil }
 
-// PatternFilter implements [Filter] using include/exclude glob patterns and
-// required-path assertions.
+// RequiredPaths implements [Filter] — always returns nil.
+func (NoopFilter) RequiredPaths() []string { return nil }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PatternFilter — powered by github.com/moby/patternmatcher
+// ─────────────────────────────────────────────────────────────────────────────
+
+// PatternFilter implements [Filter] using Docker-compatible gitignore-style
+// patterns via [github.com/moby/patternmatcher] — the same engine used by
+// BuildKit and Docker's .dockerignore processing.
 //
-// Evaluation order (first match wins):
-//  1. If relPath matches an exclude pattern  → rejected.
-//  2. If no include patterns are configured  → accepted.
-//  3. If relPath matches an include pattern  → accepted.
-//  4. If isDir and any include pattern could reside under relPath → accepted
-//     (allows the walker to recurse and find matching descendants).
-//  5. Otherwise → rejected.
+// # Pattern syntax (full gitignore / Moby subset)
 //
-// Pattern syntax when [WithAllowWildcards] is false (default): exact prefix
-// match. Pattern "vendor" matches "vendor" and "vendor/foo/bar".
+//   - "vendor"      — matches "vendor" and any descendant
+//   - "*.go"        — matches any .go file at any depth (base name match)
+//   - "!vendor/x"   — negation: re-includes a previously excluded path
+//   - "**/vendor"   — matches "vendor" at any depth
+//   - "pkg/**"      — matches any path under pkg/
 //
-// Pattern syntax when [WithAllowWildcards] is true: filepath.Match with the
-// same prefix semantics applied first, then glob applied to both the full
-// relative path and its base name.
+// Patterns are evaluated in order; the last matching pattern wins.
+// Negations (!) enable fine-grained exceptions without restructuring the list.
+//
+// # Evaluation order
+//
+//  1. Path matches any exclude pattern (after negations)     → rejected.
+//  2. No include patterns configured                          → accepted.
+//  3. Path matches any include pattern (after negations)     → accepted.
+//  4. isDir && any include pattern could match a descendant  → accepted
+//     (allows walker to descend and find matching children).
+//  5. Otherwise                                              → rejected.
 type PatternFilter struct {
 	includePatterns []string
 	excludePatterns []string
 	requiredPaths   []string
-	allowWildcards  bool
+
+	includeMatcher *patternmatcher.PatternMatcher // nil when no include patterns
+	excludeMatcher *patternmatcher.PatternMatcher // nil when no exclude patterns
 }
 
-// NewPatternFilter constructs a PatternFilter. All slices are defensively
-// copied to prevent aliasing.
-func NewPatternFilter(include, exclude, required []string, allowWildcards bool) *PatternFilter {
-	clone := func(s []string) []string {
-		if len(s) == 0 {
-			return nil
+// NewPatternFilter constructs a [PatternFilter] from pattern lists.
+// Returns an error when any pattern has invalid glob syntax.
+// All slices are copied defensively; caller's slices are not retained.
+func NewPatternFilter(include, exclude, required []string) (*PatternFilter, error) {
+	f := &PatternFilter{
+		includePatterns: copyStrings(include),
+		excludePatterns: copyStrings(exclude),
+		requiredPaths:   copyStrings(required),
+	}
+	var err error
+	if len(include) > 0 {
+		if f.includeMatcher, err = patternmatcher.New(include); err != nil {
+			return nil, fmt.Errorf("filter: invalid include patterns: %w", err)
 		}
-		c := make([]string, len(s))
-		copy(c, s)
-		return c
 	}
-	return &PatternFilter{
-		includePatterns: clone(include),
-		excludePatterns: clone(exclude),
-		requiredPaths:   clone(required),
-		allowWildcards:  allowWildcards,
+	if len(exclude) > 0 {
+		if f.excludeMatcher, err = patternmatcher.New(exclude); err != nil {
+			return nil, fmt.Errorf("filter: invalid exclude patterns: %w", err)
+		}
 	}
+	return f, nil
 }
 
 // Include implements [Filter].
 func (f *PatternFilter) Include(relPath string, isDir bool) bool {
-	// Exclusions take highest precedence.
-	for _, pat := range f.excludePatterns {
-		if f.matchesPath(pat, relPath) {
+	// Step 1: Exclusion wins over everything.
+	if f.excludeMatcher != nil {
+		if excluded, err := f.excludeMatcher.MatchesOrParentMatches(relPath); err == nil && excluded {
 			return false
 		}
 	}
 
-	// No inclusions configured → include everything not excluded.
-	if len(f.includePatterns) == 0 {
+	// Step 2: No include patterns → accept everything not excluded.
+	if f.includeMatcher == nil {
 		return true
 	}
 
-	for _, pat := range f.includePatterns {
-		if f.matchesPath(pat, relPath) {
-			return true
-		}
-		// For directories allow descent so descendants can be matched.
-		if isDir && f.couldMatchUnder(pat, relPath) {
-			return true
-		}
+	// Step 3: Direct include-pattern match.
+	if matched, err := f.includeMatcher.MatchesOrParentMatches(relPath); err == nil && matched {
+		return true
+	}
+
+	// Step 4: Allow directory descent when a child might match.
+	if isDir && f.couldHaveMatchingDescendant(relPath) {
+		return true
 	}
 	return false
 }
@@ -101,36 +132,30 @@ func (f *PatternFilter) Include(relPath string, isDir bool) bool {
 // RequiredPaths implements [Filter].
 func (f *PatternFilter) RequiredPaths() []string { return f.requiredPaths }
 
-// matchesPath reports whether pattern matches relPath as an exact hit or a
-// directory-prefix hit ("vendor" matches "vendor/pkg/foo").
-func (f *PatternFilter) matchesPath(pattern, relPath string) bool {
-	if relPath == pattern || strings.HasPrefix(relPath, pattern+"/") {
-		return true
-	}
-	if !f.allowWildcards {
-		return false
-	}
-	if ok, _ := filepath.Match(pattern, relPath); ok {
-		return true
-	}
-	// Also match against the base component alone (e.g., "*.go" hits "pkg/main.go").
-	if ok, _ := filepath.Match(pattern, filepath.Base(relPath)); ok {
-		return true
+// couldHaveMatchingDescendant reports whether any include pattern might match
+// a path beneath dirPath, driving the walker's recurse-vs-skip decision for
+// directories that don't directly match.
+func (f *PatternFilter) couldHaveMatchingDescendant(dirPath string) bool {
+	for _, raw := range f.includePatterns {
+		// Strip leading negation for the descent check.
+		pat := strings.TrimPrefix(raw, "!")
+		if strings.HasPrefix(pat, dirPath+"/") {
+			return true
+		}
+		// Wildcard patterns ("*.go", "**") could match anything beneath.
+		if strings.ContainsAny(pat, "*?[") {
+			return true
+		}
 	}
 	return false
 }
 
-// couldMatchUnder reports whether pattern could match any entry beneath
-// dirPath, used to decide whether to recurse into a directory.
-func (f *PatternFilter) couldMatchUnder(pattern, dirPath string) bool {
-	// Non-wildcard: check if pattern is a descendant of dirPath.
-	if strings.HasPrefix(pattern, dirPath+"/") {
-		return true
+// copyStrings clones src into a new slice. Returns nil for empty input.
+func copyStrings(src []string) []string {
+	if len(src) == 0 {
+		return nil
 	}
-	if !f.allowWildcards {
-		return false
-	}
-	// Any wildcard pattern that contains a wildcard character could
-	// potentially match beneath any directory.
-	return strings.ContainsAny(pattern, "*?[")
+	dst := make([]string, len(src))
+	copy(dst, src)
+	return dst
 }
